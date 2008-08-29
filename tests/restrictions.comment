@@ -1,0 +1,8 @@
+# This is a comment
+resource cpu 10    # Here is another comment
+resource memory 1000000000   # lots of comments
+resource diskused 10000000 # 10 MB
+resource lograte 1000
+# comment # in a comment #
+call log.write allow
+call log.writelines allow
