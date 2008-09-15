@@ -1,1 +1,1 @@
-gethostbyname_ex("cs.arizona.edu")
+gethostbyname_ex("www.google.com")
