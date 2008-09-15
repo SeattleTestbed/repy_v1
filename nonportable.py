@@ -38,6 +38,9 @@ import socket
 # need for status retrieval
 import statusstorage
 
+# needed to check disk usage
+import misc
+
 
 # This prevents writes to the nanny's status information after we want to stop
 statuslock = threading.Lock()
@@ -233,18 +236,7 @@ def win_check_memory_use(phandle, memlimit):
 # see if the process is over quota and if so raise an exception
 def win_check_disk_use(disklimit):
 
-  diskused = 0
-  for filename in os.listdir("."):
-    try:
-      diskused = diskused + os.path.getsize(filename)
-    except IOError:   # They likely deleted the file in the meantime...
-      pass
-    except OSError:   # They likely deleted the file in the meantime...
-      pass
-
-    # charge an extra 4K for each file to prevent lots of little files from 
-    # using up the disk
-    diskused = diskused + 4096   
+  diskused = misc.compute_disk_use(".")
 
   if diskused > disklimit:
     # We will be killed by the other thread...
@@ -541,18 +533,7 @@ def get_time_and_cpu_percent(readfobj):
 # see if the process is over quota and if so terminate with extreme prejudice.
 def enforce_disk_quota(disklimit, childpid):
 
-  diskused = 0
-  for filename in os.listdir("."):
-    try:
-      diskused = diskused + os.path.getsize(filename)
-    except IOError:
-      pass
-    except OSError:   # They likely deleted the file in the meantime...
-      pass
-
-    # charge an extra 4K for each file to prevent lots of little files from 
-    # using up the disk
-    diskused = diskused + 4096   
+  diskused = misc.compute_disk_use(".")
 
   if diskused > disklimit:
     os.kill(childpid, signal.SIGKILL)
