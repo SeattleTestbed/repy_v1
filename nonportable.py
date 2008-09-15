@@ -35,7 +35,16 @@ import select
 # used for socket.error
 import socket
 
+# need for status retrieval
+import statusstorage
 
+
+# This prevents writes to the nanny's status information after we want to stop
+statuslock = threading.Lock()
+
+# this indicates if we are exiting.   Wrapping in a list to prevent needing a
+# global   (the purpose of this is described below)
+statusexiting = [False]
 
 # this will be a string that identifies us at a high level
 ostype = None
@@ -75,6 +84,38 @@ def preparesocket(socketobject):
 
 # exit all threads
 def harshexit(val):
+
+  # The problem is that there can be multiple calls to harshexit before we
+  # stop.   For example, a signal (like we may send to kill) may trigger a 
+  # call.   As a result, we block all other status writers the first time this
+  # is called, but don't later on...
+  if not statusexiting[0]:
+
+    # do this once (now)
+    statusexiting[0] = True
+
+    # prevent concurrent writes to status info (acquire the lock to stop others,
+    # but do not block...
+    statuslock.acquire()
+  
+    # we are stopped by the stop file watcher, not terminated through another 
+    # mechanism
+    if val == 4:
+      # we were stopped by another thread.   Let's exit
+      pass
+    elif val == 44:
+      statusstorage.write_status("Stopped")
+
+    else:
+      # generic error, normal exit, or exitall in the user code...
+      statusstorage.write_status("Terminated")
+
+    # We intentionally do not release the lock.   We don't want anyone else 
+    # writing over our status information (we're killing them).
+    
+
+
+
   if ostype == 'Linux':
     # The Nokia N800 refuses to exit on os._exit() by a thread.   I'm going to
     # signal our pid with SIGTERM (or SIGKILL if needed)
@@ -230,6 +271,7 @@ class WindowsNannyThread(threading.Thread):
 
   def run(self):
     # need my pid to get a process handle...
+    # I need a process handle to get information (like memory use, etc.)
     mypid = os.getpid()
     myphandle = win32api.OpenProcess(win32con.PROCESS_QUERY_INFORMATION,0,mypid)
 
@@ -239,6 +281,16 @@ class WindowsNannyThread(threading.Thread):
         time.sleep(self.frequency)
         win_check_disk_use(self.diskallowed)
         win_check_memory_use(myphandle, self.memallowed)
+
+        # prevent concurrent status file writes.   
+        statuslock.acquire()
+        try: 
+          # write out status information
+          statusstorage.write_status("Started")
+
+        finally:
+          # must release before harshexit...
+          statuslock.release()
 
       except:
         traceback.print_exc()
@@ -339,6 +391,7 @@ def linux_killme():
 class LinuxCPUTattlerThread(threading.Thread):
   fileobj = None
   frequency = None
+
   def __init__(self,fobj,f):
     self.fileobj = fobj
     self.frequency = f
@@ -352,6 +405,16 @@ class LinuxCPUTattlerThread(threading.Thread):
         # tell the monitoring process about my cpu information...
         print >> self.fileobj, repr(list(os.times())+ [time.time()])
         self.fileobj.flush()
+
+        # prevent concurrent status file writes.   
+        statuslock.acquire()
+        try:
+          # write out status information
+          statusstorage.write_status("Started")
+        finally:
+          # must release before harshexit...
+          statuslock.release()
+
 
         # wait for some amount of time before telling again
         time.sleep(self.frequency)

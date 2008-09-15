@@ -135,7 +135,7 @@ def do_actual_test(testtype, restrictionfn, testname):
 
   # any out, no err...
   elif testtype == 'n':
-    (testout, testerr) = exec_command('python ../repy.py  '+restrictionfn+" "+testname)
+    (testout, testerr) = exec_command('python ../repy.py --status foo '+restrictionfn+" "+testname)
     if testout != '' and testerr == '':
       return True
     else:
@@ -144,7 +144,7 @@ def do_actual_test(testtype, restrictionfn, testname):
 
   # any err, no out...
   elif testtype == 'e':
-    (testout, testerr) = exec_command('python ../repy.py  '+restrictionfn+" "+testname)
+    (testout, testerr) = exec_command('python ../repy.py --status foo '+restrictionfn+" "+testname)
     if testout == '' and testerr != '':
       return True
     else:
@@ -153,7 +153,7 @@ def do_actual_test(testtype, restrictionfn, testname):
 
   # no err, no out...
   elif testtype == 'z':
-    (testout, testerr) = exec_command('python ../repy.py  '+restrictionfn+" "+testname)
+    (testout, testerr) = exec_command('python ../repy.py --status foo '+restrictionfn+" "+testname)
     if testout == '' and testerr == '':
       return True
     else:
@@ -162,7 +162,7 @@ def do_actual_test(testtype, restrictionfn, testname):
 
   # any err, any out...
   elif testtype == 'b':
-    (testout, testerr) = exec_command('python ../repy.py  '+restrictionfn+" "+testname)
+    (testout, testerr) = exec_command('python ../repy.py --status foo '+restrictionfn+" "+testname)
     if testout != '' and testerr != '':
       return True
     else:
@@ -179,7 +179,7 @@ def do_actual_test(testtype, restrictionfn, testname):
       pass
 
     # run the experiment
-    (testout, testerr) = exec_command('python ../repy.py --logfile experiment.log '+restrictionfn+" "+testname)
+    (testout, testerr) = exec_command('python ../repy.py --logfile experiment.log --status foo '+restrictionfn+" "+testname)
 
     # first, check to make sure there was no output or error
     if testout == '' and testerr == '':
@@ -225,7 +225,7 @@ def do_oddballtests():
   logstream.write("Running test %-50s [" % "Stop Test 1")
   logstream.flush()
 
-  (testout, testerr) = exec_command('python ../repy.py  --stop nonexist restrictions.default stop_testsleep.py')
+  (testout, testerr) = exec_command('python ../repy.py  --stop nonexist --status foo restrictions.default stop_testsleep.py')
   if testout == '' and testerr == '':
     passcount = passcount + 1
     logstream.write(" PASS ]\n")
@@ -240,7 +240,7 @@ def do_oddballtests():
   logstream.write("Running test %-50s [" % "Stop Test 2")
   logstream.flush()
 
-  (testout, testerr) = exec_command('python ../repy.py  --stop ../repy.py restrictions.default stop_testsleep.py')
+  (testout, testerr) = exec_command('python ../repy.py  --stop ../repy.py --status foo restrictions.default stop_testsleep.py')
   if testout == '' and testerr != '':
     passcount = passcount + 1
     logstream.write(" PASS ]\n")
@@ -261,7 +261,7 @@ def do_oddballtests():
   logstream.write("Running test %-50s [" % "Stop Test 3")
   logstream.flush()
 
-  (testout, testerr) = exec_command('python ../repy.py  --stop junk_test.out restrictions.default stop_testsleepwrite.py')
+  (testout, testerr) = exec_command('python ../repy.py  --stop junk_test.out --status foo restrictions.default stop_testsleepwrite.py')
   if testout == '' and testerr == '':
     passcount = passcount + 1
     logstream.write(" PASS ]\n")

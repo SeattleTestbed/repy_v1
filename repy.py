@@ -32,6 +32,8 @@ import stopfilewatcher
 
 import nonportable
 
+import statusstorage
+
 # we'll print our own exceptions
 import traceback
 # and don't want traceback to use linecache because linecache uses open
@@ -97,7 +99,7 @@ def main(restrictionsfn, program, args,stopfile=None):
   global usercode
   global simpleexec
 
-  # start the nanny up and read the restrictions files
+  # start the nanny up and read the restrictions files.  
   restrictions.init_restrictions(restrictionsfn)
 
   # check for a stop file (I need to do this after forking in 
@@ -158,7 +160,8 @@ def main(restrictionsfn, program, args,stopfile=None):
     traceback.print_exc()
     nonportable.harshexit(7)
 
-  sys.exit(0)
+  # normal exit...
+  nonportable.harshexit(0)
 
 
 if __name__ == '__main__':
@@ -185,9 +188,20 @@ if __name__ == '__main__':
     
   stopfile = None
   if args[0] == '--stop':
-    # Watch for the creation of this file...
+    # Watch for the creation of this file and abort when it happens...
     stopfile = args[1]
     args = args[2:]
+
+
+  statusfile = None
+  if args[0] == '--status':
+    # Write status information into this file...
+    statusfile = args[1]
+    args = args[2:]
+
+  statusstorage.init(statusfile)
+  statusstorage.write_status("Started")
+
 
   restrictionsfn = args[0]
   progname = args[1]

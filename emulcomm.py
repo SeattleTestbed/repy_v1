@@ -133,6 +133,7 @@ def start_event(entry, handle,eventhandle):
     # some sort of socket error, I'll assume they closed the socket or it's
     # not important
     try:
+      # BUG: is 4096 a reasonable maximum datagram size?
       data, addr = entry['socket'].recvfrom(4096)
     except socket.error:
       # they closed in the meantime?

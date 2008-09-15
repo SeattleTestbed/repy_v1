@@ -20,7 +20,6 @@ import nonportable
 import threading
 
 
-
 # resources that drain / replenish over time
 renewable_resources = ['cpu', 'filewrite', 'fileread', 'netsend', 'netrecv',
 	'loopsend', 'looprecv', 'lograte', 'random']
@@ -49,7 +48,6 @@ resource_restriction_table = {}
 # the current quantity of a resource that is used.   This should be updated
 # by calling update_resource_consumption_table() before being used.
 resource_consumption_table = {}
-# BUG: Need locking on shared table
 
 
 # Locks for resource_consumption_table
@@ -201,4 +199,7 @@ def tattle_remove_item(resource, item):
     resource_consumption_table[resource].remove(item)
   except KeyError:
     pass
+
+
+
 
