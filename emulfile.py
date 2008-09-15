@@ -112,8 +112,6 @@ def emulated_open(filename, mode="r"):
    
 
 
-# BUG: I need to do locking around this to prevent race conditions...
-
 # This keeps the state for the files (the actual objects, etc.)
 fileinfo = {}
 
