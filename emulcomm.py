@@ -133,7 +133,7 @@ def start_event(entry, handle,eventhandle):
     # some sort of socket error, I'll assume they closed the socket or it's
     # not important
     try:
-      # BUG: is 4096 a reasonable maximum datagram size?
+      # NOTE: is 4096 a reasonable maximum datagram size?
       data, addr = entry['socket'].recvfrom(4096)
     except socket.error:
       # they closed in the meantime?
@@ -232,11 +232,8 @@ class SocketSelector(threading.Thread):
       if requestlist == []:
         continue
 
-      # I'd like to see if we have a pending request.   This may or may not
-      # also tell me about socket errors... (need to check)
-      # BUG? Should this be select.select(requestlist, [], requestlist)
+      # I'd like to see if we have a pending request.   
       # wait for up to 1/2 second
-#      (readylist, junk1, junk2) = select.select(requestlist,[],requestlist,.5)
       readylist = nonportable.select_sockets(requestlist, 0.5)
 
       # go through the pending sockets, grab an event and then start a thread
@@ -829,7 +826,7 @@ def waitforconn(localip, localport,function):
   # get the socket
   try:
     mainsock = get_real_socket(localip,localport)
-    # BUG: Should this be anything other than a hardcoded number?
+    # NOTE: Should this be anything other than a hardcoded number?
     mainsock.listen(5)
     # set up our table entry
     comminfo[handle] = {'type':'TCP','remotehost':None, 'remoteport':None,'localip':localip,'localport':localport,'socket':mainsock, 'outgoing':False, 'function':function}

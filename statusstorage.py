@@ -45,7 +45,7 @@ def write_status(status, mystatusfilenameprefix=None):
   if not mystatusfilenameprefix:
     return
   
-  # BUG: is getting a dir list atomic wrt file creation / deletion?
+  # BUG: Is getting a directory list atomic wrt file creation / deletion?
   # get the current file list...
   existingfiles = os.listdir('.')
 

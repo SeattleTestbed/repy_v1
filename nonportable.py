@@ -510,8 +510,8 @@ def get_time_and_cpu_percent(readfobj):
   oldclocktime = lastenforcedata[4]
   oldcurrenttime = lastenforcedata[5]
 
-  # BUG: Time is going backwards...   Perhaps I should do something nicer like 
-  # ignore quota?
+  # NOTE: Processor time is going backwards...   Is this possible?   
+  # Should do something nicer like ignore quota?
   if clocktime < oldclocktime:
     raise Exception, "Elapsed time '"+str(currenttime)+"' less than previous '"+str(oldcurrenttime)+"'"
 
@@ -697,7 +697,7 @@ def do_forked_monitor(frequency, cpulimit, disklimit, memlimit):
       if childpid != pid:
         raise Exception, "Internal Error: childpid is not pid given by waitpid!"
 
-      # BUG: there may be weirdness here...
+      # NOTE: there may be weirdness here...
       # after testing, Linux doesn't seem to return from my os.wait if the 
       # process is stopped instead of killed
       #if os.WIFCONTINUED(status) or os.WIFSTOPPED(status):

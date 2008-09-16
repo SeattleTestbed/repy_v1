@@ -34,7 +34,7 @@ def getuniqueid():
       The identifier (the string)
   """
 
-  # BUG: I make the assumption that threads have unique names.   I toyed with 
+  # NOTE: I make the assumption that threads have unique names.   I toyed with 
   # the thought of using the id (memory location) of the thread object, but I
   # was unsure this would behave well if dummy threads exist or if gc happens
   # in the middle of this function, etc.

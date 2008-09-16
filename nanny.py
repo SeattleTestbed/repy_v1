@@ -5,7 +5,7 @@
 
    Description:
 
-   This class handles pausing the program if there is a resource violation.
+   This module handles pausing the program if there is a resource violation.
    This module is likely to be fiddly and the cause of most of the portability
    issues...
 """
