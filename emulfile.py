@@ -183,43 +183,51 @@ class emulated_file:
 #
 
   def close(self):
+    # prevent TOCTOU race with client changing my filehandle
+    myfilehandle = self.filehandle
     restrictions.assertisallowed('file.close')
 
     # Ignore multiple closes (as file does)
-    if self.filehandle not in fileinfo:
+    if myfilehandle not in fileinfo:
       return
 
-    nanny.tattle_remove_item('filesopened',self.filehandle)
+    nanny.tattle_remove_item('filesopened',myfilehandle)
 
-    returnvalue = fileinfo[self.filehandle]['fobj'].close()
+    returnvalue = fileinfo[myfilehandle]['fobj'].close()
 
     # delete the filehandle
-    del fileinfo[self.filehandle]
+    del fileinfo[myfilehandle]
 
     return returnvalue
 
 
 
   def flush(self):
+    # prevent TOCTOU race with client changing my filehandle
+    myfilehandle = self.filehandle
     restrictions.assertisallowed('file.flush')
 
-    return fileinfo[self.filehandle]['fobj'].flush()
+    return fileinfo[myfilehandle]['fobj'].flush()
 
 
   def next(self):
+    # prevent TOCTOU race with client changing my filehandle
+    myfilehandle = self.filehandle
     restrictions.assertisallowed('file.next')
 
-    return fileinfo[self.filehandle]['fobj'].next()
+    return fileinfo[myfilehandle]['fobj'].next()
 
 
 
   def read(self,*args):
+    # prevent TOCTOU race with client changing my filehandle
+    myfilehandle = self.filehandle
     restrictions.assertisallowed('file.read',*args)
 
     # wait if it's already over used
     nanny.tattle_quantity('fileread',0)
 
-    readdata = fileinfo[self.filehandle]['fobj'].read(*args)
+    readdata = fileinfo[myfilehandle]['fobj'].read(*args)
 
     nanny.tattle_quantity('fileread',len(readdata))
 
@@ -227,12 +235,14 @@ class emulated_file:
 
 
   def readline(self,*args):
+    # prevent TOCTOU race with client changing my filehandle
+    myfilehandle = self.filehandle
     restrictions.assertisallowed('file.readline',*args)
 
     # wait if it's already over used
     nanny.tattle_quantity('fileread',0)
 
-    readdata =  fileinfo[self.filehandle]['fobj'].readline(*args)
+    readdata =  fileinfo[myfilehandle]['fobj'].readline(*args)
 
     nanny.tattle_quantity('fileread',len(readdata))
 
@@ -240,12 +250,14 @@ class emulated_file:
 
 
   def readlines(self,*args):
+    # prevent TOCTOU race with client changing my filehandle
+    myfilehandle = self.filehandle
     restrictions.assertisallowed('file.readlines',*args)
 
     # wait if it's already over used
     nanny.tattle_quantity('fileread',0)
 
-    readlist = fileinfo[self.filehandle]['fobj'].readlines(*args)
+    readlist = fileinfo[myfilehandle]['fobj'].readlines(*args)
     readamt = 0
     for readitem in readlist:
       readamt = readamt + len(str(readitem))
@@ -256,18 +268,22 @@ class emulated_file:
 
 
   def seek(self,*args):
+    # prevent TOCTOU race with client changing my filehandle
+    myfilehandle = self.filehandle
     restrictions.assertisallowed('file.seek',*args)
 
-    return fileinfo[self.filehandle]['fobj'].seek(*args)
+    return fileinfo[myfilehandle]['fobj'].seek(*args)
 
 
   def write(self,writeitem):
+    # prevent TOCTOU race with client changing my filehandle
+    myfilehandle = self.filehandle
     restrictions.assertisallowed('file.write',writeitem)
 
     # wait if it's already over used
     nanny.tattle_quantity('filewrite',0)
 
-    retval = fileinfo[self.filehandle]['fobj'].write(writeitem)
+    retval = fileinfo[myfilehandle]['fobj'].write(writeitem)
 
     writeamt = len(str(writeitem))
     nanny.tattle_quantity('filewrite',writeamt)
@@ -276,12 +292,14 @@ class emulated_file:
 
 
   def writelines(self,writelist):
+    # prevent TOCTOU race with client changing my filehandle
+    myfilehandle = self.filehandle
     restrictions.assertisallowed('file.writelines',writelist)
 
     # wait if it's already over used
     nanny.tattle_quantity('filewrite',0)
 
-    retval = fileinfo[self.filehandle]['fobj'].writelines(writelist)
+    retval = fileinfo[myfilehandle]['fobj'].writelines(writelist)
     writeamt = 0
     for writeitem in writelist:
       writeamt = writeamt + len(str(writeitem))

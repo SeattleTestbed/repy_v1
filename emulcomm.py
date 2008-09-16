@@ -894,17 +894,21 @@ class emulated_socket:
 
 
   def close(self,*args):
+    # prevent TOCTOU race with client changing the object's properties
+    mycommid = self.commid
     restrictions.assertisallowed('socket.close',*args)
-    stopcomm(self.commid)
+    stopcomm(mycommid)
 
 
 
   def recv(self,bytes):
+    # prevent TOCTOU race with client changing the object's properties
+    mycommid = self.commid
     restrictions.assertisallowed('socket.recv',bytes)
 
     # I set this here so that I don't screw up accounting with a keyerror later
     try:
-      this_is_loopback = is_loopback(comminfo[self.commid]['remotehost'])
+      this_is_loopback = is_loopback(comminfo[mycommid]['remotehost'])
     # they likely closed the connection
     except KeyError:
       raise Exception, "Socket closed"
@@ -921,8 +925,8 @@ class emulated_socket:
       try:
         # the timeout is needed so that if the socket is closed in another 
         # thread, we notice it
-        comminfo[self.commid]['socket'].settimeout(1.0)
-        datarecvd = comminfo[self.commid]['socket'].recv(bytes)
+        comminfo[mycommid]['socket'].settimeout(1.0)
+        datarecvd = comminfo[mycommid]['socket'].recv(bytes)
         break
       except socket.error, e:
         # In windows either all or no sockets are blocking...   How odd
@@ -956,13 +960,15 @@ class emulated_socket:
 
 
   def send(self,*args):
+    # prevent TOCTOU race with client changing the object's properties
+    mycommid = self.commid
     restrictions.assertisallowed('socket.send',*args)
 
     # I factor this out because we must do the accounting at the bottom of this
     # function and I want to make sure we account properly even if they close 
     # the socket right after their data is sent
     try:
-      this_is_loopback = is_loopback(comminfo[self.commid]['remotehost'])
+      this_is_loopback = is_loopback(comminfo[mycommid]['remotehost'])
     except KeyError:
       raise Exception, "Socket closed!"
 
@@ -975,7 +981,7 @@ class emulated_socket:
     # loop until we send the information (looping is needed for Windows)
     while True:
       try:
-        bytessent = comminfo[self.commid]['socket'].send(*args)
+        bytessent = comminfo[mycommid]['socket'].send(*args)
         break
       except socket.error, e:
         # In windows either all or no sockets are blocking...   How odd
