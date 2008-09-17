@@ -18,7 +18,7 @@ import time
 import sys
 
 # print useful info when exiting...
-import traceback
+import tracebackrepy
 
 # used to get information about the system we're running on
 import platform
@@ -285,7 +285,7 @@ class WindowsNannyThread(threading.Thread):
           statuslock.release()
 
       except:
-        traceback.print_exc()
+        tracebackrepy.handle_exception()
         print >> sys.stderr, "Nanny died!   Trying to kill everything else"
         harshexit(20)
 
@@ -411,7 +411,7 @@ class LinuxCPUTattlerThread(threading.Thread):
         # wait for some amount of time before telling again
         time.sleep(self.frequency)
       except:
-        traceback.print_exc()
+        tracebackrepy.handle_exception()
         print >> sys.stderr, "LinuxCPUTattler died!   Trying to kill everything else"
         try:
           self.fileobj.close()

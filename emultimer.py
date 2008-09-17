@@ -16,7 +16,7 @@ import nanny
 import idhelper
 
 # for printing exceptions
-import traceback
+import tracebackrepy
 
 # for harshexit
 import nonportable
@@ -113,7 +113,7 @@ def functionwrapper(func, timerhandle, args):
     func(*args)
   except:
     # Exit if they throw an uncaught exception
-    traceback.print_exc()
+    tracebackrepy.handle_exception()
     nonportable.harshexit(30)
     
   # remove the event before I exit

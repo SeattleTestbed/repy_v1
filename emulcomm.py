@@ -22,8 +22,8 @@ import sys
 # So I can exit all threads when an error occurs or do select
 import nonportable
 
-# So I can print a traceback when the error happens
-import traceback
+# So I can print a clean traceback when an error happens
+import tracebackrepy
 
 # accounting
 import nanny
@@ -157,7 +157,7 @@ def start_event(entry, handle,eventhandle):
     except:
       # This is an internal error I think...
       print >> sys.stderr, "Internal error, can't start UDP EventDeliverer"
-      traceback.print_exc()
+      tracebackrepy.handle_exception()
       nonportable.harshexit(12)
 
 
@@ -183,7 +183,7 @@ def start_event(entry, handle,eventhandle):
     except:
       # This is an internal error I think...
       print >> sys.stderr, "Internal error, can't start TCP EventDeliverer"
-      traceback.print_exc()
+      tracebackrepy.handle_exception()
       nonportable.harshexit(15)
 
 
@@ -282,7 +282,7 @@ class EventDeliverer(threading.Thread):
       self.func(*(self.args))
     except:
       # we probably should exit if they raise an exception in a thread...
-      traceback.print_exc()
+      tracebackrepy.handle_exception()
       nonportable.harshexit(14)
 
     finally:

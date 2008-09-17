@@ -14,7 +14,7 @@ Is the nanny for cpu on Windows.   This uses pssuspend and pskill
 import os
 import time
 import sys
-import traceback
+import tracebackrepy
 
 # used to stop the process
 import subprocess
@@ -159,7 +159,7 @@ def main():
     pass
 
   except:
-    traceback.print_exc()
+    tracebackrepy.handle_exception()
     print >> sys.stderr, "Win nanny died!   Trying to kill everything else"
       # kill the program we're monitoring
 #      exec_commandlist(["pskill.exe","/accepteula","-t",str(ppid)])

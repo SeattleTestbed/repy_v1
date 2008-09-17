@@ -34,11 +34,8 @@ import nonportable
 
 import statusstorage
 
-# we'll print our own exceptions
-import traceback
-# and don't want traceback to use linecache because linecache uses open
-import fakelinecache
-traceback.linecache = fakelinecache
+## we'll use tracebackrepy to print our exceptions
+import tracebackrepy
 
 # Allow the user to do try, except, finally, etc.
 safe._NODE_CLASS_OK.append("TryExcept")
@@ -47,6 +44,7 @@ safe._NODE_CLASS_OK.append("Raise")
 safe._NODE_CLASS_OK.append("ExcepthandlerType")
 safe._NODE_CLASS_OK.append("Invert")
 # needed for traceback
+# NOTE: still needed for tracebackrepy
 safe._BUILTIN_OK.append("isinstance")
 safe._BUILTIN_OK.append("BaseException")
 safe._BUILTIN_OK.append("WindowsError")
@@ -139,7 +137,7 @@ def main(restrictionsfn, program, args,stopfile=None):
     raise
   except:
     # I think it makes sense to exit if their code throws an exception...
-    traceback.print_exc()
+    tracebackrepy.handle_exception()
     nonportable.harshexit(6)
 
   # I've changed to the threading library, so this should increase if there are
@@ -157,7 +155,7 @@ def main(restrictionsfn, program, args,stopfile=None):
     raise
   except:
     # I think it makes sense to exit if their code throws an exception...
-    traceback.print_exc()
+    tracebackrepy.handle_exception()
     nonportable.harshexit(7)
 
   # normal exit...
@@ -207,10 +205,12 @@ if __name__ == '__main__':
   progname = args[1]
   progargs = args[2:]
 
+  tracebackrepy.initialize(progname)
+
   try:
     main(restrictionsfn, progname,progargs,stopfile)
   except SystemExit:
     nonportable.harshexit(4)
   except:
-    traceback.print_exc()
+    tracebackrepy.handle_exception()
     nonportable.harshexit(3)
