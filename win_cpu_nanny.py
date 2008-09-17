@@ -107,6 +107,13 @@ def exec_commandlist(commandlist):
   # they are chatty programs and it's tough to tell what is happening with
   # them.   I'll leave them be
   p = subprocess.Popen(commandlist, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  # NOTE: For some reason Vista seems to hang sometimes after a SIGCONT 
+  # (perhaps the signal isn't delivered).   Reading stdout and stderr seems to
+  # fix this.   I'm unsure why, but I speculate the process was being 
+  # terminated before it finished (perhaps because of closing stdout or stderr 
+  # early)
+  p.stdout.read()
+  p.stderr.read()
   p.stdout.close()
   p.stderr.close()
 
