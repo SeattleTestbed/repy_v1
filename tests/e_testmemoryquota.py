@@ -1,5 +1,5 @@
 def foo():
-  a = [1] * 2**19
+  a = [1] * 2**21
   mycontext['lock'].acquire()
   mycontext['count'] = mycontext['count'] + 1
   mycontext['lock'].release()
