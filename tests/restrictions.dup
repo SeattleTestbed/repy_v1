@@ -1,5 +1,5 @@
 resource cpu 10
-resource memory 1000000000
+resource memory 1500000000
 resource diskused 10000000 # 10 MB
 resource lograte 1000
 resource cpu 10   # dups not allowed!

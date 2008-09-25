@@ -31,6 +31,7 @@ resource CPU 0.1			# Can have %10 CPU utilization
 resource memory 33554432		# Can have 32 MB of memory
 resource outsockets 1			# Can initiate one outgoing comm
 resource insocket 2			# Can listen for 2 incoming comms
+resource messport_2023 			# Can use messageport 2023 
 
 
 Call restrictions: perform some action when a call occurs
@@ -216,15 +217,21 @@ def init_restriction_tables(filename):
       if tokenlist[1] not in nanny.known_resources:
         raise ParseError, "Line '"+line+"' has an unknown resource '"+tokenlist[1]+"' in '"+filename+"'"
 
-      # and that resource should not have been previously assigned
-      if tokenlist[1] in nanny.resource_restriction_table:
-        raise ParseError, "Line '"+line+"' has a duplicate resource rule for '"+tokenlist[1]+"' in '"+filename+"'"
-
       # and the last item should be a valid float
       try:
         float(tokenlist[2])
       except ValueError:
         raise ParseError, "Line '"+line+"' has an invalid resource value '"+tokenlist[2]+"' in '"+filename+"'"
+
+      # if it's an individual_item_resource, we'll handle it here...
+      if tokenlist[1] in nanny.individual_item_resources:
+        nanny.resource_restriction_table[tokenlist[1]].add(float(tokenlist[2]))
+        continue
+
+      # if normal that resource should not have been previously assigned
+      if tokenlist[1] in nanny.resource_restriction_table:
+        raise ParseError, "Line '"+line+"' has a duplicate resource rule for '"+tokenlist[1]+"' in '"+filename+"'"
+
         
       # Finally, we assign it to the table
       nanny.resource_restriction_table[tokenlist[1]] = float(tokenlist[2])

@@ -1,5 +1,5 @@
 resource cpu .10
-resource memory 10000000   # 10 Million bytes
+resource memory 15000000   # 15 Million bytes
 resource diskused 10000000 # 10 MB
 resource events 2
 resource filewrite 10000
@@ -12,20 +12,19 @@ resource netrecv 10000
 resource loopsend 1000000
 resource looprecv 1000000
 resource lograte 1000
+resource messport 12345
+resource messport 12346
+resource messport 12347
+resource connport 12345
+resource connport 12346
+resource connport 12347
 
 call gethostbyname_ex allow
-call sendmess arg 1 is 12345 noargs is 3 allow 	# the non-local port type
-call sendmess arg 1 is 12345 noargs is 5 allow 	# the local port type
+call sendmess allow
 call stopcomm allow 			# it doesn't make sense to restrict
-call recvmess arg 1 is 12345 allow 	# Allow listening on this port
-call recvmess arg 1 is 12346 allow 	# Allow listening on this port
-call recvmess arg 1 is 12347 allow 	# Allow listening on this port
-call openconn arg 1 is 12345 allow 	# allow connections to this port
-call openconn arg 1 is 12346 allow 	# allow connections to this port
-call openconn arg 1 is 12347 allow 	# allow connections to this port
-call waitforconn arg 1 is 12345 allow 	# allow listening on this port
-call waitforconn arg 1 is 12346 allow 	# allow listening on this port
-call waitforconn arg 1 is 12347 allow 	# allow listening on this port
+call recvmess allow
+call openconn allow
+call waitforconn allow
 call socket.close allow 		# let's not restrict
 call socket.send allow 			# let's not restrict
 call socket.recv allow 			# let's not restrict

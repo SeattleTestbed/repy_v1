@@ -559,6 +559,9 @@ def sendmess(desthost, destport, message,localip=None,localport = None):
 
   restrictions.assertisallowed('sendmess', desthost, destport, message,localip,localport)
 
+  if localip and localport:
+    nanny.tattle_check('messport',localport)
+
   # this is used to track errors when trying to resend data
   firsterror = None
 
@@ -665,6 +668,8 @@ def recvmess(localip, localport, function):
 
   restrictions.assertisallowed('recvmess',localip,localport)
 
+  nanny.tattle_check('messport',localport)
+
   # check if I'm already listening on this port / ip
   (junkentry, oldhandle) = find_tip_entry('UDP',localip,localport)
   if oldhandle:
@@ -751,6 +756,9 @@ def openconn(desthost, destport,localip=None, localport=None):
 
   restrictions.assertisallowed('openconn',desthost,destport,localip,localport)
 
+  if localip and localport:
+    nanny.tattle_check('connport',localport)
+
   handle = idhelper.getuniqueid()
   nanny.tattle_add_item('outsockets',handle)
 
@@ -810,6 +818,8 @@ def waitforconn(localip, localport,function):
 
 
   restrictions.assertisallowed('waitforconn',localip,localport)
+
+  nanny.tattle_check('connport',localport)
 
   # check if I'm already listening on this port / ip
   (junkentry, oldhandle) = find_tip_entry('TCP',localip,localport)

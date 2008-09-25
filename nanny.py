@@ -30,11 +30,21 @@ quantity_resources = [ "cpu", "memory", "diskused", "filewrite", "fileread",
 
 # resources where the number of items is the quantity (events because each
 # event is "equal", insockets because a listening socket is a listening socket)
-item_resources = ['events', 'filesopened', 'insockets', 'outsockets']
+fungible_item_resources = ['events', 'filesopened', 'insockets', 'outsockets']
+
+# resources where there is no quantity.   There is only one messport 12345 and
+# a vessel either has it or the vessel doesn't.   The resource messport 12345
+# isn't fungible because it's not equal to having port 54321.   A vessel may
+# have more than one of the resulting individual resources and so are
+# stored in a list.
+individual_item_resources = [ 'messport', 'connport' ]
+
+# include resources that are fungible vs those that are individual...
+item_resources = fungible_item_resources + individual_item_resources
 
 
 # this is used by restrictions.py to set up our tables
-known_resources = quantity_resources + item_resources
+known_resources = quantity_resources + item_resources 
 
 
 must_assign_resources = [ "cpu", "memory", "diskused" ]
@@ -60,12 +70,16 @@ for init_resource in renewable_resources:
 
 
 
-
-
+# set up renewable resources to start now...
 renewable_resource_update_time = {}
 for init_resource in renewable_resources:
   renewable_resource_update_time[init_resource] = time.time()
 
+
+
+# set up individual_item_resources to be in the restriction_table (as a set)
+for init_resource in individual_item_resources:
+  resource_restriction_table[init_resource] = set()
 
 
 # updates the values in the consumption table (taking the current time into 
@@ -202,4 +216,10 @@ def tattle_remove_item(resource, item):
 
 
 
+# used for individual_item_resources
+def tattle_check(resource, item):
+  if item not in resource_restriction_table[resource]:
+    raise Exception, "Resource '"+resource+" "+str(item)+"' not allowed!!!"
+
+  resource_consumption_table[resource].add(item)
 

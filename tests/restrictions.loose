@@ -13,13 +13,19 @@ resource loopsend 1000000
 resource looprecv 1000000
 resource lograte 1000
 resource random 1000
+resource messport 12345
+resource messport 12346
+resource messport 12347
+resource connport 12345
+resource connport 12346
+resource connport 12347
 
 call gethostbyname_ex allow
 call sendmess allow
 call stopcomm allow 			# it doesn't make sense to restrict
-call recvmess allow		 	# Allow listening on any port
-call openconn allow		 	# allow connections to any port
-call waitforconn allow		 	# allow listening on any port
+call recvmess allow
+call openconn allow
+call waitforconn allow
 call socket.close allow 		# let's not restrict
 call socket.send allow 			# let's not restrict
 call socket.recv allow 			# let's not restrict
