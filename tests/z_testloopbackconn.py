@@ -23,6 +23,6 @@ if callfunc == 'initialize':
 
   if data != "bye":
     print 'Error: data did not match "bye"'
-    exit(1)
+    exitall()
 
   sockobj.close()
