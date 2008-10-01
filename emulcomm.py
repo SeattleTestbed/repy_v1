@@ -725,7 +725,7 @@ def recvmess(localip, localport, function):
 
 
 # Public interface!!!
-def openconn(desthost, destport,localip=None, localport=None):
+def openconn(desthost, destport,localip=None, localport=None,timeout=5.0):
   """
    <Purpose>
       Opens a connection, returning a socket-like object
@@ -739,6 +739,8 @@ def openconn(desthost, destport,localip=None, localport=None):
          The local ip to use for the communication
       localport (optional):
          The local port to use for communication
+      timeout (optional):
+         The maximum amount of time to wait to connect
 
       * if you specify localip, you must specify localport
 
@@ -776,7 +778,15 @@ def openconn(desthost, destport,localip=None, localport=None):
 
   try:
     thissock = emulated_socket(handle)
-    comminfo[handle]['socket'].connect((desthost,destport))
+    # We set a timeout before we connect.  This allows us to timeout slow 
+    # connections...
+    oldtimeout = comminfo[handle]['socket'].gettimeout()
+    try:
+      comminfo[handle]['socket'].settimeout(timeout)
+      comminfo[handle]['socket'].connect((desthost,destport))
+    finally:
+      # and restore the old timeout...
+      comminfo[handle]['socket'].settimeout(oldtimeout)
     comminfo[handle]['remotehost']=desthost
     comminfo[handle]['remoteport']=destport
   except:
