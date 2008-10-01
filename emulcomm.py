@@ -932,7 +932,8 @@ class emulated_socket:
       try:
         # the timeout is needed so that if the socket is closed in another 
         # thread, we notice it
-        comminfo[mycommid]['socket'].settimeout(1.0)
+        # BUG: What should the timeout be?   What is the right value?
+        comminfo[mycommid]['socket'].settimeout(0.2)
         datarecvd = comminfo[mycommid]['socket'].recv(bytes)
         break
       except socket.error, e:
