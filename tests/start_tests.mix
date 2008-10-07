@@ -1,0 +1,293 @@
+# Brent Couvrette
+# September 17, 2008
+#
+# Python script that runs the standard python portions of the repy tests,
+# then deploys nmrun_tests.py via the node manager, which when run as an
+# experiment runs all of the repy tests.
+
+import os
+import glob
+import persist
+import sys
+import subprocess
+import random
+import platform
+import signal
+import shutil
+try:
+	import win32api
+except:
+	pass
+
+include rsa.repy
+
+randomfloat = random.random
+
+# exec_command taken from run_tests.py by Justin Cappos
+# modified to write stdout and stderr to the same place
+def exec_command(command):
+	#Windows does not like close_fds and we shouldn't need it so...
+	p = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+	#get the output and close
+	theout = p.stdout.read()
+	p.stdout.close()
+
+	# everyone but FreeBSD uses stderr
+	if theout.strip() == 'Terminated':
+		theout = ''
+
+	return theout
+
+
+# runs the test with the given name with python, outputing its
+# stdout and stderr to [testname].out
+def capture_test(testname):
+	# remove any existing output/errput files
+	if(os.path.isfile(testname+".out")):
+		os.remove(testname+".out")
+
+	testout = exec_command('python '+testname)
+
+	outfile = file(testname+'.out', 'w')
+	outfile.write(testout)
+	outfile.close()
+
+
+# Set up the vessel necesary to run the tests
+# The ownerkey is the filename that was used to generate
+# the owner's public/private keypair (not including the
+# .publickey or .privatekey suffixes)
+def initialize_vessel(ownerkey):
+	# This is the public key to be used to run the tests
+	controllerpubkey = rsa_file_to_publickey(ownerkey+".publickey")
+
+	# initialize my configuration file.   This involves a few variables:
+	#    pollfrequency --  the amount of time to sleep after a check when "busy
+	#                      waiting".   This trades CPU load for responsiveness.
+	#    ports         --  the ports the node manager could listen on.
+	#    publickey     --  the public key used to identify the node...
+	#    privatekey    --  the corresponding private key for the node...
+	configuration = {}
+
+	configuration['pollfrequency'] = 1.0
+
+	# NOTE: I chose these randomly (they will be uniform across all NMs)...   
+	# Was this wise?
+	configuration['ports'] = [1224, 2888, 9625, 10348, 39303, 48126, 52862, 57344, 64310]
+
+	print "Generating key..."
+	keys = rsa_gen_pubpriv_keys(100)
+	configuration['publickey'] = keys[0]
+	configuration['privatekey'] = keys[1]
+
+	print "Writing config file..."
+	# write the config file...
+	persist.commit_object(configuration,"nodeman.cfg")
+
+	testmain = {'userkeys':[], 'ownerkey':controllerpubkey, 'oldmetadata':None, 'stopfilename':'v1.stop', 'logfilename':'v1.log', 'statusfilename':'v1.status', 'resourcefilename':'resource.v1', 'advertise':True, 'ownerinformation':'', 'status':'Fresh'}
+
+	# Generate a owner key for the vessel that the tests will be run on, 
+	# which will be stored within the main vessel.
+	testkeys = rsa_gen_pubpriv_keys(256)
+	
+	testrunner = {'userkeys':[testkeys[0]], 'ownerkey':controllerpubkey, 'oldmetadata':None, 'stopfilename':'v2.stop', 'logfilename':'v2.log', 'statusfilename':'v2.status', 'resourcefilename':'resource.v2', 'advertise':True, 'ownerinformation':'', 'status':'Fresh'}
+
+	vesseldict = {'v1':testmain, 'v2':testrunner}
+
+	# create the directory for the test runner's vessel
+	try:
+		os.mkdir("v1")
+	except OSError,e:
+		if e[0] == 17:
+			# directory exists
+			pass
+		else:
+			raise
+
+	# create the directory for the vessel that the tests will run on
+	try:
+		os.mkdir("v2")
+	except OSError,e:
+		if e[0] == 17:
+			# directory exists
+			pass
+		else:
+			raise
+
+	# Add the separate files necesary for the tests to the test vessel
+	# Is there definately enough structure to do this in some sort of loop?
+	shutil.copyfile('hello', 'v1/hello')
+	shutil.copyfile('hello1', 'v1/hello1')
+	shutil.copyfile('hello2', 'v1/hello2')
+	shutil.copyfile('hello3', 'v1/hello3')
+	shutil.copyfile('hello4', 'v1/hello4')
+	shutil.copyfile('hello5', 'v1/hello5')
+	shutil.copyfile('hello.file', 'v1/hello.file')
+	shutil.copyfile('hello.multiline', 'v1/hello.multiline')
+	
+
+	# Write the public and private keys for running the tests into the 
+	# main vessel
+	rsa_publickey_to_file(testkeys[0], 'v1/test.publickey')
+	rsa_privatekey_to_file(testkeys[1], 'v1/test.privatekey')
+
+	print "Writing vessel dictionary..."
+	# write out the vessel dictionary
+	persist.commit_object(vesseldict, "vesseldict")
+	
+	# write the offcut file
+	outfo = open("resources.offcut","w")
+	outfo.write("""# BUG: How do we come up with these values dynamically?
+resource cpu .002
+resource memory 1000000   # 1 MiB
+resource diskused 100000 # .1 MiB
+resource events 2
+resource filewrite 1000
+resource fileread 1000 
+resource filesopened 0 
+resource insockets 0
+resource outsockets 0
+resource netsend 0
+resource netrecv 0
+resource loopsend 0  # would change with prompt functionality (?)
+resource looprecv 0
+resource lograte 100 # the monitor might log something
+resource random 0    # Shouldn't generate random numbers on our own
+""")
+	outfo.close()
+
+	# write the main vessel's resource file
+	outfo = open("resource.v1", "w")
+	outfo.write("""resource cpu .75
+resource memory 15000000   # 15 Million bytes
+resource diskused 50000000 # 50 MB
+resource events 10
+resource filewrite 10000
+resource fileread 10000
+resource filesopened 200
+resource insockets 5
+resource outsockets 5
+resource netsend 10000
+resource netrecv 10000
+resource loopsend 1000000
+resource looprecv 1000000
+resource lograte 30000
+resource random 100
+resource messport 12345
+resource messport 34612
+resource connport 34612
+resource connport 12345
+
+call gethostbyname_ex allow
+call sendmess allow
+call stopcomm allow 			# it doesn't make sense to restrict
+call recvmess allow
+call openconn allow
+call waitforconn allow
+call socket.close allow 		# let's not restrict
+call socket.send allow 			# let's not restrict
+call socket.recv allow 			# let's not restrict
+# open and file.__init__ both have built in restrictions...
+call open arg 0 is junk_test.out allow 	# can write to junk_test.out
+call open arg 1 is r allow 		# allow an explicit read
+call open noargs is 1 allow 		# allow an implicit read 
+call file.__init__ arg 0 is junk_test.out allow # can write to junk_test.out
+call file.__init__ arg 1 is r allow 	# allow an explicit read
+call file.__init__ noargs is 1 allow 	# allow an implicit read 
+call file.close allow 			# shouldn't restrict
+call file.flush allow 			# they are free to use
+call file.next allow 			# free to use as well...
+call file.read allow 			# allow read
+call file.readline allow 		# shouldn't restrict
+call file.readlines allow 		# shouldn't restrict
+call file.seek allow 			# seek doesn't restrict
+call file.write allow 			# shouldn't restrict (open restricts)
+call file.writelines allow 		# shouldn't restrict (open restricts)
+call sleep allow			# harmless
+call settimer allow			# we can't really do anything smart
+call canceltimer allow			# should be okay
+call exitall allow			# should be harmless 
+
+call log.write allow
+call log.writelines allow
+call getmyip allow			# They can get the external IP address
+call listdir allow			# They can list the files they created
+call removefile allow			# They can remove the files they create
+call randomfloat allow			# can get random numbers
+call getruntime allow			# can get the elapsed time
+call getlock allow			# can get a mutex
+""")
+	outfo.close()
+
+	# Set the second resource file to restrictions.default
+	shutil.copyfile('restrictions.default', 'resource.v2')
+
+def start_nodemanager():
+	print 'Starting Node Manager...'
+	nmout = file("nmmain.out", "w")
+	nmerr = file("nmmain.err", "w")
+	return subprocess.Popen("python nmmain.py", shell=True, stdout=nmout, stderr=nmerr)
+	
+	
+###########     functions that help me figure out the os type    ###########
+
+def get_ostype():
+
+	# figure out what sort of witch we are...
+	osrealtype = platform.system()
+
+	if osrealtype == 'Linux' or osrealtype == 'Windows' or osrealtype == 'Darwin':
+		return osrealtype
+
+	# workaround for a Vista bug...
+	if osrealtype == 'Microsoft':
+		return 'Windows'
+
+	if osrealtype == 'FreeBSD':
+		return 'Linux'
+
+	if osrealtype.startswith('CYGWIN'):
+		# I do this because ps doesn't do memory info...   They'll need to add
+		# pywin to their copy of cygwin...   I wonder if I should detect its 
+		# abscence and tell them (but continue)?
+		return 'Windows'
+
+	return 'Unknown'
+  
+
+helpstring = """python start_tests.py ownerkey"""
+
+def main():
+
+	if len(sys.argv) != 2:
+		print "Invalid number of arguments"
+		print helpstring
+		sys.exit(1)
+
+	if not (os.path.exists(sys.argv[1]+".publickey") and os.path.exists(sys.argv[1]+".privatekey")):
+		print "Both ownerkey.publickey and ownerkey.privatekey must exist"
+		sys.exit(1)
+
+	# for each test that should be the same as normal python... run it!
+	for testfile in glob.glob("rs_*.py") + glob.glob("s_*.py"):
+		capture_test(testfile)
+	
+	initialize_vessel(sys.argv[1])
+	
+	# Start the node manager
+	nodeman = start_nodemanager()
+
+	print 'Starting tests...'
+	testexp = subprocess.call(['python', 'repy.py', 'restrictions.start_test_experiment',  'start_test_experiment.py', sys.argv[1]])
+
+	# kill the node manager when we are done
+	ostype = get_ostype()
+	if(ostype == 'Linux' or ostype == 'Darwin'):
+		os.kill(nodeman.pid, signal.SIGTERM)
+	elif(ostype == 'Windows'):
+		win32api.TerminateProcess(int(process._handle), -1)
+		
+
+if __name__ == '__main__':
+	main()

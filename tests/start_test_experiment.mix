@@ -1,0 +1,97 @@
+# Brent Couvrette
+# September 30, 2008
+#
+# Repy script that uses the nmclient functions to deploy the necesary test
+# file to the test nodes, then starts nmrun_tests.py.
+
+include nmclient.repy
+include time.repy
+
+# Start the test experiment
+# The ownerkey is the filename that was used to generate
+# the owner's public/private keypair (not including the
+# .publickey or .privatekey suffixes)
+def start_experiment(ownerkey):
+	print 'Setting up nmhandle'
+	time_updatetime(34612)
+	nmhandle = nmclient_createhandle(getmyip(), 1224)
+
+	myhandleinfo = nmclient_get_handle_info(nmhandle)
+
+	myhandleinfo['publickey'] = rsa_file_to_publickey(ownerkey+'.publickey')
+
+	myhandleinfo['privatekey'] = rsa_file_to_privatekey(ownerkey+'.privatekey')
+
+	nmclient_set_handle_info(nmhandle, myhandleinfo)
+
+	# Set myvessel to the main vessel that will coordinate the tests
+	myvessel = "v1"
+	print 'Adding python outputs to vessel'
+	# Loop through the normal python outputs and put them into the main vessel
+	for output in listdir():
+		if((output[0:2] == 's_' or output[0:3] == 'rs_') and
+				output[-4:] == '.out'):
+		
+			outfile = file(output, "r")
+			outstring = outfile.read()
+			outfile.close()
+			nmclient_signedsay(nmhandle, "AddFileToVessel", myvessel, output, outstring)
+
+	print 'Adding test programs to vessel'
+	# Add the test programs to the main vessel.
+	for testfile in listdir():
+		if((testfile[0:2] == "s_" or 
+				testfile[0:2] == "e_" or testfile[0:2] == "z_" or 
+				testfile[0:2] == "n_" or testfile[0:2] == "b_" or
+				testfile[0:2] == "u_" or testfile[0:2] == "l_") and
+				testfile[-3:] == ".py"): 
+
+			progfile = file(testfile, "r")
+			progstring = progfile.read()
+			nmclient_signedsay(nmhandle, "AddFileToVessel", myvessel, testfile, progstring)
+			progfile.close()
+
+	print 'Adding restrictions to vessel'
+	# Add restrictions files to the main vessel
+	for restrictions in listdir():
+		if restrictions.startswith('restrictions.*'):
+			restfile = file(restrictions, 'r')
+			reststring = restfile.read()
+			restfile.close()
+			nmclient_signedsay(nmhandle, "AddFileToVessel", myvessel, restrictions, reststring)
+
+	# Add the test runner to the main vessel
+	runfile = file("nmrun_tests.py", "r")
+	runstring = runfile.read()
+	runfile.close()
+	nmclient_signedsay(nmhandle, "AddFileToVessel", myvessel, "nmrun_tests.py", runstring)
+
+	print 'Starting the test runner on Vessel'
+	# Start the test runner on the main vessel
+	nmclient_signedsay(nmhandle, "StartVessel", myvessel, "nmrun_tests.py")
+	
+	vessellog = ''
+	
+	# Wait for the test runner to complete
+	while nmclient_getvesseldict(nmhandle)['vessels'][myvessel]['status'] == 'Started':
+		sleep(2)
+		# Print any new log messages that have appeared
+		newlog = nmclient_signedsay(nmhandle, "ReadVesselLog", myvessel)
+		newloglines = newlog.splitlines()
+		vesselloglines = vessellog.splitlines()
+		vessellog = newlog
+		for newline in newloglines[len(vesselloglines):]:
+			print newline
+			
+	# Print the rest of the log
+	newlog = nmclient_signedsay(nmhandle, "ReadVesselLog", myvessel)
+	newloglines = newlog.splitlines()
+	vesselloglines = vessellog.splitlines()
+	vessellog = newlog
+	for newline in newloglines[len(vesselloglines):]:
+		print newline
+	
+
+if callfunc == 'initialize':
+	start_experiment(callargs[0])
+
