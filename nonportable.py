@@ -421,19 +421,35 @@ class LinuxCPUTattlerThread(threading.Thread):
 
 
 
+# Keep track of info for rolling average
+totaltime = 0.0 # Might be issue if user uptime > DBL_MAX or 10^298 centuries
+totalcpu = 0.0 
 
 # this ensures that the CPU quota is actually enforced on the client
-def enforce_cpu_quota(readfobj, cpulimit, childpid):
+def enforce_cpu_quota(readfobj, cpulimit, frequency, childpid):
+  global totaltime, totalcpu
 
   elapsedtime, percentused = get_time_and_cpu_percent(readfobj)
-  
+
   # They get a free pass (likely their first or last time)
   if elapsedtime == 0.0:
     return
+  
+  # Increment total time
+  totaltime += elapsedtime 
+  # Increment CPU use
+  if ((totalcpu/totaltime) >= cpulimit):
+    totalcpu += percentused*elapsedtime # Don't apply max function, allow the average to drop
+  else:
+    # Set a minimum for percentused, enfore a use it or lose it policy
+	totalcpu += max(percentused, cpulimit)
+	
+  #print (totalcpu/totaltime), percentused, totaltime, totalcpu
 
-  # All is well!   We aren't over
-  if percentused < cpulimit:
-    return
+  # If average CPU use is fine, then continue
+  if (totalcpu/totaltime) <= cpulimit:
+     time.sleep(frequency) # If we don't sleep, this process burns cpu doing nothing
+     return
 
   # They must be punished by stopping
   os.kill(childpid, signal.SIGSTOP)
@@ -441,29 +457,37 @@ def enforce_cpu_quota(readfobj, cpulimit, childpid):
   # we'll stop them for at least long enough to even out the damage
 
   # why does this formula work?  Where does *2 come from?
-
-  
   # I checked and sleep is sleeping the full time...
-  
   # I've verified the os.times() data tracks perfectly...
-
   # I've tried it will different publishing frequencies and it works...
-
   # this formula works for different cpulimits as well
-
   # for very low sleep rates, this doesn't work.   The time is way over.
   # for high sleep rates, this works fine.
+  # Old Stop Time
+  #stoptime = (((percentused-cpulimit) / cpulimit)-1) * elapsedtime * 2
 
-#CHECK THIS OUT
-  stoptime = ((percentused / cpulimit)-1) * elapsedtime * 2
+  # New stoptime
+  # Determine how far over the limit the average, and punish progressively
+  # Also, unsure about the *2 but it does seem to work....
+  stoptime = ((totalcpu/totaltime) - cpulimit) * totaltime * 2
+ 
+  # Sanity Check
+  # There is no reason to punish a process for more than
+  # frequency / cpulimit
+  # BECAUSE that means that if a process uses 100% during a sampling interval,
+  # the resulting stop+use interval should average to the CPU limit
+  # stoptime = min(frequency/cpulimit, stoptime)
 
+  #print "Stopping: ", stoptime
   time.sleep(stoptime)
-  
+
   # And now they can start back up!
   os.kill(childpid, signal.SIGCONT)
+
+  # If stoptime < frequency, then we would over-sample if we don't sleep
+  if (stoptime < frequency):
+    time.sleep(frequency-stoptime)
   
-
-
   
 
 lastenforcedata = None
@@ -524,8 +548,9 @@ def get_time_and_cpu_percent(readfobj):
 
   lastenforcedata = quotainfo
 
-#  print (usertime) / (clocktime - junkfirst), percentused, usertime, time.time() - junkstart
-#  sys.stdout.flush()
+  #print (usertime) / (clocktime - junkfirst), percentused, usertime, time.time() - junkstart
+  #print percentused, usertime, oldusertime, clocktime, oldclocktime, clocktime-oldclocktime
+  sys.stdout.flush()
   return (currenttime - oldcurrenttime, percentused)
   
   
@@ -646,6 +671,8 @@ def enforce_memory_quota(memorylimit, childpid):
 
 
 def do_forked_monitor(frequency, cpulimit, disklimit, memlimit):
+  # Test only, override frequency
+  #frequency = 0.25
 
   # get a pipe for communication
   readpipefd,writepipefd = os.pipe()
@@ -669,10 +696,15 @@ def do_forked_monitor(frequency, cpulimit, disklimit, memlimit):
   os.close(writepipefd)
   myreadpipe = os.fdopen(readpipefd,"r")
 
-  try:
+  try:	
+    #start = time.time() # Used to Determine Overhead
     # wait for them to finish and then exit
     while True:
-
+      # Determine Overhead
+      #info = os.times()
+      #cpu = info[0] + info[1]
+      #print frequency, cpu, time.time()-start, (cpu/(time.time()-start))
+	  
       (pid, status) = os.waitpid(childpid,os.WNOHANG)
 
       # on FreeBSD, the status is non zero when no one waits.  This is 
@@ -681,7 +713,7 @@ def do_forked_monitor(frequency, cpulimit, disklimit, memlimit):
       if pid == 0:
 
         # let's check the process and make sure it's not over quota.  
-        enforce_cpu_quota(myreadpipe, cpulimit, childpid)
+        enforce_cpu_quota(myreadpipe, cpulimit, frequency, childpid)
 
         # let's check the process and make sure it's not over quota.  
         enforce_disk_quota(disklimit, childpid)
