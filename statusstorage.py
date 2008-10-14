@@ -65,7 +65,6 @@ def write_status(status, mystatusfilenameprefix=None):
   for filename in existingfiles:
     if len(filename.split('-')) == 3 and filename.split('-')[0] == os.path.basename(mystatusfilenameprefix):
       try:
-        print mystatusdir+filename, os.path.exists(mystatusdir+filename)
         os.remove(mystatusdir+filename)
       except OSError, e:
         if e[0] == 2:
