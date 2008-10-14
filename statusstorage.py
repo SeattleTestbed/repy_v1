@@ -45,9 +45,16 @@ def write_status(status, mystatusfilenameprefix=None):
   if not mystatusfilenameprefix:
     return
   
+  mystatusdir = os.path.dirname(mystatusfilenameprefix)
+  if mystatusdir == '':
+    mystatusdir = './'
+  else:
+    mystatusdir = mystatusdir+'/'
+
   # BUG: Is getting a directory list atomic wrt file creation / deletion?
   # get the current file list...
-  existingfiles = os.listdir('.')
+  # Fix.   Need to prepend the directory name we're writing into...
+  existingfiles = os.listdir(mystatusdir)
 
   timestamp = time.time()
 
@@ -56,9 +63,10 @@ def write_status(status, mystatusfilenameprefix=None):
 
   # remove the old files...
   for filename in existingfiles:
-    if len(filename.split('-')) == 3 and filename.split('-')[0] == mystatusfilenameprefix:
+    if len(filename.split('-')) == 3 and filename.split('-')[0] == os.path.basename(mystatusfilenameprefix):
       try:
-        os.remove(filename)
+        print mystatusdir+filename, os.path.exists(mystatusdir+filename)
+        os.remove(mystatusdir+filename)
       except OSError, e:
         if e[0] == 2:
           # file not found, let's assume another instance removed it...
@@ -75,7 +83,11 @@ def read_status(mystatusfilenameprefix=None):
   
   # BUG: is getting a dir list atomic wrt file creation / deletion?
   # get the current file list...
-  existingfiles = os.listdir('.')
+  # Fix.   Need to prepend the directory name we're writing into...
+  if os.path.dirname(mystatusfilenameprefix):
+    existingfiles = os.listdir(os.path.dirname(mystatusfilenameprefix))
+  else:
+    existingfiles = os.listdir('.')
 
   latesttime = 0
   lateststatus = None
