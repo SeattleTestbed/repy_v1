@@ -146,7 +146,8 @@ def monitor_cpu_disk_and_mem(cpuallowed, diskallowed, memallowed):
     frequency = .2
 
     # start the CPU nanny and tell them our pid and limit...
-    cpu_nanny_cmd = "python win_cpu_nanny.py "+str(os.getpid())+" "+str(cpuallowed)+" "+str(frequency)
+    # NOTE: hardcoding the fact that python is in our parent directory...
+    cpu_nanny_cmd = "..\python ..\win_cpu_nanny.py "+str(os.getpid())+" "+str(cpuallowed)+" "+str(frequency)
     # need to set the cwd so that we know where to find it.   Let's assume it's
     # in the same directory we are in
     nannydir = os.path.dirname(sys.argv[0])
