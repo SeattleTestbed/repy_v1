@@ -143,7 +143,7 @@ def monitor_cpu_disk_and_mem(cpuallowed, diskallowed, memallowed):
     do_forked_monitor(.1, cpuallowed, diskallowed, memallowed)
 
   elif ostype == 'Windows':
-    frequency = .2
+    frequency = .1
 
     # start the CPU nanny and tell them our pid and limit...
     # NOTE: Is there a better way?
@@ -452,9 +452,9 @@ def enforce_cpu_quota(readfobj, cpulimit, frequency, childpid):
     totalcpu += percentused*elapsedtime # Don't apply max function, allow the average to drop
   else:
     # Set a minimum for percentused, enfore a use it or lose it policy
-	totalcpu += max(percentused, cpulimit)
+	totalcpu += max(percentused, cpulimit)*elapsedtime
 	
-  #print (totalcpu/totaltime), percentused, totaltime, totalcpu
+  #print (totalcpu/totaltime), percentused, elapsedtime, totaltime, totalcpu
 
   # If average CPU use is fine, then continue
   if (totalcpu/totaltime) <= cpulimit:
