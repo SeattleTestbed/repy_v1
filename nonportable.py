@@ -143,7 +143,7 @@ def monitor_cpu_disk_and_mem(cpuallowed, diskallowed, memallowed):
     do_forked_monitor(.1, cpuallowed, diskallowed, memallowed)
 
   elif ostype == 'Windows':
-    frequency = .1
+    frequency = .2 # I tried .1 and I ended up killing the process...
 
     # start the CPU nanny and tell them our pid and limit...
     # NOTE: Is there a better way?
