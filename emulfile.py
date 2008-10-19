@@ -83,7 +83,7 @@ def removefile(filename):
 
 
 # PUBLIC
-def emulated_open(filename, mode="r"):
+def emulated_open(filename, mode="rb"):
   """
    <Purpose>
       Allows the user program to open a file safely.   This function is meant
@@ -158,9 +158,20 @@ class emulated_file:
   name = None
   softspace = 0
 
-  def __init__(self, filename, mode="r"):
+  def __init__(self, filename, mode="rb"):
     restrictions.assertisallowed('file.__init__',filename,mode)
    
+    # JAC: I'm fixing a bug that repy behaves differently with binary files on
+    # windows.   The issue seems to be that files are opened in text mode 
+    # instead of binary mode.   This should make it behave the same for all 
+    # file types on all platforms
+    if 't' in mode:
+      # We don't allow windows text mode opens...
+      mode.replace('t','')
+    if 'b' not in mode:
+      # It must have a 'b'
+      mode = mode + 'b'
+
     assert_is_allowed_filename(filename)
 
     self.filehandle = idhelper.getuniqueid()
