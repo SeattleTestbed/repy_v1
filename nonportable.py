@@ -210,6 +210,34 @@ def select_sockets(inlist, timeout = None):
     return readylist
 
 
+
+def portablekill(pid):
+  if ostype == 'Linux' or ostype == 'Darwin':
+    try:
+      os.kill(pid, signal.SIGTERM)
+    except:
+      pass
+
+    try:
+      os.kill(pid, signal.SIGKILL)
+    except:
+      pass
+
+  elif ostype == 'Windows':
+    # NOTE: this code is adapted from win_cpu_nanny 
+    # I don't think we need to do any sort of clean up after the process exits...
+    # they are chatty programs and it's tough to tell what is happening with
+    # them.   I'll leave them be
+    p = subprocess.Popen(["pskill.exe","/accepteula",str(pid)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p.stdout.read()
+    p.stderr.read()
+    p.stdout.close()
+    p.stderr.close()
+    
+  else:
+    raise UnsupportedSystemException, "Unsupported system type: '"+osrealtype+"' (alias: "+ostype+")"
+
+
 ###################     Windows specific functions   #######################
 
 try:
