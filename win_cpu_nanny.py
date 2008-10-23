@@ -73,7 +73,7 @@ def win_check_cpu_use(cpulimit,pid):
 	totalcpu += max(percentused, cpulimit)*elapsedtime
 
   # Useful debugging information...  
-  print (totalcpu/totaltime), percentused, elapsedtime, totalcpu, totaltime
+  #print (totalcpu/totaltime), percentused, elapsedtime, totalcpu, totaltime
 
   # they have been well behaved!   Do nothing
   if (totalcpu/totaltime) <= cpulimit:
@@ -84,7 +84,7 @@ def win_check_cpu_use(cpulimit,pid):
   # Base new stoptime on average cpu, and add pause delay to compensate
   stoptime = ((totalcpu/totaltime) - cpulimit) * totaltime * 2
 
-  print "Stopping: ", stoptime
+  #print "Stopping: ", stoptime
   # Call new api to suspend/resume process and sleep for specified time
   windowsAPI.timeoutProcess(pid, stoptime)
 
