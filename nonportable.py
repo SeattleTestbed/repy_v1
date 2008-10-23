@@ -27,7 +27,15 @@ import platform
 import signal
 
 # used to query status, etc.
-import subprocess
+# This may fail on Windows CE
+try:
+  import subprocess
+  mobileNoSubprocess = False
+except ImportError:
+  # Set flag to avoid using subprocess
+  import windows_ce_os
+  mobileNoSubprocess = True 
+  pass
 
 # used for select (duh)
 import select
@@ -81,6 +89,10 @@ def preparesocket(socketobject):
     # to let you send from a socket you're receiving on (why?)
     pass
 
+  elif ostype == "WindowsCE":
+	# No known issues, so just go
+	pass
+	
   else:
     raise UnsupportedSystemException, "Unsupported system type: '"+osrealtype+"' (alias: "+ostype+")"
 
@@ -117,8 +129,6 @@ def harshexit(val):
     # writing over our status information (we're killing them).
     
 
-
-
   if ostype == 'Linux':
     # The Nokia N800 refuses to exit on os._exit() by a thread.   I'm going to
     # signal our pid with SIGTERM (or SIGKILL if needed)
@@ -126,7 +136,7 @@ def harshexit(val):
 #    os._exit(val)
   elif ostype == 'Darwin':
     os._exit(val)
-  elif ostype == 'Windows':
+  elif ostype == 'Windows' or ostype == 'WindowsCE':
     # stderr is not automatically flushed in Windows...
     sys.stderr.flush()
     os._exit(val)
@@ -142,8 +152,11 @@ def monitor_cpu_disk_and_mem(cpuallowed, diskallowed, memallowed):
     # cpu use but not the overall amount.
     do_forked_monitor(.1, cpuallowed, diskallowed, memallowed)
 
-  elif ostype == 'Windows':
-    frequency = .2 # I tried .1 and I ended up killing the process...
+  elif ostype == 'Windows' or ostype == 'WindowsCE':
+    if (ostype == 'WindowsCE'):
+      frequency = .5 # Its a slower device, so lets tone it down
+    else:
+      frequency = .2 # I tried .1 and I ended up killing the process...
 
     # start the CPU nanny and tell them our pid and limit...
     # NOTE: Is there a better way?
@@ -166,7 +179,14 @@ def monitor_cpu_disk_and_mem(cpuallowed, diskallowed, memallowed):
       nannydir="."
 
     # execute the nanny...
-    junkprocessinfo = subprocess.Popen(cpu_nanny_cmd, cwd=nannydir)
+    if (mobileNoSubprocess and ostype == 'WindowsCE'):
+	  # PythonCE requires full paths
+	  # No support for subprocess, need workaround
+	  pythonpath = '\\PROGRA~1\\Python25\\python.exe'
+	  nannypath = '\\repy\\win_cpu_nanny.py'
+	  windows_ce_os.systema(pythonpath, ['/nopcceshell', nannypath, str(os.getpid()), str(cpuallowed), str(frequency)])
+    else:
+      junkprocessinfo = subprocess.Popen(cpu_nanny_cmd, cwd=nannydir)
     # our nanny should outlive us, so it's okay to leave it alone...
 
 
@@ -223,16 +243,9 @@ def portablekill(pid):
     except:
       pass
 
-  elif ostype == 'Windows':
-    # NOTE: this code is adapted from win_cpu_nanny 
-    # I don't think we need to do any sort of clean up after the process exits...
-    # they are chatty programs and it's tough to tell what is happening with
-    # them.   I'll leave them be
-    p = subprocess.Popen(["pskill.exe","/accepteula",str(pid)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    p.stdout.read()
-    p.stderr.read()
-    p.stdout.close()
-    p.stderr.close()
+  elif ostype == 'Windows' or ostype == 'WindowsCE':
+    # Use new api
+    windowsAPI.killProcess(pid)
     
   else:
     raise UnsupportedSystemException, "Unsupported system type: '"+osrealtype+"' (alias: "+ostype+")"
@@ -241,18 +254,19 @@ def portablekill(pid):
 ###################     Windows specific functions   #######################
 
 try:
-  import win32con
-  import win32api
-  import win32process
-except ImportError:
+  import windows_api
+  windowsAPI = windows_api
+except:
+  import windows_ce_api
+  windowsAPI = windows_ce_api
   pass
 
 
-def win_check_memory_use(phandle, memlimit):
+def win_check_memory_use(pid, memlimit):
 
 
   # use the process handle to get the memory info
-  meminfo = win32process.GetProcessMemoryInfo(phandle)
+  meminfo = windowsAPI.processMemoryInfo(pid)
 
   # There are lots of fields in the memory info data.   For example:
   # {'QuotaPagedPoolUsage': 16100L, 'QuotaPeakPagedPoolUsage': 16560L, 
@@ -280,13 +294,6 @@ def win_check_disk_use(disklimit):
     # We will be killed by the other thread...
     raise Exception, "Disk use '"+str(diskused)+"' over limit '"+str(disklimit)+"'"
   
-  
-
-    
-
-
-
-
 
 
 class WindowsNannyThread(threading.Thread):
@@ -301,16 +308,14 @@ class WindowsNannyThread(threading.Thread):
 
   def run(self):
     # need my pid to get a process handle...
-    # I need a process handle to get information (like memory use, etc.)
     mypid = os.getpid()
-    myphandle = win32api.OpenProcess(win32con.PROCESS_QUERY_INFORMATION,0,mypid)
 
     # run forever (only exit if an error occurs)
     while True:
       try:
         time.sleep(self.frequency)
         win_check_disk_use(self.diskallowed)
-        win_check_memory_use(myphandle, self.memallowed)
+        win_check_memory_use(mypid, self.memallowed)
 
         # prevent concurrent status file writes.   
         statuslock.acquire()
@@ -806,6 +811,11 @@ def do_forked_monitor(frequency, cpulimit, disklimit, memlimit):
 def init_ostype():
   global ostype
   global osrealtype
+
+  # Detect whether or not it is Windows CE/Mobile
+  if os.name == 'ce':
+    ostype = 'WindowsCE'
+    return
 
   # figure out what sort of witch we are...
   osrealtype = platform.system()
