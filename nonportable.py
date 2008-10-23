@@ -180,11 +180,11 @@ def monitor_cpu_disk_and_mem(cpuallowed, diskallowed, memallowed):
 
     # execute the nanny...
     if (mobileNoSubprocess and ostype == 'WindowsCE'):
-	  # PythonCE requires full paths
-	  # No support for subprocess, need workaround
-	  pythonpath = '\\PROGRA~1\\Python25\\python.exe'
-	  nannypath = '\\repy\\win_cpu_nanny.py'
-	  windows_ce_os.systema(pythonpath, ['/nopcceshell', nannypath, str(os.getpid()), str(cpuallowed), str(frequency)])
+      # PythonCE requires full paths
+      # No support for subprocess, need workaround
+      pythonpath = '\\PROGRA~1\\Python25\\python.exe'
+      nannypath = '\\repy\\win_cpu_nanny.py'
+      windows_ce_os.systema(pythonpath, ['/nopcceshell', nannypath, str(os.getpid()), str(cpuallowed), str(frequency)])
     else:
       junkprocessinfo = subprocess.Popen(cpu_nanny_cmd, cwd=nannydir)
     # our nanny should outlive us, so it's okay to leave it alone...
@@ -257,8 +257,12 @@ try:
   import windows_api
   windowsAPI = windows_api
 except:
-  import windows_ce_api
-  windowsAPI = windows_ce_api
+  try:
+    import windows_ce_api
+    windowsAPI = windows_ce_api
+  except:
+    windowsAPI = None
+    pass
   pass
 
 
@@ -485,9 +489,10 @@ def enforce_cpu_quota(readfobj, cpulimit, frequency, childpid):
     totalcpu += percentused*elapsedtime # Don't apply max function, allow the average to drop
   else:
     # Set a minimum for percentused, enfore a use it or lose it policy
-	totalcpu += max(percentused, cpulimit)*elapsedtime
+    totalcpu += max(percentused, cpulimit)*elapsedtime
 	
   #print (totalcpu/totaltime), percentused, elapsedtime, totaltime, totalcpu
+  #print totaltime, ",", (totalcpu/totaltime), ",", percentused
 
   # If average CPU use is fine, then continue
   if (totalcpu/totaltime) <= cpulimit:
