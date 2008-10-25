@@ -107,7 +107,7 @@ def getThreadHandle (ThreadID):
 	if handle:
 		return handle
 	else:
-		raise Exception, "Error opening thread handle! Error Str: " + str(WinError())	
+		raise Exception, "Error opening thread handle! ThreadID: " + str(ThreadID) + " Error Str: " + str(WinError())	
 	
 # Suspend a thread with given ThreadID
 def suspendThread (ThreadID):
@@ -168,7 +168,7 @@ def killProcess (PID):
 	attempt = 0
 	while not dead:
 		if (attempt > ATTEMPT_MAX):
-			raise Exception, "Failed to kill process! Error Str: " + str(WinError())
+			raise Exception, "Failed to kill process! Process ID: " + str(PID) + " Error Str: " + str(WinError())
 		attempt = attempt + 1
 		dead = not 0 == _terminateProcess(handle, 0)
 	_closeHandle(handle)
