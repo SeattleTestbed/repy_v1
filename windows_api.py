@@ -111,14 +111,20 @@ def getThreadHandle (ThreadID):
 	
 # Suspend a thread with given ThreadID
 def suspendThread (ThreadID):
-	handle = getThreadHandle(ThreadID)
+	try:
+		handle = getThreadHandle(ThreadID)
+	except:	
+		return False
 	val = _suspendThread(handle)
 	_closeHandle(handle)
 	return (not val == -1)
 
 # Resume a thread with given ThreadID
 def resumeThread (ThreadID):
-	handle = getThreadHandle(ThreadID)
+	try:
+		handle = getThreadHandle(ThreadID)
+	except:	
+		return False
 	val = _resumeThread(handle)
 	_closeHandle(handle)
 	return (not val == -1)
@@ -131,10 +137,11 @@ def suspendProcess (PID):
 		attempt = 0
 		while not sleep:
 			if (attempt > ATTEMPT_MAX):
-				raise Exception, "Failed to sleep thread while sleeping process! Process ID: " + str(PID) + " Error Str: " + str(WinError())
+				return False
+				#raise Exception, "Failed to sleep thread while sleeping process! Process ID: " + str(PID) + " Error Str: " + str(WinError())
 			attempt = attempt + 1
 			sleep = suspendThread(t)
-
+	return True
 # Resume a process with given PID
 def resumeProcess (PID):
 	threads = getProcessThreads(PID)
@@ -143,15 +150,19 @@ def resumeProcess (PID):
 		attempt = 0
 		while not wake: 
 			if (attempt > ATTEMPT_MAX):
-				raise Exception, "Failed to resume thread while resuming process! Process ID: " + str(PID) + " Error Str: " + str(WinError())
+				return False
+				#raise Exception, "Failed to resume thread while resuming process! Process ID: " + str(PID) + " Error Str: " + str(WinError())
 			attempt = attempt + 1
 			wake = resumeThread(t)
+	return True
 		
 # Suspends a process and restarts after a given time interval
 def timeoutProcess (PID, stime):
-	suspendProcess(PID)
-	time.sleep (stime)
-	resumeProcess(PID)
+	if suspendProcess(PID):
+		time.sleep (stime)
+		return resumeProcess(PID)
+	else:
+		return False
 
 # Gets a process handle
 def getProcessHandle (PID):
@@ -163,7 +174,10 @@ def getProcessHandle (PID):
 		
 # Kill a process with specified PID
 def killProcess (PID):
-	handle = getProcessHandle(PID)
+	try:
+		handle = getProcessHandle(PID)
+	except:
+		return False
 	dead = False
 	attempt = 0
 	while not dead:
@@ -172,10 +186,14 @@ def killProcess (PID):
 		attempt = attempt + 1
 		dead = not 0 == _terminateProcess(handle, 0)
 	_closeHandle(handle)
+	return True
 			
 # Get information about a process CPU use times
 def processTimes (PID):
-	handle = getProcessHandle(PID)
+	try:
+		handle = getProcessHandle(PID)
+	except:
+		return {}
 	creationTime = _FILETIME()
 	exitTime = _FILETIME()
 	kernelTime = _FILETIME()
@@ -186,7 +204,11 @@ def processTimes (PID):
 	
 # Get the exit code of a process
 def processExitCode (PID):
-	handle = getProcessHandle(PID)
+	try:
+		handle = getProcessHandle(PID)
+	except:
+		# Process is likely dead
+		return 0
 	code = c_int(0)
 	_processExitCode(handle, pointer(code))
 	_closeHandle(handle)
@@ -194,7 +216,10 @@ def processExitCode (PID):
 	
 # Get information on process memory use
 def processMemoryInfo (PID):
-	handle = getProcessHandle(PID)
+	try:
+		handle = getProcessHandle(PID)
+	except:
+		return {}
 	meminfo = _PROCESS_MEMORY_COUNTERS()
 	_processMemory(handle, pointer(meminfo), sizeof(_PROCESS_MEMORY_COUNTERS))
 	_closeHandle(handle)
