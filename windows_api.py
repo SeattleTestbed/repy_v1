@@ -41,6 +41,7 @@ _processMemory = memdll.GetProcessMemoryInfo
 _processExitCode = kerneldll.GetExitCodeProcess
 _terminateProcess = kerneldll.TerminateProcess
 _closeHandle = kerneldll.CloseHandle # Closes any(?) handle object
+_getLastError = kerneldll.GetLastError
 
 # Classes
 class _THREADENTRY32(Structure): 
@@ -126,7 +127,7 @@ def suspendProcess (PID):
 		attempt = 0
 		while not sleep:
 			if (attempt > ATTEMPT_MAX):
-				raise Exception, "Failed to sleep thread while sleeping process!"
+				raise Exception, "Failed to sleep thread while sleeping process! " + "Error Str: " + str(WinError())
 			attempt = attempt + 1
 			sleep = suspendThread(t)
 
@@ -138,7 +139,7 @@ def resumeProcess (PID):
 		attempt = 0
 		while not wake: 
 			if (attempt > ATTEMPT_MAX):
-				raise Exception, "Failed to resume thread while resuming process!" 
+				raise Exception, "Failed to resume thread while resuming process! " + "Error Str: " + str(WinError())
 			attempt = attempt + 1
 			wake = resumeThread(t)
 		
@@ -159,7 +160,7 @@ def killProcess (PID):
 	attempt = 0
 	while not dead:
 		if (attempt > ATTEMPT_MAX):
-			raise Exception, "Failed to kill process!"
+			raise Exception, "Failed to kill process! " + "Error Str: " + str(WinError())
 		attempt = attempt + 1
 		dead = not 0 == _terminateProcess(handle, 0)
 	_closeHandle(handle)
