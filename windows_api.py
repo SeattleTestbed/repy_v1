@@ -103,7 +103,11 @@ def getProcessThreads (PID):
 
 # Returns a handle for ThreadID	
 def getThreadHandle (ThreadID):
-	return _openThread(THREAD_SUSPEND_RESUME, 0, ThreadID)
+	handle = _openThread(THREAD_SUSPEND_RESUME, 0, ThreadID)
+	if handle:
+		return handle
+	else:
+		raise Exception "Error opening thread handle! Error Str: " + str(WinError())	
 	
 # Suspend a thread with given ThreadID
 def suspendThread (ThreadID):
@@ -151,7 +155,11 @@ def timeoutProcess (PID, stime):
 
 # Gets a process handle
 def getProcessHandle (PID):
-	return _openProcess( PROCESS_QUERY_AND_TERMINATE, 0, PID)
+	handle = _openProcess( PROCESS_QUERY_AND_TERMINATE, 0, PID)
+	if handle:
+		return handle
+	else:
+		raise Exception	"Error opening process handle! Error Str: " + str(WinError())
 		
 # Kill a process with specified PID
 def killProcess (PID):
