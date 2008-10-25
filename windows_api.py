@@ -107,7 +107,7 @@ def getThreadHandle (ThreadID):
 	if handle:
 		return handle
 	else:
-		raise Exception "Error opening thread handle! Error Str: " + str(WinError())	
+		raise Exception, "Error opening thread handle! Error Str: " + str(WinError())	
 	
 # Suspend a thread with given ThreadID
 def suspendThread (ThreadID):
@@ -131,7 +131,7 @@ def suspendProcess (PID):
 		attempt = 0
 		while not sleep:
 			if (attempt > ATTEMPT_MAX):
-				raise Exception, "Failed to sleep thread while sleeping process! " + "Error Str: " + str(WinError())
+				raise Exception, "Failed to sleep thread while sleeping process! Error Str: " + str(WinError())
 			attempt = attempt + 1
 			sleep = suspendThread(t)
 
@@ -143,7 +143,7 @@ def resumeProcess (PID):
 		attempt = 0
 		while not wake: 
 			if (attempt > ATTEMPT_MAX):
-				raise Exception, "Failed to resume thread while resuming process! " + "Error Str: " + str(WinError())
+				raise Exception, "Failed to resume thread while resuming process! Error Str: " + str(WinError())
 			attempt = attempt + 1
 			wake = resumeThread(t)
 		
@@ -159,7 +159,7 @@ def getProcessHandle (PID):
 	if handle:
 		return handle
 	else:
-		raise Exception	"Error opening process handle! Error Str: " + str(WinError())
+		raise Exception, "Error opening process handle! Error Str: " + str(WinError())
 		
 # Kill a process with specified PID
 def killProcess (PID):
@@ -168,7 +168,7 @@ def killProcess (PID):
 	attempt = 0
 	while not dead:
 		if (attempt > ATTEMPT_MAX):
-			raise Exception, "Failed to kill process! " + "Error Str: " + str(WinError())
+			raise Exception, "Failed to kill process! Error Str: " + str(WinError())
 		attempt = attempt + 1
 		dead = not 0 == _terminateProcess(handle, 0)
 	_closeHandle(handle)
