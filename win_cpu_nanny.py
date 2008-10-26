@@ -37,7 +37,7 @@ def win_check_cpu_use(cpulimit,pid):
   # get use information and time...
   now = time.time()
   usedata = windowsAPI.processTimes(pid)
-
+	
   # Add kernel and user time together...   It's in units of 100ns so divide
   # by 10,000,000
   usertime = (usedata['KernelTime'] + usedata['UserTime'] ) / 10000000.0
@@ -86,10 +86,13 @@ def win_check_cpu_use(cpulimit,pid):
 
   #print "Stopping: ", stoptime
   # Call new api to suspend/resume process and sleep for specified time
-  windowsAPI.timeoutProcess(pid, stoptime)
-
-  # Return how long we slept so parent knows whether it should sleep
-  return stoptime
+  if windowsAPI.timeoutProcess(pid, stoptime):
+	# Return how long we slept so parent knows whether it should sleep
+	return stoptime
+  else:
+	# Process must have been making system call, try again next time
+	# Return frequency so that calling process does not sleep
+    return frequency	
 
 def main():
 
@@ -106,7 +109,13 @@ def main():
     while True:
 	  # Base amount of sleeping on return value of 
 	  # win_check_cpu_use to prevent under/over sleeping
-      slept = win_check_cpu_use(limit, ppid)
+      try:
+        slept = win_check_cpu_use(limit, ppid)
+      except windows_api.DeadProcess:
+	    # This can be caused when getting process times for a dead thread or
+	    # Trying to timeout a dead thread, either way, we just exit
+        sys.exit(0)
+	
       if slept == 0:
         time.sleep(freq)
       elif (slept < freq):
