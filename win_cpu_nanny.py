@@ -91,8 +91,7 @@ def win_check_cpu_use(cpulimit,pid):
 	return stoptime
   else:
 	# Process must have been making system call, try again next time
-	# Return frequency so that calling process does not sleep
-    return frequency	
+    return -1	
 
 def main():
 
@@ -111,7 +110,10 @@ def main():
 	  # win_check_cpu_use to prevent under/over sleeping
       slept = win_check_cpu_use(limit, ppid)
 
-      if slept == 0:
+      if slept == -1:
+        # Something went wrong, try again
+        pass
+      elif slept == 0:
         time.sleep(freq)
       elif (slept < freq):
         time.sleep(freq-slept)
