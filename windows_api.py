@@ -144,7 +144,11 @@ def suspendProcess (PID):
 			if (attempt > ATTEMPT_MAX):
 				return False
 			attempt = attempt + 1
-			sleep = suspendThread(t)
+			try:
+				sleep = suspendThread(t)
+			except DeadThread:
+				# If the thread is dead, lets just say its asleep and continue
+				sleep = True
 	return True
 
 # Resume a process with given PID
@@ -157,7 +161,11 @@ def resumeProcess (PID):
 			if (attempt > ATTEMPT_MAX):
 				return False
 			attempt = attempt + 1
-			wake = resumeThread(t)
+			try:
+				wake = resumeThread(t)
+			except DeadThread:
+				# If the thread is dead, its hard to wake it up, so contiue
+				wake = True
 	return True
 
 # Suspends a process and restarts after a given time interval
