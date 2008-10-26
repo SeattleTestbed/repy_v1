@@ -109,13 +109,8 @@ def main():
     while True:
 	  # Base amount of sleeping on return value of 
 	  # win_check_cpu_use to prevent under/over sleeping
-      try:
-        slept = win_check_cpu_use(limit, ppid)
-      except windows_api.DeadProcess:
-	    # This can be caused when getting process times for a dead thread or
-	    # Trying to timeout a dead thread, either way, we just exit
-        sys.exit(0)
-	
+      slept = win_check_cpu_use(limit, ppid)
+
       if slept == 0:
         time.sleep(freq)
       elif (slept < freq):
@@ -130,6 +125,11 @@ def main():
 
   except SystemExit:
     pass
+
+  except windows_api.DeadProcess:
+    # This can be caused when getting process times for a dead thread or
+    # Trying to timeout a dead thread, either way, we just exit
+    sys.exit(0)
 
   except:
     tracebackrepy.handle_exception()
