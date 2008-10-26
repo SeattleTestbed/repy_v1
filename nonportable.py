@@ -320,7 +320,7 @@ class WindowsNannyThread(threading.Thread):
         time.sleep(self.frequency)
         win_check_disk_use(self.diskallowed)
         win_check_memory_use(mypid, self.memallowed)
-
+	      
         # prevent concurrent status file writes.   
         statuslock.acquire()
         try: 
@@ -331,14 +331,15 @@ class WindowsNannyThread(threading.Thread):
           # must release before harshexit...
           statuslock.release()
 
+      except windows_api.DeadProcess:
+        #  Process may be dead, or die while checking memory use
+        #  In any case, there is no reason to continue running, just exit
+        harshexit(99)
+
       except:
         tracebackrepy.handle_exception()
         print >> sys.stderr, "Nanny died!   Trying to kill everything else"
         harshexit(20)
-
-
-
-
 
       
 #### This seems to be used by Mac as well...
@@ -472,6 +473,11 @@ class LinuxCPUTattlerThread(threading.Thread):
 totaltime = 0.0 # Might be issue if user uptime > DBL_MAX or 10^298 centuries
 totalcpu = 0.0 
 
+# Intervals to retain for rolling average
+ROLLING_PERIOD = 2
+rollingCPU = []
+rollingIntervals = []
+
 # this ensures that the CPU quota is actually enforced on the client
 def enforce_cpu_quota(readfobj, cpulimit, frequency, childpid):
   global totaltime, totalcpu
@@ -490,12 +496,37 @@ def enforce_cpu_quota(readfobj, cpulimit, frequency, childpid):
   else:
     # Set a minimum for percentused, enfore a use it or lose it policy
     totalcpu += max(percentused, cpulimit)*elapsedtime
-	
+
+  # Update rolling info
+  if len(rollingCPU) == ROLLING_PERIOD:
+    rollingCPU.pop(0)
+    rollingIntervals.pop(0)
+  rollingCPU.append(percentused*elapsedtime)
+  rollingIntervals.append(elapsedtime)
+
+  # Caclulate Averages
+  add = lambda x, y: x+y
+  rollingTotalCPU = reduce(add, rollingCPU)
+  rollingTotalTime = reduce(add, rollingIntervals)
+  rollingAvg = rollingTotalCPU/rollingTotalTime
+  
+  totalAvg = (totalcpu/totaltime)
+
+  # Determine which average to use
+  if rollingAvg > totalAvg:
+    punishableAvg = rollingAvg
+    stoptime = (rollingTotalTime / frequency) * (rollingAvg - cpulimit) * 2
+  else:
+    punishableAvg = totalAvg
+    stoptime = (totalAvg - cpulimit) * totaltime * 2 
+
   #print (totalcpu/totaltime), percentused, elapsedtime, totaltime, totalcpu
-  #print totaltime, ",", (totalcpu/totaltime), ",", percentused
+  #print totaltime, ",", (totalcpu/totaltime), "," , rollingAvg, ",", percentused
+  #print totaltime , "," ,rollingAvg, ",", totalAvg, ",", percentused
 
   # If average CPU use is fine, then continue
-  if (totalcpu/totaltime) <= cpulimit:
+  #if (totalcpu/totaltime) <= cpulimit:
+  if punishableAvg <= cpulimit:
      time.sleep(frequency) # If we don't sleep, this process burns cpu doing nothing
      return
 
@@ -517,8 +548,9 @@ def enforce_cpu_quota(readfobj, cpulimit, frequency, childpid):
   # New stoptime
   # Determine how far over the limit the average, and punish progressively
   # Also, unsure about the *2 but it does seem to work....
-  stoptime = ((totalcpu/totaltime) - cpulimit) * totaltime * 2
- 
+  #stoptime = ((totalcpu/totaltime) - cpulimit) * totaltime * 2
+  #stoptime = (punishableAvg - cpulimit) * totaltime * 2 
+
   # Sanity Check
   # There is no reason to punish a process for more than
   # frequency / cpulimit
@@ -536,7 +568,7 @@ def enforce_cpu_quota(readfobj, cpulimit, frequency, childpid):
   if (stoptime < frequency):
     time.sleep(frequency-stoptime)
   
-  
+
 
 lastenforcedata = None
 junkfirst = 0
