@@ -483,9 +483,12 @@ ROLLING_PERIOD = 1
 rollingCPU = []
 rollingIntervals = []
 
+#rawcpu = 0.0
+
 # this ensures that the CPU quota is actually enforced on the client
 def enforce_cpu_quota(readfobj, cpulimit, frequency, childpid):
   global totaltime, totalcpu
+  #global rawcpu
 
   elapsedtime, percentused = get_time_and_cpu_percent(readfobj)
 
@@ -493,24 +496,17 @@ def enforce_cpu_quota(readfobj, cpulimit, frequency, childpid):
   if elapsedtime == 0.0:
     #print "Time, Rolling, Average, Instant"
     return
-
-  #if totaltime > 120:
-  #  linux_killme()
-  #  return
  
   # Used to calculate real average
   #rawcpu += percentused*elapsedtime
-  
+
   # Only calculate if Hybrid Throttle is enabled
   if HYBRID_THROTTLE:
     # Increment total time
     totaltime += elapsedtime
     # Increment CPU use
-    if ((totalcpu/totaltime) >= cpulimit):
-      totalcpu += percentused*elapsedtime # Don't apply max function, allow the average to drop
-    else:
-      # Set a minimum for percentused, enfore a use it or lose it policy
-      totalcpu += max(percentused, cpulimit)*elapsedtime
+    totalcpu += percentused*elapsedtime # Don't apply max function, allow the average to drop
+    # Calculate Average
     totalAvg = (totalcpu/totaltime)
 
   # Update rolling info
@@ -529,20 +525,19 @@ def enforce_cpu_quota(readfobj, cpulimit, frequency, childpid):
   # Determine which average to use
   if HYBRID_THROTTLE and totalAvg > rollingAvg:
     punishableAvg = totalAvg
-    stoptime = (totalAvg - cpulimit) * totaltime * 2
+    stoptime = max(((totalAvg * totaltime) / cpulimit) - totaltime , 0)
   else:
     punishableAvg = rollingAvg
-    stoptime = (rollingTotalTime / frequency) * (rollingAvg - cpulimit) * 2
+    stoptime = max((rollingTotalTime) * (rollingAvg / cpulimit) , 0)
 
   #print (totalcpu/totaltime), percentused, elapsedtime, totaltime, totalcpu
   #print totaltime, ",", (totalcpu/totaltime), "," , rollingAvg, ",", percentused
   #print totaltime , "," ,rollingAvg, ",", (rawcpu/totaltime) , "," ,percentused
 
   # If average CPU use is fine, then continue
-  #if (totalcpu/totaltime) <= cpulimit:
-  if punishableAvg <= cpulimit:
-     time.sleep(frequency) # If we don't sleep, this process burns cpu doing nothing
-     return
+  #if punishableAvg <= cpulimit:
+  #   time.sleep(frequency) # If we don't sleep, this process burns cpu doing nothing
+  #   return
 
   # They must be punished by stopping
   os.kill(childpid, signal.SIGSTOP)
@@ -564,13 +559,6 @@ def enforce_cpu_quota(readfobj, cpulimit, frequency, childpid):
   # Also, unsure about the *2 but it does seem to work....
   #stoptime = ((totalcpu/totaltime) - cpulimit) * totaltime * 2
   #stoptime = (punishableAvg - cpulimit) * totaltime * 2 
-
-  # Sanity Check
-  # There is no reason to punish a process for more than
-  # frequency / cpulimit
-  # BECAUSE that means that if a process uses 100% during a sampling interval,
-  # the resulting stop+use interval should average to the CPU limit
-  # stoptime = min(frequency/cpulimit, stoptime)
 
   #print "Stopping: ", stoptime
   time.sleep(stoptime)
