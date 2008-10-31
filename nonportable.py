@@ -49,6 +49,8 @@ import statusstorage
 # needed to check disk usage
 import misc
 
+# Needed to setup non-blocking IO operations
+import fcntl
 
 # This prevents writes to the nanny's status information after we want to stop
 statuslock = threading.Lock()
@@ -473,8 +475,11 @@ class LinuxCPUTattlerThread(threading.Thread):
 totaltime = 0.0 # Might be issue if user uptime > DBL_MAX or 10^298 centuries
 totalcpu = 0.0 
 
+# Enables Hybrid Throttling
+HYBRID_THROTTLE = True
+
 # Intervals to retain for rolling average
-ROLLING_PERIOD = 2
+ROLLING_PERIOD = 1
 rollingCPU = []
 rollingIntervals = []
 
@@ -486,16 +491,27 @@ def enforce_cpu_quota(readfobj, cpulimit, frequency, childpid):
 
   # They get a free pass (likely their first or last time)
   if elapsedtime == 0.0:
+    #print "Time, Rolling, Average, Instant"
     return
+
+  #if totaltime > 120:
+  #  linux_killme()
+  #  return
+ 
+  # Used to calculate real average
+  #rawcpu += percentused*elapsedtime
   
-  # Increment total time
-  totaltime += elapsedtime 
-  # Increment CPU use
-  if ((totalcpu/totaltime) >= cpulimit):
-    totalcpu += percentused*elapsedtime # Don't apply max function, allow the average to drop
-  else:
-    # Set a minimum for percentused, enfore a use it or lose it policy
-    totalcpu += max(percentused, cpulimit)*elapsedtime
+  # Only calculate if Hybrid Throttle is enabled
+  if HYBRID_THROTTLE:
+    # Increment total time
+    totaltime += elapsedtime
+    # Increment CPU use
+    if ((totalcpu/totaltime) >= cpulimit):
+      totalcpu += percentused*elapsedtime # Don't apply max function, allow the average to drop
+    else:
+      # Set a minimum for percentused, enfore a use it or lose it policy
+      totalcpu += max(percentused, cpulimit)*elapsedtime
+    totalAvg = (totalcpu/totaltime)
 
   # Update rolling info
   if len(rollingCPU) == ROLLING_PERIOD:
@@ -509,20 +525,18 @@ def enforce_cpu_quota(readfobj, cpulimit, frequency, childpid):
   rollingTotalCPU = reduce(add, rollingCPU)
   rollingTotalTime = reduce(add, rollingIntervals)
   rollingAvg = rollingTotalCPU/rollingTotalTime
-  
-  totalAvg = (totalcpu/totaltime)
 
   # Determine which average to use
-  if rollingAvg > totalAvg:
+  if HYBRID_THROTTLE and totalAvg > rollingAvg:
+    punishableAvg = totalAvg
+    stoptime = (totalAvg - cpulimit) * totaltime * 2
+  else:
     punishableAvg = rollingAvg
     stoptime = (rollingTotalTime / frequency) * (rollingAvg - cpulimit) * 2
-  else:
-    punishableAvg = totalAvg
-    stoptime = (totalAvg - cpulimit) * totaltime * 2 
 
   #print (totalcpu/totaltime), percentused, elapsedtime, totaltime, totalcpu
   #print totaltime, ",", (totalcpu/totaltime), "," , rollingAvg, ",", percentused
-  #print totaltime , "," ,rollingAvg, ",", totalAvg, ",", percentused
+  #print totaltime , "," ,rollingAvg, ",", (rawcpu/totaltime) , "," ,percentused
 
   # If average CPU use is fine, then continue
   #if (totalcpu/totaltime) <= cpulimit:
@@ -571,38 +585,43 @@ def enforce_cpu_quota(readfobj, cpulimit, frequency, childpid):
 
 
 lastenforcedata = None
-junkfirst = 0
-junkstart = time.time()
+WAIT_PERIOD = 0.05 # How long to wait for new data if there is none in the pipe
 
 def get_time_and_cpu_percent(readfobj):
   global lastenforcedata
-  global junkfirst
 
-  cpudata = readfobj.readline().strip()
-    
+  # Default Data Array
+  info = [0, 0, 0, 0, 0, 0]
+  empty = False # Is the pipe empty?
+  num = 0 # How many data sets have we read?
+  while not empty or num == 0:
+    try:  
+      cpudata = readfobj.readline().strip()
+      num += 1
+      quotainfo = eval(cpudata)
+      info = quotainfo
 
-  # the child must have exited, I'll return so I can wait on them...
-  if not cpudata:
-    return (0.0, 0.0)
-
-  quotainfo = eval(cpudata)
+  # This may be thrown because the file descriptor is non-blocking
+    except IOError:
+       if num == 0: # Sleep a little until data is ready
+         time.sleep(WAIT_PERIOD)
+       empty = True
 
   # Give them a free pass the first time
   if not lastenforcedata:
-    lastenforcedata = quotainfo
-    junkfirst = quotainfo[4]
+    lastenforcedata = info
     return (0.0, 0.0)
 
 
   # The os.times() info is: (cpu, sys, child cpu, child sys, current time)
   # I think it makes the most sense to use the combined cpu/sys time as well
   # as the current time...
-  cputime = quotainfo[0]
-  systime = quotainfo[1]
-  childcputime = quotainfo[2]
-  childsystime = quotainfo[3]
-  clocktime = quotainfo[4] 	# processor time (it's in the wrong units...)
-  currenttime = quotainfo[5]
+  cputime = info[0]
+  systime = info[1]
+  childcputime = info[2]
+  childsystime = info[3]
+  clocktime = info[4] 	# processor time (it's in the wrong units...)
+  currenttime = info[5]
 
   usertime = cputime + systime
 
@@ -618,7 +637,6 @@ def get_time_and_cpu_percent(readfobj):
   # Should do something nicer like ignore quota?
   if clocktime < oldclocktime:
     raise Exception, "Elapsed time '"+str(currenttime)+"' less than previous '"+str(oldcurrenttime)+"'"
-
   # user time is going backwards...   I don't think this is possible
   if usertime < oldusertime:
     raise Exception, "User time '"+str(usertime)+"' at '"+str(currenttime)+"' less than user time '"+str(oldusertime)+"' at '"+str(oldcurrenttime)+"'"
@@ -626,10 +644,11 @@ def get_time_and_cpu_percent(readfobj):
 
   percentused = (usertime - oldusertime) / (clocktime - oldclocktime)
 
-  lastenforcedata = quotainfo
+  lastenforcedata = info
 
   #print (usertime) / (clocktime - junkfirst), percentused, usertime, time.time() - junkstart
   #print percentused, usertime, oldusertime, clocktime, oldclocktime, clocktime-oldclocktime
+
   sys.stdout.flush()
   return (currenttime - oldcurrenttime, percentused)
   
@@ -774,6 +793,13 @@ def do_forked_monitor(frequency, cpulimit, disklimit, memlimit):
   
   # close the write pipe
   os.close(writepipefd)
+
+  # Get the flags on the readpipe file descriptor
+  flags = fcntl.fcntl(readpipefd, fcntl.F_GETFL, 0)
+  # Append non blocking and change the file descriptior
+  flags = flags | os.O_NONBLOCK
+  fcntl.fcntl (readpipefd, fcntl.F_SETFL, flags)
+
   myreadpipe = os.fdopen(readpipefd,"r")
 
   try:	
