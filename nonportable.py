@@ -49,8 +49,6 @@ import statusstorage
 # needed to check disk usage
 import misc
 
-# Needed to setup non-blocking IO operations
-import fcntl
 
 # This prevents writes to the nanny's status information after we want to stop
 statuslock = threading.Lock()
@@ -781,6 +779,9 @@ def do_forked_monitor(frequency, cpulimit, disklimit, memlimit):
   
   # close the write pipe
   os.close(writepipefd)
+
+  # Needed to setup non-blocking IO operations
+  import fcntl
 
   # Get the flags on the readpipe file descriptor
   flags = fcntl.fcntl(readpipefd, fcntl.F_GETFL, 0)
