@@ -583,6 +583,12 @@ def get_time_and_cpu_percent(readfobj):
   while not empty or num == 0:
     try:  
       cpudata = readfobj.readline().strip()
+
+      # If the Worker process dies, then the pipe is closed and an EOF is inserted
+      # readline will return an empty string on hitting the EOF, so we should detect this and die
+      if cpudata == '':
+        harshexit(98)
+
       num += 1
       quotainfo = eval(cpudata)
       info = quotainfo
