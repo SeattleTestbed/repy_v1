@@ -468,51 +468,48 @@ class LinuxCPUTattlerThread(threading.Thread):
         harshexit(21)
 
 
-
-# Keep track of info for rolling average
-totaltime = 0.0 # Might be issue if user uptime > DBL_MAX or 10^298 centuries
-totalcpu = 0.0 
-
-# Enables Hybrid Throttling
-HYBRID_THROTTLE = True
-
 # Intervals to retain for rolling average
 ROLLING_PERIOD = 1
 rollingCPU = []
 rollingIntervals = []
 
+# Keep track of last stoptime and resume time
+resumeTime = 0.0
+lastStoptime = 0.0
+segmentedInterval = False
+
+# Debug purposes: Calculate real average
 #rawcpu = 0.0
+#totaltime = 0.0
 
 # this ensures that the CPU quota is actually enforced on the client
 def enforce_cpu_quota(readfobj, cpulimit, frequency, childpid):
-  global totaltime, totalcpu
-  #global rawcpu
+  global resumeTime, lastStoptime, segmentedInterval
+  # Debug: Used to calculate averages
+  # global totaltime, rawcpu
 
   elapsedtime, percentused = get_time_and_cpu_percent(readfobj)
 
   # They get a free pass (likely their first or last time)
   if elapsedtime == 0.0:
-    #print "Time, Rolling, Average, Instant"
     return
- 
-  # Used to calculate real average
-  #rawcpu += percentused*elapsedtime
 
-  # Only calculate if Hybrid Throttle is enabled
-  if HYBRID_THROTTLE:
-    # Increment total time
-    totaltime += elapsedtime
-    # Increment CPU use
-    totalcpu += percentused*elapsedtime # Don't apply max function, allow the average to drop
-    # Calculate Average
-    totalAvg = (totalcpu/totaltime)
-
+  # Adjust inputs if segment was interrupted
+  if segmentedInterval:
+    elapsedtimemod = elapsedtime - lastStoptime
+    percentusedmod = (percentused * elapsedtime) / elapsedtimemod
+  else:
+    elapsedtimemod = elapsedtime
+    percentusedmod = percentused
+    
   # Update rolling info
+  # Use the *moded version of elapsedtime and percentused
+  # To account for segmented intervals
   if len(rollingCPU) == ROLLING_PERIOD:
     rollingCPU.pop(0)
     rollingIntervals.pop(0)
-  rollingCPU.append(percentused*elapsedtime)
-  rollingIntervals.append(elapsedtime)
+  rollingCPU.append(percentusedmod*elapsedtimemod)
+  rollingIntervals.append(elapsedtimemod)
 
   # Caclulate Averages
   add = lambda x, y: x+y
@@ -520,49 +517,30 @@ def enforce_cpu_quota(readfobj, cpulimit, frequency, childpid):
   rollingTotalTime = reduce(add, rollingIntervals)
   rollingAvg = rollingTotalCPU/rollingTotalTime
 
-  # Determine which average to use
-  if HYBRID_THROTTLE and totalAvg > rollingAvg:
-    punishableAvg = totalAvg
-    stoptime = max(((totalAvg * totaltime) / cpulimit) - totaltime , 0)
-  else:
-    punishableAvg = rollingAvg
-    stoptime = max((rollingTotalTime) * (rollingAvg / cpulimit) , 0)
+  # Calculate Stoptime
+  stoptime = max(((rollingAvg * rollingTotalTime) / cpulimit) - rollingTotalTime , 0)
 
-  #print (totalcpu/totaltime), percentused, elapsedtime, totaltime, totalcpu
-  #print totaltime, ",", (totalcpu/totaltime), "," , rollingAvg, ",", percentused
+  # Print debug info
+  #rawcpu += percentused*elapsedtime
+  #totaltime += elapsedtime
   #print totaltime , "," ,rollingAvg, ",", (rawcpu/totaltime) , "," ,percentused
-
-  # If average CPU use is fine, then continue
-  #if punishableAvg <= cpulimit:
-  #   time.sleep(frequency) # If we don't sleep, this process burns cpu doing nothing
-  #   return
-
-  # They must be punished by stopping
-  os.kill(childpid, signal.SIGSTOP)
-
-  # we'll stop them for at least long enough to even out the damage
-
-  # why does this formula work?  Where does *2 come from?
-  # I checked and sleep is sleeping the full time...
-  # I've verified the os.times() data tracks perfectly...
-  # I've tried it will different publishing frequencies and it works...
-  # this formula works for different cpulimits as well
-  # for very low sleep rates, this doesn't work.   The time is way over.
-  # for high sleep rates, this works fine.
-  # Old Stop Time
-  #stoptime = (((percentused-cpulimit) / cpulimit)-1) * elapsedtime * 2
-
-  # New stoptime
-  # Determine how far over the limit the average, and punish progressively
-  # Also, unsure about the *2 but it does seem to work....
-  #stoptime = ((totalcpu/totaltime) - cpulimit) * totaltime * 2
-  #stoptime = (punishableAvg - cpulimit) * totaltime * 2 
-
   #print "Stopping: ", stoptime
-  time.sleep(stoptime)
 
-  # And now they can start back up!
-  os.kill(childpid, signal.SIGCONT)
+  if not stoptime == 0.0:
+    # They must be punished by stopping
+    os.kill(childpid, signal.SIGSTOP)
+
+    # Sleep until time to resume
+    time.sleep(stoptime)
+
+    # And now they can start back up!
+    os.kill(childpid, signal.SIGCONT)
+
+    # Save information about wake time and stoptime for future adjustment
+    resumeTime = time.time()
+    lastStoptime = stoptime
+  else:
+    resumeTime = 0.0
 
   # If stoptime < frequency, then we would over-sample if we don't sleep
   if (stoptime < frequency):
@@ -571,10 +549,11 @@ def enforce_cpu_quota(readfobj, cpulimit, frequency, childpid):
 
 
 lastenforcedata = None
-WAIT_PERIOD = 0.05 # How long to wait for new data if there is none in the pipe
+WAIT_PERIOD = 0.01 # How long to wait for new data if there is none in the pipe
 
 def get_time_and_cpu_percent(readfobj):
   global lastenforcedata
+  global segmentedInterval, resumeTime
 
   # Default Data Array
   info = [0, 0, 0, 0, 0, 0]
@@ -633,15 +612,14 @@ def get_time_and_cpu_percent(readfobj):
   if usertime < oldusertime:
     raise Exception, "User time '"+str(usertime)+"' at '"+str(currenttime)+"' less than user time '"+str(oldusertime)+"' at '"+str(oldcurrenttime)+"'"
 
+  if oldclocktime < resumeTime:
+    segmentedInterval = True
+  else:
+    segmentedInterval = False
 
   percentused = (usertime - oldusertime) / (clocktime - oldclocktime)
-
   lastenforcedata = info
 
-  #print (usertime) / (clocktime - junkfirst), percentused, usertime, time.time() - junkstart
-  #print percentused, usertime, oldusertime, clocktime, oldclocktime, clocktime-oldclocktime
-
-  sys.stdout.flush()
   return (currenttime - oldcurrenttime, percentused)
   
   
