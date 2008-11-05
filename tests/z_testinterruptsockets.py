@@ -44,8 +44,8 @@ def newconn(IP, port, sockobj, thisch, mainch):
 if callfunc=='initialize':
   mycontext['size'] = 1024
   mycontext['timeout'] = 10
-  mainch = waitforconn('127.0.0.1',12345, newconn)
-  mysock = openconn('127.0.0.1',12345)
+  mainch = waitforconn('127.0.0.1',<connport>, newconn)
+  mysock = openconn('127.0.0.1',<connport>)
 # check this out!!!
 #  mysock.send("hi")
 #  mysock.close()

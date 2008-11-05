@@ -19,10 +19,10 @@ if callfunc == 'initialize':
 
   ip = getmyip()
 
-  ch1 = waitforconn(ip,12345,foo)
-  junk1 = openconn(ip,12345,foo)
-  junk2 = openconn(ip,12345,foo)
-  junk3 = openconn(ip,12345,foo) # should never be connected
+  ch1 = waitforconn(ip,<connport>,foo)
+  junk1 = openconn(ip,<connport>,foo)
+  junk2 = openconn(ip,<connport>,foo)
+  junk3 = openconn(ip,<connport>,foo) # should never be connected
   sleep(.1)
   stopcomm(ch1)
 

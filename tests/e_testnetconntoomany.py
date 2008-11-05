@@ -15,13 +15,13 @@ if callfunc == 'initialize':
 
   ip = getmyip()
 
-  waitforconn(ip,12345,foo)
+  waitforconn(ip,<connport>,foo)
   sleep(.1)
-  sockobj  = openconn(ip,12345)
-  sockobj2 = openconn(ip,12345)
-  sockobj3 = openconn(ip,12345) 
-  sockobj4 = openconn(ip,12345)
-  sockobj5 = openconn(ip,12345)
-  sockobj6 = openconn(ip,12345)# should be an error (too many outsockets)
+  sockobj  = openconn(ip,<connport>)
+  sockobj2 = openconn(ip,<connport>)
+  sockobj3 = openconn(ip,<connport>) 
+  sockobj4 = openconn(ip,<connport>)
+  sockobj5 = openconn(ip,<connport>)
+  sockobj6 = openconn(ip,<connport>)# should be an error (too many outsockets)
 
 #  sockobj.close()

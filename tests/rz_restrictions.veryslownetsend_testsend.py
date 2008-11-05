@@ -4,8 +4,8 @@ def foo(ip,port,mess, ch):
 
 if callfunc == 'initialize':
   ip = getmyip()
-  recvmess(ip,12345,foo)
+  recvmess(ip,<messport>,foo)
   sleep(.1)
-  sendmess(ip,12345,'hi')
-  sendmess(ip,12345,'Hello, this is too long of a message to be received in such a short time')
+  sendmess(ip,<messport>,'hi')
+  sendmess(ip,<messport>,'Hello, this is too long of a message to be received in such a short time')
   print "hi"

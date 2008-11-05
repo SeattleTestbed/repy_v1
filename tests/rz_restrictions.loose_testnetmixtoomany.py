@@ -15,9 +15,9 @@ if callfunc == 'initialize':
 
   ip = getmyip()
 
-  ch1 = waitforconn(ip,12345,foo)
-  ch2 = recvmess(ip,12346,bar)
-  ch3 = waitforconn(ip,12347,foo) # should not be an error, insockets > 2
+  ch1 = waitforconn(ip,<connport>,foo)
+  ch2 = recvmess(ip,<messport1>,bar)
+  ch3 = waitforconn(ip,<connport2>,foo) # should not be an error, insockets > 2
   sleep(.1)
   stopcomm(ch1)
   stopcomm(ch2)

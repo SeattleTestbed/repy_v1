@@ -15,9 +15,9 @@ if callfunc == 'initialize':
 
   ip = getmyip()
 
-  ch1 = waitforconn(ip,12345,foo)
-  ch2 = waitforconn(ip,12346,foo)
-  ch3 = waitforconn(ip,12347,foo) # should be an error because allowed only 2 
+  ch1 = waitforconn(ip,<connport>,foo)
+  ch2 = waitforconn(ip,<connport1>,foo)
+  ch3 = waitforconn(ip,<connport2>,foo) # should be an error because allowed only 2 
   sleep(.1)
   stopcomm(ch1)
   stopcomm(ch2)

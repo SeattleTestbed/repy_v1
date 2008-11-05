@@ -4,7 +4,7 @@ resource diskused 40000000 # 40 MB
 resource events 10
 resource filewrite 10000
 resource fileread 10000
-resource filesopened 100
+resource filesopened 1000
 resource insockets 5
 resource outsockets 5
 resource netsend 10000
@@ -64,9 +64,11 @@ call socket.send allow 			# let's not restrict
 call socket.recv allow 			# let's not restrict
 # open and file.__init__ both have built in restrictions...
 call open arg 0 is junk_test.out allow 	# can write to junk_test.out
+call open allow
 call open arg 1 is r allow 		# allow an explicit read
 call open noargs is 1 allow 		# allow an implicit read 
 call file.__init__ arg 0 is junk_test.out allow # can write to junk_test.out
+call file.__init__ allow
 call file.__init__ arg 1 is r allow 	# allow an explicit read
 call file.__init__ noargs is 1 allow 	# allow an implicit read 
 call file.close allow 			# shouldn't restrict

@@ -13,9 +13,9 @@ def foo(ip,port,sockobj, ch,mainch):
 
 
 if callfunc == 'initialize':
-  waitforconn('127.0.0.1',12345,foo)
+  waitforconn('127.0.0.1',<connport>,foo)
   sleep(.2)
-  sockobj = openconn('127.0.0.1',12345)
+  sockobj = openconn('127.0.0.1',<connport>)
 
   sockobj.send("Hello")
 

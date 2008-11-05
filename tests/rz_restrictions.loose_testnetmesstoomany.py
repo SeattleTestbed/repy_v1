@@ -9,9 +9,9 @@ if callfunc == 'initialize':
 
   ip = getmyip()
 
-  ch1 = recvmess(ip,12345,foo)
-  ch2 = recvmess(ip,12346,foo)
-  ch3 = recvmess(ip,12347,foo) # should be an error because insockets > 2
+  ch1 = recvmess(ip,<messport>,foo)
+  ch2 = recvmess(ip,<messport1>,foo)
+  ch3 = recvmess(ip,<messport2>,foo) # should be an error because insockets > 2
   sleep(.1)
   stopcomm(ch1)
   stopcomm(ch2)

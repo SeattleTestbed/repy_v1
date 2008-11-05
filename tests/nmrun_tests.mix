@@ -1,7 +1,8 @@
 # Brent Couvrette
 # September 16, 2008
+# THIS FILE IS CURRENTLY UNUSED...
 #
-# Seattle script to run the Seattle test cases using the node manager...  
+# Repy script to run the Seattle test cases using the node manager...  
 # Adapted from a python script by Justin Cappos
 #
 # The types of tests are:
@@ -46,7 +47,7 @@ def run_test(testname):
 
  		# take the 1st character of the testname 's_' -> 's'
 		testtype = testname[0]
-		restrictfn = 'restrictions.default'
+		restrictfn = 'default'
     
 	elif testname.startswith('ru_') or testname.startswith('u_'):
     	# Do not run undefined tests...
@@ -56,7 +57,13 @@ def run_test(testname):
 
 
 	resultstring = "Ran test %-50s [" % testname
-	result = do_actual_test(testtype, restrictfn, testname)
+	
+	# If there is no custom restrictions file, we can do a user test,
+	# otherwise we need to have owner privilages to do the test.
+	if restrictfn == 'default':
+		result = do_user_test(testtype, testname)
+	else:
+		result = do_owner_test(testtype, restrictfn, testname)
 
 	if result:
 		mycontext['passcount'] = mycontext['passcount'] + 1
@@ -67,7 +74,7 @@ def run_test(testname):
 	print resultstring
 
 
-def do_actual_test(testtype, restrictfn, testname):
+def do_user_test(testtype, testname):
 	repylog = run_in_vessel(testname, restrictfn)
 
 	# match python

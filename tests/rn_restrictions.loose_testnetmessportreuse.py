@@ -7,8 +7,8 @@ def noop(a,b,c,d):
 
 if callfunc == 'initialize':
   ip = getmyip()
-  noopch = recvmess(ip,12345,noop)
-  recvmess(ip,12346,foo)
+  noopch = recvmess(ip,<messport>,noop)
+  recvmess(ip,<messport1>,foo)
   sleep(.1)
-  sendmess(ip,12346,'hi',ip,12345)
+  sendmess(ip,<messport1>,'hi',ip,<port>)
   stopcomm(noopch)

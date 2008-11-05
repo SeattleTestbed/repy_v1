@@ -12,12 +12,12 @@ resource netrecv 10000
 resource loopsend 1000000
 resource looprecv 1000000
 resource lograte 1000
-resource messport 12345
-resource messport 12347
-resource messport 12346
-resource connport 12345
-resource connport 12347
-resource connport 12346
+resource messport <messport>
+resource messport <messport1>
+resource messport <messport2>
+resource connport <connport>
+resource connport <connport1>
+resource connport <connport2>
 
 call gethostbyname_ex allow
 call sendmess allow

@@ -8,9 +8,9 @@ if callfunc == 'initialize':
 
   ip = getmyip()
 
-  waitforconn(ip,12345,foo)
+  waitforconn(ip,<connport>,foo)
   sleep(.1)
-  sockobj = openconn(ip,12345)
+  sockobj = openconn(ip,<connport>)
 
   settimer(1, sockobj.close,())
   try:

@@ -3,6 +3,6 @@ def foo(ip,port,mess, ch):
   stopcomm(ch)
 
 if callfunc == 'initialize':
-  recvmess('127.0.0.1',12345,foo)
+  recvmess('127.0.0.1',<messport>,foo)
   sleep(.1)
-  sendmess('127.0.0.1',12345,'hi')
+  sendmess('127.0.0.1',<messport>,'hi')

@@ -11,10 +11,10 @@ if callfunc == 'initialize':
 
   ip = getmyip()
 
-  ch1 = recvmess(ip,12345,foo)
-  sendmess(ip,12345,"hi")
-  sendmess(ip,12345,"hi")
-  sendmess(ip,12345,"error") # should not get delivered if the event count is 2
+  ch1 = recvmess(ip,<messport>,foo)
+  sendmess(ip,<messport>,"hi")
+  sendmess(ip,<messport>,"hi")
+  sendmess(ip,<messport>,"error") # should not get delivered if the event count is 2
   sleep(1)
   stopcomm(ch1)
 
