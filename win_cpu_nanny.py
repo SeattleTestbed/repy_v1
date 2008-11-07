@@ -16,23 +16,40 @@ try:
   import windows_api
   windowsAPI = windows_api
 except:
-  import windows_ce_api
-  windowsAPI = windows_ce_api
+  try:
+    import windows_ce_api
+    windowsAPI = windows_ce_api
+  except:
+    windowsAPI = None
+    pass
   pass
 
 winlastcpuinfo = [0,0]
 firststart = None
 firstcpu = None
 
-# Keep track of info for rolling average
-totaltime = 0.0
-totalcpu = 0.0
+# Intervals to retain for rolling average
+ROLLING_PERIOD = 1
+rollingCPU = []
+rollingIntervals = []
+
+# Keep track of last stoptime and resume time
+resumeTime = 0.0
+lastStoptime = 0.0
+segmentedInterval = False
+
+# Debug purposes: Calculate real average
+#rawcpu = 0.0
+#totaltime = 0.0
 
 def win_check_cpu_use(cpulimit,pid):
+  global rollingCPU, rollingIntervals
+  global resumeTime, lastStoptime, segmentedInterval
+  # Debug: Used to calculate averages
+  #global totaltime, rawcpu
   global firststart
   global firstcpu
   global winlastcpuinfo
-  global totaltime, totalcpu
 
   # get use information and time...
   now = time.time()
@@ -62,35 +79,62 @@ def win_check_cpu_use(cpulimit,pid):
 
   # percent used is the amount of change divided by the time...
   percentused = (usertime - oldusertime) / elapsedtime
+ 
+  # Adjust inputs if segment was interrupted
+  if segmentedInterval:
+    # Reduce elapsed time by the amount spent sleeping
+    elapsedtimemod = elapsedtime - lastStoptime 
 
-  # Increment total time
-  totaltime += elapsedtime 
-  # Increment CPU use
-  if ((totalcpu/totaltime) >= cpulimit):
-    totalcpu += (usertime - oldusertime) # Don't apply max function, allow the average to drop
+    # Recalculate percent used based on new elapsed time
+    percentusedmod = (percentused * elapsedtime) / elapsedtimemod
   else:
-    # Set a minimum for percentused, enfore a use it or lose it policy
-	totalcpu += max(percentused, cpulimit)*elapsedtime
+    elapsedtimemod = elapsedtime
+    percentusedmod = percentused
 
-  # Useful debugging information...  
-  #print (totalcpu/totaltime), percentused, elapsedtime, totalcpu, totaltime
+  # Update rolling info
+  # Use the *moded version of elapsedtime and percentused
+  # To account for segmented intervals
+  if len(rollingCPU) == ROLLING_PERIOD:
+    rollingCPU.pop(0) # Remove oldest CPU data
+    rollingIntervals.pop(0) # Remove oldest Elapsed time data
+  rollingCPU.append(percentusedmod*elapsedtimemod) # Add new CPU data
+  rollingIntervals.append(elapsedtimemod) # Add new time data
 
-  # they have been well behaved!   Do nothing
-  if (totalcpu/totaltime) <= cpulimit:
-     return 0
+  # Caclulate Averages
+  # Sum up cpu data
+  rollingTotalCPU = 0.0
+  for i in rollingCPU:
+    rollingTotalCPU += i
 
-  # sleep to delay processing 
-  # stoptime = ((percentused / cpulimit)-1) * elapsedtime * 2
-  # Base new stoptime on average cpu, and add pause delay to compensate
-  stoptime = ((totalcpu/totaltime) - cpulimit) * totaltime * 2
+  # Sum up time data
+  rollingTotalTime = 0.0
+  for i in rollingIntervals:
+    rollingTotalTime += i
 
+  rollingAvg = rollingTotalCPU/rollingTotalTime
+
+  # Calculate Stoptime
+  #  Mathematically Derived from:
+  #  (PercentUsed * TotalTime) / ( TotalTime + StopTime) = CPULimit
+  stoptime = max(((rollingAvg * rollingTotalTime) / cpulimit) - rollingTotalTime , 0)
+
+  # Print debug info
+  #rawcpu += percentused*elapsedtime
+  #totaltime += elapsedtime
+  #print totaltime , "," ,rollingAvg, ",", (rawcpu/totaltime) , "," ,percentused
   #print "Stopping: ", stoptime
+
+
   # Call new api to suspend/resume process and sleep for specified time
   if windowsAPI.timeoutProcess(pid, stoptime):
-	# Return how long we slept so parent knows whether it should sleep
-	return stoptime
+    # Save information about wake time and stoptime for future adjustment
+    resumeTime = time.time()
+    lastStoptime = stoptime
+
+    # Return how long we slept so parent knows whether it should sleep
+    return stoptime
   else:
-	# Process must have been making system call, try again next time
+    # Process must have been making system call, try again next time
     return -1	
 
 def main():
