@@ -496,7 +496,10 @@ def enforce_cpu_quota(readfobj, cpulimit, frequency, childpid):
 
   # Adjust inputs if segment was interrupted
   if segmentedInterval:
-    elapsedtimemod = elapsedtime - lastStoptime
+    # Reduce elapsed time by the amount spent sleeping
+    elapsedtimemod = elapsedtime - lastStoptime 
+
+    # Recalculate percent used based on new elapsed time
     percentusedmod = (percentused * elapsedtime) / elapsedtimemod
   else:
     elapsedtimemod = elapsedtime
@@ -506,18 +509,27 @@ def enforce_cpu_quota(readfobj, cpulimit, frequency, childpid):
   # Use the *moded version of elapsedtime and percentused
   # To account for segmented intervals
   if len(rollingCPU) == ROLLING_PERIOD:
-    rollingCPU.pop(0)
-    rollingIntervals.pop(0)
-  rollingCPU.append(percentusedmod*elapsedtimemod)
-  rollingIntervals.append(elapsedtimemod)
+    rollingCPU.pop(0) # Remove oldest CPU data
+    rollingIntervals.pop(0) # Remove oldest Elapsed time data
+  rollingCPU.append(percentusedmod*elapsedtimemod) # Add new CPU data
+  rollingIntervals.append(elapsedtimemod) # Add new time data
 
   # Caclulate Averages
-  add = lambda x, y: x+y
-  rollingTotalCPU = reduce(add, rollingCPU)
-  rollingTotalTime = reduce(add, rollingIntervals)
+  # Sum up cpu data
+  rollingTotalCPU = 0.0
+  for i in rollingCPU:
+    rollingTotalCPU += i
+
+  # Sum up time data
+  rollingTotalTime = 0.0
+  for i in rollingIntervals:
+    rollingTotalTime += i
+  
   rollingAvg = rollingTotalCPU/rollingTotalTime
 
   # Calculate Stoptime
+  #  Mathematically Derived from:
+  #  (PercentUsed * TotalTime) / ( TotalTime + StopTime) = CPULimit
   stoptime = max(((rollingAvg * rollingTotalTime) / cpulimit) - rollingTotalTime , 0)
 
   # Print debug info
@@ -560,7 +572,8 @@ def get_time_and_cpu_percent(readfobj):
   empty = False # Is the pipe empty?
   num = 0 # How many data sets have we read?
   while not empty or num == 0:
-    try:  
+    try:
+      # Read in from the Pipe  
       cpudata = readfobj.readline().strip()
 
       # If the Worker process dies, then the pipe is closed and an EOF is inserted
@@ -569,8 +582,7 @@ def get_time_and_cpu_percent(readfobj):
         harshexit(98)
 
       num += 1
-      quotainfo = eval(cpudata)
-      info = quotainfo
+      info = eval(cpudata)
 
   # This may be thrown because the file descriptor is non-blocking
     except IOError:
@@ -612,6 +624,7 @@ def get_time_and_cpu_percent(readfobj):
   if usertime < oldusertime:
     raise Exception, "User time '"+str(usertime)+"' at '"+str(currenttime)+"' less than user time '"+str(oldusertime)+"' at '"+str(oldcurrenttime)+"'"
 
+  # Determine if latest data points contain a segmentation caused by sleeping
   if oldclocktime < resumeTime:
     segmentedInterval = True
   else:
