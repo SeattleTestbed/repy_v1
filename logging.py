@@ -115,7 +115,7 @@ class circular_logger:
   newfn = None
 
   # the size before we "rotate" the logfiles
-  maxbuffersize = 16 * 1024 # 16KB
+  maxbuffersize = None # default listed in constructor
 
   currentsize = 0
   
@@ -140,11 +140,14 @@ class circular_logger:
 
 
 
-  def __init__(self, fnp):
+  def __init__(self, fnp, mbs = 16 * 1024):
+    self.maxbuffersize = mbs
     self.filenameprefix = fnp
     self.oldfn = fnp+".old"
     self.newfn = fnp+".new"
     self.writelock = threading.Lock()
+
+    
     
     # we need to set up the currentsize, activefo and first variables...
     if os.path.exists(self.newfn):
