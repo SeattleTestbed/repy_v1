@@ -46,7 +46,9 @@ item_resources = fungible_item_resources + individual_item_resources
 # this is used by restrictions.py to set up our tables
 known_resources = quantity_resources + item_resources 
 
-
+# Whenever a resource file is attached to a vessel, an exception should
+# be thrown if these resources are not present.  If any of these are left
+# unassigned, mysterious node manager errors will arise -Brent
 must_assign_resources = [ "cpu", "memory", "diskused" ]
 
 # the restrictions on how resources should be used.   This is filled in for
