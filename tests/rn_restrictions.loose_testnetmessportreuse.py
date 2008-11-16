@@ -10,5 +10,5 @@ if callfunc == 'initialize':
   noopch = recvmess(ip,<messport>,noop)
   recvmess(ip,<messport1>,foo)
   sleep(.1)
-  sendmess(ip,<messport1>,'hi',ip,<port>)
+  sendmess(ip,<messport1>,'hi',ip,<messport>)
   stopcomm(noopch)
