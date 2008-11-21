@@ -444,20 +444,6 @@ def is_loopback(host):
   return True
 
 
-# Used to substitute for thread.start_new_thread because that function isn't
-# properly tracked in threading.activeCount()
-class ThreadEventClass(threading.Thread):
-  func = None
-  args = None
-
-  def __init__(self, f, a):
-    self.func = f
-    self.args = a
-    threading.Thread.__init__(self)
-
-  def run(self):
-    self.func(*(self.args))
-
 
 
 
