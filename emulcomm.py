@@ -403,7 +403,13 @@ def getmyip():
   # Tell it to connect to google (we assume that the DNS entry for this works)
   # however, using port 0 causes some issues on FreeBSD!   I choose port 80 
   # instead...
-  s.connect(('google.com', 80))
+  try:
+    s.connect(('google.com', 80))
+  except Exception, e:
+    # I reraise the exception from here because exceptions raised by connect
+    # are treated as "from a string" which confuses the traceback printer
+    # unless I re-raise it here (then it lists my line which is culled)
+    raise e
 
   # and the IP of the interface this connects on is the first item of the tuple
   (myip, localport) = s.getsockname() 
@@ -770,6 +776,11 @@ def openconn(desthost, destport,localip=None, localport=None,timeout=5.0):
     try:
       comminfo[handle]['socket'].settimeout(timeout)
       comminfo[handle]['socket'].connect((desthost,destport))
+    except Exception, e:
+      # I reraise the exception from here because exceptions raised by connect
+      # are treated as "from a string" which confuses the traceback printer
+      # unless I re-raise it here (then it lists my line which is culled)
+      raise e
     finally:
       # and restore the old timeout...
       comminfo[handle]['socket'].settimeout(oldtimeout)
