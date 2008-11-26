@@ -548,6 +548,11 @@ def sendmess(desthost, destport, message,localip=None,localport = None):
       The number of bytes sent on success
   """
 
+  if type(destport) is not int and type(destport) is not long:
+    raise Exception("Destination port number must be an integer")
+
+  if localport and type(localport) is not int and type(localport) is not long:
+    raise Exception("Local port number must be an integer")
 
   restrictions.assertisallowed('sendmess', desthost, destport, message,localip,localport)
 
@@ -658,6 +663,9 @@ def recvmess(localip, localport, function):
       The commhandle for this event handler.
   """
 
+  if type(localport) is not int and type(localport) is not long:
+    raise Exception("Local port number must be an integer")
+
   restrictions.assertisallowed('recvmess',localip,localport)
 
   nanny.tattle_check('messport',localport)
@@ -747,6 +755,11 @@ def openconn(desthost, destport,localip=None, localport=None,timeout=5.0):
       recv, and close just like you would an actual socket object in python.
   """
 
+  if type(destport) is not int and type(destport) is not long:
+    raise Exception("Destination port number must be an integer")
+
+  if localport and type(localport) is not int and type(localport) is not long:
+    raise Exception("Local port number must be an integer")
 
   restrictions.assertisallowed('openconn',desthost,destport,localip,localport)
 
@@ -823,6 +836,8 @@ def waitforconn(localip, localport,function):
       A handle to the comm object.   This can be used to stop listening
   """
 
+  if type(localport) is not int and type(localport) is not long:
+    raise Exception("Local port number must be an integer")
 
   restrictions.assertisallowed('waitforconn',localip,localport)
 
