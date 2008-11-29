@@ -119,6 +119,10 @@ def main(restrictionsfn, program, args,stopfile=None):
 
   usercode = file(program).read()
 
+  # In order to work well with files that may contain a mix of \r\n and \n
+  # characters (see ticket #32), I'm going to replace all \r\n with \n
+  usercode = usercode.replace('\r\n','\n')
+
   # If the program doesn't have any special handling, just exec and exit
   if simpleexec:
     safe.safe_exec(usercode,usercontext)
