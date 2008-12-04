@@ -1,13 +1,16 @@
 """
    Author: Justin Cappos
 
+   Program: nanny.py
+
    Start Date: 1 July 2008
+
 
    Description:
 
-   This module handles pausing the program if there is a resource violation.
-   This module is likely to be fiddly and the cause of most of the portability
-   issues...
+   This module handles the policy decisions and accounting to detect if there 
+   is a resource violation.  The actual "stopping", etc. is done in the
+   nonportable module.
 """
 
 # for sleep
@@ -20,16 +23,17 @@ import nonportable
 import threading
 
 
-# resources that drain / replenish over time
+# These are resources that drain / replenish over time
 renewable_resources = ['cpu', 'filewrite', 'fileread', 'netsend', 'netrecv',
 	'loopsend', 'looprecv', 'lograte', 'random']
 
-# resources where the quantity of use may vary by use 
-quantity_resources = [ "cpu", "memory", "diskused", "filewrite", "fileread", 
+# These are rsources where the quantity of use may vary by use 
+quantity_resources = ["cpu", "memory", "diskused", "filewrite", "fileread", 
 	'loopsend', 'looprecv', "netsend", "netrecv", "lograte", 'random']
 
-# resources where the number of items is the quantity (events because each
-# event is "equal", insockets because a listening socket is a listening socket)
+# These are resources where the number of items is the quantity (events because
+# each event is "equal", insockets because a listening socket is a listening 
+# socket)
 fungible_item_resources = ['events', 'filesopened', 'insockets', 'outsockets']
 
 # resources where there is no quantity.   There is only one messport 12345 and
@@ -37,27 +41,27 @@ fungible_item_resources = ['events', 'filesopened', 'insockets', 'outsockets']
 # isn't fungible because it's not equal to having port 54321.   A vessel may
 # have more than one of the resulting individual resources and so are
 # stored in a list.
-individual_item_resources = [ 'messport', 'connport' ]
+individual_item_resources = ['messport', 'connport']
 
-# include resources that are fungible vs those that are individual...
+# Include resources that are fungible vs those that are individual...
 item_resources = fungible_item_resources + individual_item_resources
 
 
-# this is used by restrictions.py to set up our tables
+# This is used by restrictions.py to set up our tables
 known_resources = quantity_resources + item_resources 
 
 # Whenever a resource file is attached to a vessel, an exception should
 # be thrown if these resources are not present.  If any of these are left
 # unassigned, mysterious node manager errors will arise -Brent
-must_assign_resources = [ "cpu", "memory", "diskused" ]
+must_assign_resources = ["cpu", "memory", "diskused"]
 
-# the restrictions on how resources should be used.   This is filled in for
+# The restrictions on how resources should be used.   This is filled in for
 # me by the restrictions module
 # keys are the all_resources, a value is a float with meaning to me...
 resource_restriction_table = {}
 
 
-# the current quantity of a resource that is used.   This should be updated
+# The current quantity of a resource that is used.   This should be updated
 # by calling update_resource_consumption_table() before being used.
 resource_consumption_table = {}
 
@@ -72,19 +76,19 @@ for init_resource in renewable_resources:
 
 
 
-# set up renewable resources to start now...
+# Set up renewable resources to start now...
 renewable_resource_update_time = {}
 for init_resource in renewable_resources:
   renewable_resource_update_time[init_resource] = time.time()
 
 
 
-# set up individual_item_resources to be in the restriction_table (as a set)
+# Set up individual_item_resources to be in the restriction_table (as a set)
 for init_resource in individual_item_resources:
   resource_restriction_table[init_resource] = set()
 
 
-# updates the values in the consumption table (taking the current time into 
+# Updates the values in the consumption table (taking the current time into 
 # account)
 def update_resource_consumption_table(resource):
 
@@ -98,24 +102,24 @@ def update_resource_consumption_table(resource):
   renewable_resource_update_time[resource] = thetime
 
   if elapsedtime < 0:
-    # a negative number (likely a NTP reset).   Let's just ignore it.
+    # A negative number (likely a NTP reset).   Let's just ignore it.
     return
 
-  # remove the charge
+  # Remove the charge
   reduction = elapsedtime * resource_restriction_table[resource]
     
   if reduction > resource_consumption_table[resource]:
 
-    # not much use to remove
+    # It would reduce it below zero (so put it at zero)
     resource_consumption_table[resource] = 0.0
   else:
 
-    # subtract some for elapsed time...
+    # Subtract some for elapsed time...
     resource_consumption_table[resource] = resource_consumption_table[resource] - reduction
 
 
 
-# want to wait until a resource can be used again...
+# I want to wait until a resource can be used again...
 def sleep_until_resource_drains(resource):
 
   # It'll never drain!
@@ -127,7 +131,7 @@ def sleep_until_resource_drains(resource):
   # also block and consume resources.
   while resource_consumption_table[resource] > resource_restriction_table[resource]:
 
-    # until we're expected to be under quota
+    # Sleep until we're expected to be under quota
     sleeptime = (resource_consumption_table[resource] - resource_restriction_table[resource]) / resource_restriction_table[resource]
 
     time.sleep(sleeptime)
@@ -145,6 +149,23 @@ def sleep_until_resource_drains(resource):
 
 
 def start_resource_nanny():
+  """
+   <Purpose>
+      Initializes the resource nanny.   Sets the resource table entries up.
+
+   <Arguments>
+      None.
+         
+   <Exceptions>
+      None.
+
+   <Side Effects>
+      Starts a process or thread to monitor disk, memory, and CPU
+
+   <Returns>
+      None.
+  """
+
   # init the resource_consumption_table
   for resource in quantity_resources:
     resource_consumption_table[resource] = 0.0
@@ -166,6 +187,30 @@ def start_resource_nanny():
 # can also be called with quantity '0' for a renewable resource so that the
 # nanny will wait until there is some free "capacity"
 def tattle_quantity(resource, quantity):
+  """
+   <Purpose>
+      Notify the nanny of the consumption of a renewable resource.   A 
+      renewable resource is something like CPU or network bandwidth that is 
+      speficied in quantity per second.
+
+   <Arguments>
+      resource:
+         A string with the resource name.   
+      quantity:
+         The amount consumed.   This can be zero (to indicate the program 
+         should block if the resource is already over subscribed) but 
+         cannot be negative
+
+   <Exceptions>
+      None.
+
+   <Side Effects>
+      May sleep the program until the resource is available.
+
+   <Returns>
+      None.
+  """
+
 
   # I assume that the quantity will never be negative
   if quantity < 0:
@@ -197,10 +242,30 @@ def tattle_quantity(resource, quantity):
 
 
 
-# let the nanny know that the process is consuming some resource
-# can also be called with quantity '0' for a renewable resource so that the
-# nanny will wait until there is some free "capacity"
 def tattle_add_item(resource, item):
+  """
+   <Purpose>
+      Let the nanny know that the process is trying to consume a fungible but 
+      non-renewable resource.
+
+   <Arguments>
+      resource:
+         A string with the resource name.   
+      item:
+         A unique identifier that specifies the resource.   It is used to
+         prevent duplicate additions and removals and so must be unique for
+         each item used.
+         
+   <Exceptions>
+      Exception if the program attempts to use too many resources.
+
+   <Side Effects>
+      None.
+
+   <Returns>
+      None.
+  """
+
   if item != None:
     resource_consumption_table[resource].add(item)
 
@@ -211,6 +276,29 @@ def tattle_add_item(resource, item):
 
 
 def tattle_remove_item(resource, item):
+  """
+   <Purpose>
+      Let the nanny know that the process is releasing a fungible but 
+      non-renewable resource.
+
+   <Arguments>
+      resource:
+         A string with the resource name.   
+      item:
+         A unique identifier that specifies the resource.   It is used to
+         prevent duplicate additions and removals and so must be unique for
+         each item used.
+         
+   <Exceptions>
+      None.
+
+   <Side Effects>
+      None.
+
+   <Returns>
+      None.
+  """
+
   try:
     resource_consumption_table[resource].remove(item)
   except KeyError:
@@ -220,6 +308,28 @@ def tattle_remove_item(resource, item):
 
 # used for individual_item_resources
 def tattle_check(resource, item):
+  """
+   <Purpose>
+      Check if the process can acquire a non-fungible, non-renewable resource.
+
+   <Arguments>
+      resource:
+         A string with the resource name.   
+      item:
+         A unique identifier that specifies the resource.   It has some
+         meaning to the caller (like a port number for TCP or UDP), but is 
+         opaque to the nanny.   
+         
+   <Exceptions>
+      Exception if the program attempts to use an invalid resource.
+
+   <Side Effects>
+      None.
+
+   <Returns>
+      None.
+  """
+
   if item not in resource_restriction_table[resource]:
     raise Exception, "Resource '"+resource+" "+str(item)+"' not allowed!!!"
 
