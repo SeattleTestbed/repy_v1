@@ -37,6 +37,11 @@ import statusstorage
 ## we'll use tracebackrepy to print our exceptions
 import tracebackrepy
 
+
+# This block allows or denies different actions in the safe module.   I'm 
+# doing this here rather than the natural place in the safe module because
+# I want to keep that module unmodified to make upgrading easier.
+
 # Allow the user to do try, except, finally, etc.
 safe._NODE_CLASS_OK.append("TryExcept")
 safe._NODE_CLASS_OK.append("TryFinally")
@@ -68,28 +73,37 @@ safe._NODE_ATTR_OK.append('value')
 
 # This is the user's program after parsing
 usercode = None
+
+# These are the functions and variables in the user's name space (along with 
+# the builtins allowed by the safe module).   
 usercontext = {
-	'mycontext':{}, 		# set up a place for them to store state
-	'open':emulfile.emulated_open,	# emulated open function
-	'file':emulfile.emulated_file,	# emulated file object
-	'listdir':emulfile.listdir,	# List the files in the expts dir
-	'removefile':emulfile.removefile,# remove a file in the expts dir
-	'getmyip':emulcomm.getmyip, # provides an external IP
-	'gethostbyname_ex':emulcomm.gethostbyname_ex, # same as socket method
-	'recvmess':emulcomm.recvmess,	# message receive (UDP)
-	'sendmess':emulcomm.sendmess, 	# message sending (UDP)
-	'openconn':emulcomm.openconn,	# reliable comm channel (TCP)
-	'waitforconn':emulcomm.waitforconn,# reliable comm listen (TCP)
-	'stopcomm':emulcomm.stopcomm,	# stop receiving (TDP/UDP)
-	'settimer':emultimer.settimer, 	# sets a timer
-	'canceltimer':emultimer.canceltimer, # stops a timer if it hasn't fired
-	'sleep':emultimer.sleep, 	# blocks the thread for some time
-	'randomfloat':emulmisc.randomfloat,	# same as random.random()
-	'getruntime':emulmisc.getruntime, # amount of time the program has run
-	'getlock':emulmisc.getlock, 	# acquire a lock object
-	'exitall':emulmisc.exitall	# Stops executing the sandboxed program
+    'mycontext':{},                     # set up a place for them to store state
+    'open':emulfile.emulated_open,      # emulated open function
+    'file':emulfile.emulated_file,      # emulated file object
+    'listdir':emulfile.listdir,         # List the files in the expts dir
+    'removefile':emulfile.removefile,   # remove a file in the expts dir
+    'getmyip':emulcomm.getmyip,         # provides an external IP
+    'gethostbyname_ex':emulcomm.gethostbyname_ex, # same as socket method
+    'recvmess':emulcomm.recvmess,       # message receive (UDP)
+    'sendmess':emulcomm.sendmess,       # message sending (UDP)
+    'openconn':emulcomm.openconn,       # reliable comm channel (TCP)
+    'waitforconn':emulcomm.waitforconn, # reliable comm listen (TCP)
+    'stopcomm':emulcomm.stopcomm,       # stop receiving (TDP/UDP)
+    'settimer':emultimer.settimer,      # sets a timer
+    'canceltimer':emultimer.canceltimer,# stops a timer if it hasn't fired
+    'sleep':emultimer.sleep,            # blocks the thread for some time
+    'randomfloat':emulmisc.randomfloat, # same as random.random()
+    'getruntime':emulmisc.getruntime,   # amount of time the program has run
+    'getlock':emulmisc.getlock,         # acquire a lock object
+    'exitall':emulmisc.exitall          # Stops executing the sandboxed program
 }
 
+
+# There is a "simple execution" mode where there is a single entry into the
+# code.   This is used only for testing python vs repy in the unit tests
+# The simpleexec variable indicates whether or not simple execution mode should
+# be used...
+#simpleexec = None
 
 
 def main(restrictionsfn, program, args,stopfile=None):
@@ -117,13 +131,14 @@ def main(restrictionsfn, program, args,stopfile=None):
     sys.stdout = logging.flush_logger(sys.stdout)
 
 
+  # grab the user code from the file
   usercode = file(program).read()
 
   # In order to work well with files that may contain a mix of \r\n and \n
   # characters (see ticket #32), I'm going to replace all \r\n with \n
   usercode = usercode.replace('\r\n','\n')
 
-  # If the program doesn't have any special handling, just exec and exit
+  # If we are in "simple execution" mode, execute and exit
   if simpleexec:
     safe.safe_exec(usercode,usercontext)
     sys.exit(0)
@@ -149,6 +164,10 @@ def main(restrictionsfn, program, args,stopfile=None):
   while threading.activeCount() > idlethreadcount:
     # do accounting here?
     time.sleep(1)
+
+
+  # Once there are no more pending events for the user thread, we give them
+  # an "exit" event.   This allows them to clean up, etc. if needed.
 
   # call the user program to notify them that we are exiting...
   usercontext['callfunc'] = 'exit'
@@ -183,7 +202,7 @@ if __name__ == '__main__':
     args = args[2:]
 
   else:
-    # use standard streams (stdout / stderr
+    # use standard streams (stdout / stderr)
     logfile = None
     
 
