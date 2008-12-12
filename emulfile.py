@@ -55,14 +55,13 @@ def removefile(filename):
       characters other than 'a-zA-Z0-9.-_' and cannot be '.' or '..'
 
    <Exceptions>
-      This probably shouldn't raise any errors / exceptions so long as the
-      node manager isn't buggy.
+      An exception is raised if the file does not exist
 
    <Side Effects>
       None
 
    <Returns>
-      A list of strings (file names)
+      None
   """
 
   restrictions.assertisallowed('removefile')
