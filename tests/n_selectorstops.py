@@ -17,7 +17,7 @@ if callfunc == 'initialize':
   ip = getmyip()
 
   ch1 = waitforconn(ip,<connport>,foo)
-  junk = openconn(ip,<connport>,foo) 
+  junk = openconn(ip,<connport>) 
   stopcomm(ch1)
   stopcomm(junk)
   sleep(1)   # it should be cleaned up now
