@@ -254,15 +254,9 @@ def portablekill(pid):
 ###################     Windows specific functions   #######################
 
 try:
-  import windows_api
-  windowsAPI = windows_api
+  import windows_api as windowsAPI
 except:
-  try:
-    import windows_ce_api
-    windowsAPI = windows_ce_api
-  except:
-    windowsAPI = None
-    pass
+  windowsAPI = None
   pass
 
 
@@ -331,7 +325,7 @@ class WindowsNannyThread(threading.Thread):
           # must release before harshexit...
           statuslock.release()
 
-      except windows_api.DeadProcess:
+      except windowsAPI.DeadProcess:
         #  Process may be dead, or die while checking memory use
         #  In any case, there is no reason to continue running, just exit
         harshexit(99)

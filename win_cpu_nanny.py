@@ -13,15 +13,9 @@ import sys
 import tracebackrepy
 
 try:
-  import windows_api
-  windowsAPI = windows_api
+  import windows_api as windowsAPI
 except:
-  try:
-    import windows_ce_api
-    windowsAPI = windows_ce_api
-  except:
-    windowsAPI = None
-    pass
+  windowsAPI = None
   pass
 
 winlastcpuinfo = [0,0]
@@ -172,7 +166,7 @@ def main():
   except SystemExit:
     pass
 
-  except windows_api.DeadProcess:
+  except windowsAPI.DeadProcess:
     # This can be caused when getting process times for a dead thread or
     # Trying to timeout a dead thread, either way, we just exit
     sys.exit(0)
