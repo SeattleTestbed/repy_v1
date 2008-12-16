@@ -598,10 +598,12 @@ def launchProcess(application,cmdline = None, priority = NORMAL_PRIORITY_CLASS):
     Launches a new process.
   
   <Arguments>
-    PID:
-      The process identifier to be killed.
-    Priority:
-      The priority of the process. See http://msdn.microsoft.com/en-us/library/ms683211(VS.85).aspx.
+    application:
+      The path to the application to be started
+    cmdline:
+      The command line parameters that are to be used
+    priority
+      The priority of the process. See NORMAL_PRIORITY_CLASS and HIGH_PRIORITY_CLASS
       
   <Side Effects>
     A new process is created
@@ -654,6 +656,37 @@ def launchProcess(application,cmdline = None, priority = NORMAL_PRIORITY_CLASS):
     return processInfo.dwProcessId
   else:
     return None
+
+# Helper function to launch a python script with some parameters
+def launchPyhonScript(script, params=""):
+  """
+  <Purpose>
+    Launches a python script with parameters
+  
+  <Arguments>
+    script:
+      The python script to be started
+    params:
+      A string command line parameter for the script
+      
+  <Side Effects>
+    A new process is created
+  
+  <Returns>
+    Process ID on success, None on failure.
+  """
+  
+  # Get all repy constants
+  import repy_constants
+  
+  # Create python command line string
+  # Use absolute path for compatibility
+  cmd = repy_constants.PYTHON_DEFAULT_FLAGS + "\"" + os.path.abspath(script) + "\" " + params
+  
+  # Launch process and store return value
+  retval = launchProcess(repy_constants.PATH_PYTHON_INSTALL,cmd)
+  
+  return retval
 
 
 # Kill a process with specified PID

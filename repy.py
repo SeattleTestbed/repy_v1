@@ -37,9 +37,6 @@ import statusstorage
 ## we'll use tracebackrepy to print our exceptions
 import tracebackrepy
 
-# Armon: import repy_constants to make them available in repy
-import repy_constants
-
 # This block allows or denies different actions in the safe module.   I'm 
 # doing this here rather than the natural place in the safe module because
 # I want to keep that module unmodified to make upgrading easier.

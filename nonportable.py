@@ -33,7 +33,6 @@ try:
   mobileNoSubprocess = False
 except ImportError:
   # Set flag to avoid using subprocess
-  import windows_ce_os
   mobileNoSubprocess = True 
   pass
 
@@ -182,9 +181,12 @@ def monitor_cpu_disk_and_mem(cpuallowed, diskallowed, memallowed):
     if (mobileNoSubprocess and ostype == 'WindowsCE'):
       # PythonCE requires full paths
       # No support for subprocess, need workaround
-      pythonpath = '\\PROGRA~1\\Python25\\python.exe'
-      nannypath = '\\repy\\win_cpu_nanny.py'
-      windows_ce_os.systema(pythonpath, ['/nopcceshell', nannypath, str(os.getpid()), str(cpuallowed), str(frequency)])
+      # import repy_constants to make them available in repy
+      import repy_constants
+      
+      nannypath = repy_constants.PATH_SEATTLE_INSTALL + nannypath
+      cmdline = str(os.getpid())+" "+str(cpuallowed)+" "+str(frequency)
+      windowsAPI.launchPyhonScript(nannypath, cmdline)
     else:
       junkprocessinfo = subprocess.Popen(cpu_nanny_cmd, cwd=nannydir)
     # our nanny should outlive us, so it's okay to leave it alone...
