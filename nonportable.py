@@ -145,17 +145,19 @@ def harshexit(val):
 
 
 def monitor_cpu_disk_and_mem(cpuallowed, diskallowed, memallowed):
-
+  # Get constants
+  import repy_constants
+  
   if ostype == 'Linux' or ostype == 'Darwin':
     # The frequency constant here seems to effect the "burstiness" of the
     # cpu use but not the overall amount.
-    do_forked_monitor(.1, cpuallowed, diskallowed, memallowed)
+    do_forked_monitor(repy_constants.RESOURCE_POLLING_FREQ_LINUX, cpuallowed, diskallowed, memallowed)
 
   elif ostype == 'Windows' or ostype == 'WindowsCE':
     if (ostype == 'WindowsCE'):
-      frequency = .5 # Its a slower device, so lets tone it down
+      frequency = repy_constants.RESOURCE_POLLING_FREQ_WINCE
     else:
-      frequency = .2 # I tried .1 and I ended up killing the process...
+      frequency = repy_constants.RESOURCE_POLLING_FREQ_WIN
 
     # start the CPU nanny and tell them our pid and limit...
     # NOTE: Is there a better way?
