@@ -89,6 +89,7 @@ _releaseMutex = kerneldll.ReleaseMutex # Releases mutex
 if MobileCE:
   # Things using toolhelp
   _createSnapshot = toolhelp.CreateToolhelp32Snapshot # Makes snapshot of threads 
+  _closeSnapshot = toolhelp.CloseToolhelp32Snapshot # destroys a snapshot 
   _firstThread = toolhelp.Thread32First # Reads from Thread from snapshot
   _nextThread = toolhelp.Thread32Next # Reads next Thread from snapshot
   
@@ -315,6 +316,8 @@ def getProcessThreads(PID):
     moreThreads = _nextThread(handle, ctypes.pointer(currentThread))
   
   # Cleanup snapshot
+  if MobileCE:
+    _closeSnapshot(handle)
   _closeHandle(handle)
     
   return threads  
@@ -1066,11 +1069,12 @@ def _processMemoryInfoCE(PID):
   
   # Check if handle was created successfully
   if handle == INVALID_HANDLE_VALUE:
-      return {}
+    return {}
   
   # Attempt to read snapshot
   if not _heapListFirst( handle, ctypes.pointer(heapList)):
-    _closeHandle( handle )
+    _closeSnapshot(handle)
+    _closeHandle(handle)
     return {}
   
   # Loop through threads, check for threads associated with the right process
@@ -1093,6 +1097,7 @@ def _processMemoryInfoCE(PID):
     moreHeaps = _heapListNext(handle, ctypes.pointer(heapList)) # Go to next Heap List
   
   # Cleanup snapshot
+  _closeSnapshot(handle)
   _closeHandle(handle)
   
   # Since we only have one value, return that for all different possible sets
