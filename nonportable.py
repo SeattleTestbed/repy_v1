@@ -188,7 +188,7 @@ def monitor_cpu_disk_and_mem(cpuallowed, diskallowed, memallowed):
       
       nannypath = repy_constants.PATH_SEATTLE_INSTALL + nannypath
       cmdline = str(os.getpid())+" "+str(cpuallowed)+" "+str(frequency)
-      windowsAPI.launchPyhonScript(nannypath, cmdline)
+      windowsAPI.launchPythonScript(nannypath, cmdline)
     else:
       junkprocessinfo = subprocess.Popen(cpu_nanny_cmd, cwd=nannydir)
     # our nanny should outlive us, so it's okay to leave it alone...

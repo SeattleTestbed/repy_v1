@@ -661,7 +661,7 @@ def launchProcess(application,cmdline = None, priority = NORMAL_PRIORITY_CLASS):
     return None
 
 # Helper function to launch a python script with some parameters
-def launchPyhonScript(script, params=""):
+def launchPythonScript(script, params=""):
   """
   <Purpose>
     Launches a python script with parameters
