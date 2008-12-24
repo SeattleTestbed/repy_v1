@@ -1,19 +1,30 @@
 """ 
-Author: Justin Cappos
+<Author>
+  Justin Cappos
+  Ivan Beschastnikh (12/24/08) -- added usage
 
-Start Date: June 26th, 2008
+<Start Date>
+  June 26th, 2008
 
-Description:
-Restricted execution environment for python.   Should stop someone from doing
-"bad things" (which is also defined to include many useful things).
-This module allows the user to define code that gets called either on the 
-reciept of a packet, when a timer fires, on startup, and on shutdown.
-The restricted code can only do a few "external" things like send data 
-packets and store data to disk.   The CPU, memory, disk usage, and network
-bandwidth are all limited.
+<Description>
+  Restricted execution environment for python.  Should stop someone
+  from doing "bad things" (which is also defined to include many
+  useful things).  This module allows the user to define code that
+  gets called either on the reciept of a packet, when a timer fires,
+  on startup, and on shutdown.  The restricted code can only do a few
+  "external" things like send data packets and store data to disk.
+  The CPU, memory, disk usage, and network bandwidth are all limited.
 
-Usage:  ./repy.py restrictionsfile.txt program_to_run.py
+<Usage>
+  Usage: repy.py [options] restrictionsfile.txt program_to_run.py [program args]
 
+  Where [options] are some combination of the following:
+
+  --simple               : Simple execution mode -- execute and exit
+  --logfile filename.txt : Set up a circular log buffer and output to logfilename.txt
+  --stop filename        : Repy will watch for the creation of this file and abort when it happens
+  --status filename.txt  : Write status information into this file
+  --cwd dir              : Set Current working directory
 """
 
 
@@ -184,6 +195,38 @@ def main(restrictionsfn, program, args,stopfile=None):
   nonportable.harshexit(0)
 
 
+def usage(str_err=""):
+  # Ivan 12/24/2008
+  """
+   <Purpose>
+      Prints repy.py usage and possibly an error supplied argument
+   <Arguments>
+      str_err (string):
+        Options error to print to stdout
+   <Exceptions>
+      None
+   <Side Effects>
+      Modifies stdout
+   <Returns>
+      None
+  """
+  print
+  if str_err:
+    print "Error:", str_err
+  print """
+Usage: repy.py [options] restrictionsfile.txt program_to_run.py [program args]
+
+Where [options] are some combination of the following:
+
+--simple               : Simple execution mode -- execute and exit
+--logfile filename.txt : Set up a circular log buffer and output to logfilename.txt
+--stop filename        : Repy will watch for the creation of this file and abort when it happens
+--status filename.txt  : Write status information into this file
+--cwd dir              : Set Current working directory
+"""
+  return
+
+
 if __name__ == '__main__':
   global simpleexec
   global logfile
@@ -191,45 +234,54 @@ if __name__ == '__main__':
   # Set up the simple variable if needed
   args = sys.argv[1:]
   simpleexec = False
-  if sys.argv[1] == '--simple':
-    simpleexec = True
-    args = sys.argv[2:]
 
-  if args[0] == '--logfile':
-    # set up the circular log buffer...
-    logfile = args[1]
-    args = args[2:]
+  if len(args) < 2:
+    usage("Must supply a restrictions file and a program file to execute")
+    sys.exit(1)
+  
+  try:
+    if sys.argv[1] == '--simple':
+      simpleexec = True
+      args = sys.argv[2:]
 
-  else:
-    # use standard streams (stdout / stderr)
-    logfile = None
+    if args[0] == '--logfile':
+      # set up the circular log buffer...
+      logfile = args[1]
+      args = args[2:]
+
+    else:
+      # use standard streams (stdout / stderr)
+      logfile = None
     
+    stopfile = None
+    if args[0] == '--stop':
+      # Watch for the creation of this file and abort when it happens...
+      stopfile = args[1]
+      args = args[2:]
 
-    
-  stopfile = None
-  if args[0] == '--stop':
-    # Watch for the creation of this file and abort when it happens...
-    stopfile = args[1]
-    args = args[2:]
-
-
-  statusfile = None
-  if args[0] == '--status':
-    # Write status information into this file...
-    statusfile = args[1]
-    args = args[2:]
-
-  # Armon: Set Current Working Directory    
-  if args[0] == '--cwd':
-    # We need this for chdir
-    import os
+    statusfile = None
+    if args[0] == '--status':
+      # Write status information into this file...
+      statusfile = args[1]
+      args = args[2:]
+      
+    # Armon: Set Current Working Directory    
+    if args[0] == '--cwd':
+      # We need this for chdir
+      import os
     # Move
-    os.chdir(args[1])
-    args = args[2:]
+      os.chdir(args[1])
+      args = args[2:]
+  except IndexError:
+    usage("Option usage error")
+    sys.exit(1)
+
+  if len(args) < 2:
+    usage("Must supply a restrictions file and a program file to execute")
+    sys.exit(1)
 
   statusstorage.init(statusfile)
   statusstorage.write_status("Started")
-
 
   restrictionsfn = args[0]
   progname = args[1]
