@@ -53,6 +53,11 @@ comminfo = {}
 
 
 
+# If I'm supposed to use a certain IP address, it is defined here
+specificIP = None
+
+# These addresses can always be used
+whitelistedIPs = ['127.0.0.1']
 
 
 
@@ -395,10 +400,23 @@ def getmyip():
   """
 
   restrictions.assertisallowed('getmyip')
-  # I got this from: http://groups.google.com/group/comp.lang.python/browse_thread/thread/d931cdc326d7032b?hl=en
+  # I got some of this from: http://groups.google.com/group/comp.lang.python/browse_thread/thread/d931cdc326d7032b?hl=en
 
   # Open a connectionless socket
   s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+  # In some cases the user wanted to restrict us to a certain IP address.   
+  # in this case, we'll see if we can bind to it and if so, we'll return that
+  # IP address.   If we can't bind to it, we'll raise an exception.
+  if specificIP:
+    try:
+      # this will raise an exception if the IP is not a local IP
+      s.bind((specificIP,0))
+    finally:
+      s.close()
+
+    return specificIP
+
 
   # Tell it to connect to google (we assume that the DNS entry for this works)
   # however, using port 0 causes some issues on FreeBSD!   I choose port 80 
@@ -519,7 +537,7 @@ def cleanup(handle):
 
 
 # Public interface!!!
-def sendmess(desthost, destport, message,localip=None,localport = None):
+def sendmess(desthost, destport, message,localip=None,localport = 0):
   """
    <Purpose>
       Send a message to a host / port
@@ -534,9 +552,7 @@ def sendmess(desthost, destport, message,localip=None,localport = None):
       localhost (optional):
          The local IP to send the message from 
       localport (optional):
-         The local port to send the message from 
-
-      * if you specify localhost, you must specify localport
+         The local port to send the message from (0 for a random port)
 
    <Exceptions>
       socket.error when communication errors happen
@@ -547,17 +563,28 @@ def sendmess(desthost, destport, message,localip=None,localport = None):
    <Returns>
       The number of bytes sent on success
   """
+  if not localip or localip == '0.0.0.0':
+    localip = None
 
   if type(destport) is not int and type(destport) is not long:
     raise Exception("Destination port number must be an integer")
 
-  if localport and type(localport) is not int and type(localport) is not long:
+  if type(localport) is not int and type(localport) is not long:
     raise Exception("Local port number must be an integer")
 
   restrictions.assertisallowed('sendmess', desthost, destport, message,localip,localport)
 
-  if localip and localport:
+  if localport:
     nanny.tattle_check('messport',localport)
+
+  # If they specify an IP, we must use it...
+  if specificIP and localip not in whitelistedIPs:
+    if localip and specificIP != localip:
+      raise Exception, "IP '"+localip+"' is not allowed.   User restricts outgoing traffic to IP: '"+specificIP+"'"
+
+    # always use the user specified IP
+    localip = specificIP
+
 
   # this is used to track errors when trying to resend data
   firsterror = None
@@ -603,7 +630,7 @@ def sendmess(desthost, destport, message,localip=None,localport = None):
 
 
   try:
-    if localip and localport:
+    if localip:
       try:
         s.bind((localip,localport))
       except socket.error, e:
@@ -662,6 +689,8 @@ def recvmess(localip, localport, function):
    <Returns>
       The commhandle for this event handler.
   """
+  if not localip or localip == '0.0.0.0':
+    raise Exception("Must specify a local IP address")
 
   if type(localport) is not int and type(localport) is not long:
     raise Exception("Local port number must be an integer")
@@ -669,6 +698,11 @@ def recvmess(localip, localport, function):
   restrictions.assertisallowed('recvmess',localip,localport)
 
   nanny.tattle_check('messport',localport)
+
+  # If they specify an IP, we must use it...
+  if specificIP and localip not in whitelistedIPs and specificIP != localip:
+    raise Exception, "IP '"+localip+"' is not allowed.   User restricts outgoing traffic to IP: '"+specificIP+"'"
+
 
   # check if I'm already listening on this port / ip
   (junkentry, oldhandle) = find_tip_entry('UDP',localip,localport)
@@ -725,7 +759,7 @@ def recvmess(localip, localport, function):
 
 
 # Public interface!!!
-def openconn(desthost, destport,localip=None, localport=None,timeout=5.0):
+def openconn(desthost, destport,localip=None, localport=0,timeout=5.0):
   """
    <Purpose>
       Opens a connection, returning a socket-like object
@@ -738,11 +772,9 @@ def openconn(desthost, destport,localip=None, localport=None,timeout=5.0):
       localip (optional):
          The local ip to use for the communication
       localport (optional):
-         The local port to use for communication
+         The local port to use for communication (0 for a random port)
       timeout (optional):
          The maximum amount of time to wait to connect
-
-      * if you specify localip, you must specify localport
 
    <Exceptions>
       As from socket.connect, etc.
@@ -754,16 +786,27 @@ def openconn(desthost, destport,localip=None, localport=None,timeout=5.0):
       A socket-like object that can be used for communication.   Use send, 
       recv, and close just like you would an actual socket object in python.
   """
+  if not localip or localip == '0.0.0.0':
+    localip = None
 
   if type(destport) is not int and type(destport) is not long:
     raise Exception("Destination port number must be an integer")
 
-  if localport and type(localport) is not int and type(localport) is not long:
+  if type(localport) is not int and type(localport) is not long:
     raise Exception("Local port number must be an integer")
+
+  # If they specify an IP, we must use it...
+  if specificIP and localip not in whitelistedIPs:
+    if localip and specificIP != localip:
+      raise Exception("IP '"+localip+"' is not allowed.   User restricts outgoing traffic to IP: '"+specificIP+"'")
+
+    # always use the user specified IP
+    localip = specificIP
+
 
   restrictions.assertisallowed('openconn',desthost,destport,localip,localport)
 
-  if localip and localport:
+  if localport:
     nanny.tattle_check('connport',localport)
 
   handle = idhelper.getuniqueid()
@@ -835,6 +878,8 @@ def waitforconn(localip, localport,function):
    <Returns>
       A handle to the comm object.   This can be used to stop listening
   """
+  if not localip or localip == '0.0.0.0':
+    raise Exception("Must specify a local IP address")
 
   if type(localport) is not int and type(localport) is not long:
     raise Exception("Local port number must be an integer")
@@ -842,6 +887,10 @@ def waitforconn(localip, localport,function):
   restrictions.assertisallowed('waitforconn',localip,localport)
 
   nanny.tattle_check('connport',localport)
+
+  # If they specify an IP, we must use it...
+  if specificIP and localip not in whitelistedIPs and specificIP != localip:
+    raise Exception, "IP '"+localip+"' is not allowed.   User restricts outgoing traffic to IP: '"+specificIP+"'"
 
   # check if I'm already listening on this port / ip
   (junkentry, oldhandle) = find_tip_entry('TCP',localip,localport)

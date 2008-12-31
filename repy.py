@@ -219,6 +219,7 @@ Usage: repy.py [options] restrictionsfile.txt program_to_run.py [program args]
 Where [options] are some combination of the following:
 
 --simple               : Simple execution mode -- execute and exit
+--ip IP                : IP address that repy should use (default: allow any)
 --logfile filename.txt : Set up a circular log buffer and output to logfilename.txt
 --stop filename        : Repy will watch for the creation of this file and abort when it happens
 --status filename.txt  : Write status information into this file
@@ -235,6 +236,7 @@ if __name__ == '__main__':
   args = sys.argv[1:]
   simpleexec = False
 
+
   if len(args) < 2:
     usage("Must supply a restrictions file and a program file to execute")
     sys.exit(1)
@@ -243,6 +245,11 @@ if __name__ == '__main__':
     if sys.argv[1] == '--simple':
       simpleexec = True
       args = sys.argv[2:]
+
+    if args[0] == '--ip':
+      # Allow the program to use only this IP
+      emulcomm.specificIP = args[1]
+      args = args[2:]
 
     if args[0] == '--logfile':
       # set up the circular log buffer...
