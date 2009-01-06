@@ -45,6 +45,10 @@ import nonportable
 
 import statusstorage
 
+import repy_constants   
+
+import os
+
 ## we'll use tracebackrepy to print our exceptions
 import tracebackrepy
 
@@ -272,13 +276,15 @@ if __name__ == '__main__':
       statusfile = args[1]
       args = args[2:]
       
-    # Armon: Set Current Working Directory    
+    # Armon: Set Current Working Directory
     if args[0] == '--cwd':
-      # We need this for chdir
-      import os
-    # Move
+      # Move
       os.chdir(args[1])
       args = args[2:]
+    
+    # Update repy current directory
+    repy_constants.REPY_CURRENT_DIR = os.path.abspath(os.getcwd())
+
   except IndexError:
     usage("Option usage error")
     sys.exit(1)
