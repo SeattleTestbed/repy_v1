@@ -28,8 +28,8 @@
   To run the node manager unit tests locally, open two shells (or command prompts). Navigate to trunk in each.
   
   1. On the FIRST command prompt type the following command
-     python preparetest.py <directory>
-     The -t flag may be included, but it is not required if only the node manager tests will be run.
+     python preparetest.py -t <directory>
+     The -t flag must be included.
      
   2. On the SECOND command prompt enter the following sequence of commands:
      cd <directory>
@@ -344,7 +344,7 @@ testportfiller.main()
 
 # for each test... run it!
 # if the -n flag is specified, only run node manager tests
-if (len(sys.argv) > 1 and sys.argv[1] == '-n') or (len(sys.argv) > 1 and sys.argv[2] == '-n'):
+if (len(sys.argv) > 1 and sys.argv[1] == '-n') or (len(sys.argv) > 2 and sys.argv[2] == '-n'):
   for testfile in glob.glob("nmtest*.py"):
     run_test(testfile)
 else:
