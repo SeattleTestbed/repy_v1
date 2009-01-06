@@ -48,6 +48,8 @@ import statusstorage
 # needed to check disk usage
 import misc
 
+# Get constants
+import repy_constants
 
 # This prevents writes to the nanny's status information after we want to stop
 statuslock = threading.Lock()
@@ -145,9 +147,6 @@ def harshexit(val):
 
 
 def monitor_cpu_disk_and_mem(cpuallowed, diskallowed, memallowed):
-  # Get constants
-  import repy_constants
-  
   if ostype == 'Linux' or ostype == 'Darwin':
     # The frequency constant here seems to effect the "burstiness" of the
     # cpu use but not the overall amount.
@@ -166,9 +165,14 @@ def monitor_cpu_disk_and_mem(cpuallowed, diskallowed, memallowed):
     else:
       pythonpath = 'python'
 
-    # NOTE: always run the cpu nanny from the current dir.   I think this is
-    # correct, but I may need to change based upon the python path
-    nannypath = 'win_cpu_nanny.py'
+    # Check to find nanny file
+    # Check seattle installation first
+    if os.path.exists(repy_constants.PATH_SEATTLE_INSTALL + 'win_cpu_nanny.py'):
+      nannypath = repy_constants.PATH_SEATTLE_INSTALL + 'win_cpu_nanny.py'
+    elif os.path.exists('..\win_cpu_nanny.py'): # Check parent directory
+      nannypath = '..\win_cpu_nanny.py'
+    else: # Resort to current Directory
+      nannypath = 'win_cpu_nanny.py'
    
     cpu_nanny_cmd = pythonpath+" "+nannypath+" "+str(os.getpid())+" "+str(cpuallowed)+" "+str(frequency)
     # need to set the cwd so that we know where to find it.   Let's assume it's
@@ -183,8 +187,6 @@ def monitor_cpu_disk_and_mem(cpuallowed, diskallowed, memallowed):
     if (mobileNoSubprocess and ostype == 'WindowsCE'):
       # PythonCE requires full paths
       # No support for subprocess, need workaround
-      # import repy_constants to make them available in repy
-      import repy_constants
       
       nannypath = repy_constants.PATH_SEATTLE_INSTALL + nannypath
       cmdline = str(os.getpid())+" "+str(cpuallowed)+" "+str(frequency)
@@ -289,14 +291,12 @@ def win_check_memory_use(pid, memlimit):
  
 # see if the process is over quota and if so raise an exception
 def win_check_disk_use(disklimit):
-
-  diskused = misc.compute_disk_use(".")
-
+  diskused = misc.compute_disk_use(repy_constants.REPY_CURRENT_DIR)
+  
   if diskused > disklimit:
     # We will be killed by the other thread...
     raise Exception, "Disk use '"+str(diskused)+"' over limit '"+str(disklimit)+"'"
   
-
 
 class WindowsNannyThread(threading.Thread):
   frequency = None
