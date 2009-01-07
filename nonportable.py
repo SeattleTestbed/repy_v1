@@ -188,7 +188,7 @@ def monitor_cpu_disk_and_mem(cpuallowed, diskallowed, memallowed):
       # PythonCE requires full paths
       # No support for subprocess, need workaround
       
-      nannypath = repy_constants.PATH_SEATTLE_INSTALL + nannypath
+      nannypath = repy_constants.PATH_SEATTLE_INSTALL + "win_cpu_nanny.py"
       cmdline = str(os.getpid())+" "+str(cpuallowed)+" "+str(frequency)
       windowsAPI.launchPythonScript(nannypath, cmdline)
     else:
