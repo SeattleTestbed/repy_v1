@@ -43,6 +43,9 @@ LONG = ctypes.c_long # Map Microsoft LONG type to C long
 SIZE_T = ctypes.c_ulong # Map Microsoft SIZE_T type to C long
 ULONG_PTR = ctypes.c_ulong # Map Microsoft ULONG_PTR to C long
 LPTSTR = ctypes.c_char_p # Map Microsoft LPTSTR to a pointer to a string
+LPCSTR = ctypes.c_char_p  # Map Microsoft LPCTSTR to a pointer to a string
+ULARGE_INTEGER = ctypes.c_ulonglong # Map Microsoft ULARGE_INTEGER to 64 bit int
+DWORDLONG = ctypes.c_ulonglong # Map Microsoft DWORDLONG to 64 bit int
 
 # Microsoft Constants
 TH32CS_SNAPTHREAD = ctypes.c_ulong(0x00000004) # Create a snapshot of all threads
@@ -71,10 +74,29 @@ ATTEMPT_MAX = 10
 # Also abstracts the linking library for each function for more portability
 
 # Load the Functions that have a common library between desktop and CE
-_suspendThread = kerneldll.SuspendThread # Puts a thread to sleep
+#_suspendThread = kerneldll.SuspendThread # Puts a thread to sleep
+# This workaround is needed to keep the Python Global Interpreter Lock (GIL)
+# Normal ctypes CFUNCTYPE or WINFUNCTYPE prototypes will release the GIL
+# Which causes the process to infinitely deadlock
+# The downside to this method, is that a ValueError Exception is always thrown
+_suspendThreadProto = ctypes.PYFUNCTYPE(DWORD)
+def _suspendThreadErrCheck(result, func, args):
+  return result
+_suspendThreadErr = _suspendThreadProto(("SuspendThread", kerneldll))
+_suspendThreadErr.errcheck = _suspendThreadErrCheck
+
+def _suspendThread(handle):
+  result = 0
+  try:
+    result = _suspendThreadErr(handle)
+  except ValueError:
+    pass
+  return result
+  
 _resumeThread = kerneldll.ResumeThread # Resumes Thread execution
 _openProcess = kerneldll.OpenProcess # Returns Process Handle
 _createProcess = kerneldll.CreateProcessW # Launches new process
+_currentThreadId = kerneldll.GetCurrentThreadId # Returns the ThreadID of the current thread
 
 _processExitCode = kerneldll.GetExitCodeProcess # Gets Process Exit code
 _terminateProcess = kerneldll.TerminateProcess # Kills a process
@@ -84,9 +106,14 @@ _waitForSingleObject = kerneldll.WaitForSingleObject # Waits to acquire mutex
 _createMutex = kerneldll.CreateMutexW # Creates a Mutex, Unicode version
 _releaseMutex = kerneldll.ReleaseMutex # Releases mutex
 
+_freeDiskSpace = kerneldll.GetDiskFreeSpaceExW # Determines free disk space
+
 
 # Load CE Specific function
 if MobileCE:
+  # Uses kernel, but is slightly different on desktop
+  _globalMemoryStatus = kerneldll.GlobalMemoryStatus
+  
   # Things using toolhelp
   _createSnapshot = toolhelp.CreateToolhelp32Snapshot # Makes snapshot of threads 
   _closeSnapshot = toolhelp.CloseToolhelp32Snapshot # destroys a snapshot 
@@ -128,6 +155,7 @@ else:
   _firstThread = kerneldll.Thread32First # Reads from Thread from snapshot
   _nextThread = kerneldll.Thread32Next # Reads next Thread from snapshot
   _openMutex = kerneldll.OpenMutexW # Opens an existing Mutex, Unicode Version
+  _globalMemoryStatus = kerneldll.GlobalMemoryStatusEx # Gets global memory info
   
   # These process specific functions are only available on the desktop
   _processTimes = kerneldll.GetProcessTimes # Returns data about Process CPU use
@@ -244,6 +272,35 @@ class _STARTUPINFO(ctypes.Structure):
                 ('hStdInput', HANDLE),
                 ('hStdOutput', HANDLE),
                 ('hStdError', HANDLE)]
+
+# Python Class which is converted to a C struct
+# It encapsulates data about global memory
+# This version is for Windows Desktop, and is not limited to 4 gb of ram
+# see http://msdn.microsoft.com/en-us/library/aa366770(VS.85).aspx
+class _MEMORYSTATUSEX(ctypes.Structure): 
+    _fields_ = [('dwLength', DWORD), 
+                ('dwMemoryLoad', DWORD), 
+                ('ullTotalPhys', DWORDLONG), 
+                ('ullAvailPhys', DWORDLONG),
+                ('ullTotalPageFile', DWORDLONG),
+                ('ullAvailPageFile', DWORDLONG),
+                ('ullTotalVirtual', DWORDLONG),
+                ('ullAvailVirtual', DWORDLONG),
+                ('ullAvailExtendedVirtual', DWORDLONG)]        
+ 
+# Python Class which is converted to a C struct
+# It encapsulates data about global memory
+# This version is for WinCE (< 4gb ram)
+# see http://msdn.microsoft.com/en-us/library/bb202730.aspx
+class _MEMORYSTATUS(ctypes.Structure): 
+   _fields_ = [('dwLength', DWORD), 
+               ('dwMemoryLoad', DWORD), 
+               ('dwTotalPhys', DWORD), 
+               ('dwAvailPhys', DWORD),
+               ('dwTotalPageFile', DWORD),
+               ('dwAvailPageFile', DWORD),
+               ('dwTotalVirtual', DWORD),
+               ('dwAvailVirtual', DWORD)]          
                                 
 # Exceptions
 
@@ -387,10 +444,11 @@ def suspendThread(ThreadID):
   """
     <Purpose>
       Suspends the execution of a thread.
+      Will not execute on currently executing thread.
   
     <Arguments>
       ThreadID:
-             The thread identifier for the thread to be suspended
+             The thread identifier for the thread to be suspended.
   
     <Exceptions>
       DeadThread on bad parameters or general error.
@@ -401,7 +459,10 @@ def suspendThread(ThreadID):
     <Returns>
       True on success, false on failure
     """
-    
+  # Check if it is the currently executing thread, and return
+  if ThreadID == _currentThreadId():
+    return True
+      
   # Open handle to thread
   handle = getThreadHandle(ThreadID)
   
@@ -1142,3 +1203,110 @@ def _revertPermissions():
 	if not _originalPermissionsCE == None:
 		_setCurrentProcPermissions(_originalPermissionsCE)
 
+## Resource Determining Functions
+# For number of CPU's check the %NUMBER_OF_PROCESSORS% Environment variable 
+
+
+# Determines available and used disk space
+def diskUtil(directory):
+  """"
+  <Purpose>
+    Gets information about disk utilization, and free space.
+  
+  <Arguments>
+    directory:
+      The directory to be queried. This can be a folder, or a drive root.
+      If set to None, then the current directory will be used.
+  
+  <Exceptions>
+    EnvironmentError on bad parameter.
+  
+  <Returns>
+    Dictionary with the following indices:
+    bytesAvailable: The number of bytes available to the current user
+    totalBytes: The total number of bytes
+    freeBytes: The total number of free bytes
+  """  
+  # Define values that need to be passed to the function
+  bytesFree = ULARGE_INTEGER(0)
+  totalBytes = ULARGE_INTEGER(0)
+  totalFreeBytes = ULARGE_INTEGER(0)
+  
+  # Allow for a Null parameter
+  dirchk = None
+  if not directory == None:
+    dirchk = unicode(directory)
+  
+  status = _freeDiskSpace(dirchk, ctypes.pointer(bytesFree), ctypes.pointer(totalBytes), ctypes.pointer(totalFreeBytes))
+  
+  print bytesFree, totalBytes, totalFreeBytes
+    
+  # Check if we succeded
+  if status == 0:
+    raise EnvironmentError("Failed to determine free disk space: Directory: "+directory)
+  
+  return {"bytesAvailable":bytesFree.value,"totalBytes":totalBytes.value,"freeBytes":totalFreeBytes.value}
+
+# Get global memory information
+def globalMemoryInfo():
+  """"
+  <Purpose>
+    Gets information about memory utilization
+  
+  <Exceptions>
+    EnvironmentError on general error.
+  
+  <Returns>
+    Dictionary with the following indices:
+    load: The percentage of memory in use
+    totalPhysical: The total amount of physical memory
+    availablePhysical: The total free amount of physical memory
+    totalPageFile: The current size of the committed memory limit, in bytes. This is physical memory plus the size of the page file, minus a small overhead.
+    availablePageFile: The maximum amount of memory the current process can commit, in bytes.
+    totalVirtual: The size of the user-mode portion of the virtual address space of the calling process, in bytes
+    availableVirtual: The amount of unreserved and uncommitted memory currently in the user-mode portion of the virtual address space of the calling process, in bytes.
+  """
+  # Check if it is CE
+  if MobileCE:
+    # Use the CE specific function
+    return _globalMemoryInfoCE()
+    
+  # Initialize the data structure
+  memInfo = _MEMORYSTATUSEX() # Memory usage ints
+  memInfo.dwLength = ctypes.sizeof(_MEMORYSTATUSEX)
+  
+  # Make the call, save the status
+  status = _globalMemoryStatus(ctypes.pointer(memInfo))
+ 
+  # Check if we succeded
+  if status == 0:
+    raise EnvironmentError("Failed to get global memory info!")
+
+  # Return Dictionary
+  return {"load":memInfo.dwMemoryLoad,
+  "totalPhysical":memInfo.ullTotalPhys,
+  "availablePhysical":memInfo.ullAvailPhys,
+  "totalPageFile":memInfo.ullTotalPageFile,
+  "availablePageFile":memInfo.ullAvailPageFile,
+  "totalVirtual":memInfo.ullTotalVirtual,
+  "availableVirtual":memInfo.ullAvailVirtual}
+    
+def _globalMemoryInfoCE():
+  # Initialize the data structure
+  memInfo = _MEMORYSTATUS() # Memory usage ints
+  memInfo.dwLength = ctypes.sizeof(_MEMORYSTATUS)
+  
+  # Make the call
+  _globalMemoryStatus(ctypes.pointer(memInfo))
+  
+  # Return Dictionary
+  return {"load":memInfo.dwMemoryLoad,
+  "totalPhysical":memInfo.dwTotalPhys,
+  "availablePhysical":memInfo.dwAvailPhys,
+  "totalPageFile":memInfo.dwTotalPageFile,
+  "availablePageFile":memInfo.dwAvailPageFile,
+  "totalVirtual":memInfo.dwTotalVirtual,
+  "availableVirtual":memInfo.dwAvailVirtual}
+  
+  
+  

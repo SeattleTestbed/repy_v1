@@ -158,51 +158,12 @@ def monitor_cpu_disk_and_mem(cpuallowed, diskallowed, memallowed):
     else:
       frequency = repy_constants.RESOURCE_POLLING_FREQ_WIN
 
-    # start the CPU nanny and tell them our pid and limit...
-    # NOTE: Is there a better way?
-    if os.path.exists('..\python') or os.path.exists('..\python.exe'):
-      pythonpath = '..\python'
-    else:
-      pythonpath = 'python'
-
-    # Check to find nanny file
-    # Check seattle installation first
-    if os.path.exists(repy_constants.PATH_SEATTLE_INSTALL + 'win_cpu_nanny.py'):
-      nannypath = repy_constants.PATH_SEATTLE_INSTALL + 'win_cpu_nanny.py'
-    elif os.path.exists('..\win_cpu_nanny.py'): # Check parent directory
-      nannypath = '..\win_cpu_nanny.py'
-    else: # Resort to current Directory
-      nannypath = 'win_cpu_nanny.py'
-   
-    cpu_nanny_cmd = pythonpath+" "+nannypath+" "+str(os.getpid())+" "+str(cpuallowed)+" "+str(frequency)
-    # need to set the cwd so that we know where to find it.   Let's assume it's
-    # in the same directory we are in
-    nannydir = os.path.dirname(sys.argv[0])
-  
-    # fix it if there is no dir...
-    if nannydir == '':
-      nannydir="."
-
-    # execute the nanny...
-    if (mobileNoSubprocess and ostype == 'WindowsCE'):
-      # PythonCE requires full paths
-      # No support for subprocess, need workaround
-      
-      nannypath = repy_constants.PATH_SEATTLE_INSTALL + "win_cpu_nanny.py"
-      cmdline = str(os.getpid())+" "+str(cpuallowed)+" "+str(frequency)
-      windowsAPI.launchPythonScript(nannypath, cmdline)
-    else:
-      junkprocessinfo = subprocess.Popen(cpu_nanny_cmd, cwd=nannydir)
-    # our nanny should outlive us, so it's okay to leave it alone...
-
-
-    # now we set up a memory / disk thread nanny...
+    # now we set up a cpu and memory / disk thread nanny...
+    WinCPUNannyThread(frequency,cpuallowed).start()
     WindowsNannyThread(frequency,diskallowed, memallowed).start()
-
+     
   else:
     raise UnsupportedSystemException, "Unsupported system type: '"+osrealtype+"' (alias: "+ostype+")"
-
-
 
 
 def select_sockets(inlist, timeout = None):
@@ -257,6 +218,74 @@ def portablekill(pid):
     raise UnsupportedSystemException, "Unsupported system type: '"+osrealtype+"' (alias: "+ostype+")"
 
 
+# Data structures and functions for a cross platform CPU limiter
+
+# Intervals to retain for rolling average
+ROLLING_PERIOD = 1
+rollingCPU = []
+rollingIntervals = []
+
+# Debug purposes: Calculate real average
+#appstart = time.time()
+#rawcpu = 0.0
+#totaltime = 0.0
+
+def calculate_cpu_sleep_interval(cpulimit,percentused,elapsedtime):
+  """
+  <Purpose>
+    Calculates proper CPU sleep interval to best achieve target cpulimit.
+  
+  <Arguments>
+    cpulimit:
+      The target cpu usage limit
+    percentused:
+      The percentage of cpu used in the interval between the last sample of the process
+    elapsedtime:
+      The amount of time elapsed between last sampling the process
+  
+  <Returns>
+    Time period the process should sleep
+  """
+  global rollingCPU, rollingIntervals
+  # Debug: Used to calculate averages
+  #global totaltime, rawcpu, appstart
+
+  # Update rolling info
+  # Use the *moded version of elapsedtime and percentused
+  # To account for segmented intervals
+  if len(rollingCPU) == ROLLING_PERIOD:
+    rollingCPU.pop(0) # Remove oldest CPU data
+    rollingIntervals.pop(0) # Remove oldest Elapsed time data
+  rollingCPU.append(percentused*elapsedtime) # Add new CPU data
+  rollingIntervals.append(elapsedtime) # Add new time data
+
+  # Caclulate Averages
+  # Sum up cpu data
+  rollingTotalCPU = 0.0
+  for i in rollingCPU:
+    rollingTotalCPU += i
+
+  # Sum up time data
+  rollingTotalTime = 0.0
+  for i in rollingIntervals:
+    rollingTotalTime += i
+
+  rollingAvg = rollingTotalCPU/rollingTotalTime
+
+  # Calculate Stoptime
+  #  Mathematically Derived from:
+  #  (PercentUsed * TotalTime) / ( TotalTime + StopTime) = CPULimit
+  stoptime = max(((rollingAvg * rollingTotalTime) / cpulimit) - rollingTotalTime , 0)
+
+  # Print debug info
+  #rawcpu += percentused*elapsedtime
+  #totaltime = time.time() - appstart
+  #print totaltime , "," , (rawcpu/totaltime) , "," ,elapsedtime , "," ,percentused
+  #print "Stopping: ", stoptime
+
+  # Return amount of time to sleep for
+  return stoptime
+  
 ###################     Windows specific functions   #######################
 
 try:
@@ -267,8 +296,6 @@ except:
 
 
 def win_check_memory_use(pid, memlimit):
-
-
   # use the process handle to get the memory info
   meminfo = windowsAPI.processMemoryInfo(pid)
 
@@ -296,12 +323,13 @@ def win_check_disk_use(disklimit):
   if diskused > disklimit:
     # We will be killed by the other thread...
     raise Exception, "Disk use '"+str(diskused)+"' over limit '"+str(disklimit)+"'"
-  
+
 
 class WindowsNannyThread(threading.Thread):
   frequency = None
   memallowed = None
   diskallowed = None
+  
   def __init__(self,f,d,m):
     self.frequency = f
     self.diskallowed = d
@@ -315,7 +343,6 @@ class WindowsNannyThread(threading.Thread):
     # run forever (only exit if an error occurs)
     while True:
       try:
-        time.sleep(self.frequency)
         win_check_disk_use(self.diskallowed)
         win_check_memory_use(mypid, self.memallowed)
 	      
@@ -329,6 +356,8 @@ class WindowsNannyThread(threading.Thread):
           # must release before harshexit...
           statuslock.release()
 
+        time.sleep(self.frequency)
+        
       except windowsAPI.DeadProcess:
         #  Process may be dead, or die while checking memory use
         #  In any case, there is no reason to continue running, just exit
@@ -339,7 +368,87 @@ class WindowsNannyThread(threading.Thread):
         print >> sys.stderr, "Nanny died!   Trying to kill everything else"
         harshexit(20)
 
+# Dedicated Thread for monitoring CPU
+class WinCPUNannyThread(threading.Thread):
+  # Thread variables
+  frequency = 0.1 # Sampling frequency
+  cpuLimit = 0.1 # CPU % used limit
+  pid = 0 # Process pid
+  
+  # Windows specific CPU Nanny Stuff
+  winlastcpuinfo = [0,0]
+  
+  def __init__(self,freq,cpulimit):
+    self.frequency = freq
+    self.cpuLimit = cpulimit
+    self.pid = os.getpid()
+    threading.Thread.__init__(self,name="CPUNannyThread")
+
+  def win_check_cpu_use(self):
+    # get use information and time...
+    now = time.time()
+    usedata = windowsAPI.processTimes(self.pid)
+
+    # Add kernel and user time together...   It's in units of 100ns so divide
+    # by 10,000,000
+    usertime = (usedata['KernelTime'] + usedata['UserTime'] ) / 10000000.0
+    useinfo = [usertime, now]
+
+    # get the previous time and cpu so we can compute the percentage
+    oldusertime = self.winlastcpuinfo[0]
+    oldnow = self.winlastcpuinfo[1]
+
+    if self.winlastcpuinfo == [0,0]:
+      self.winlastcpuinfo = useinfo
+      # give them a free pass if it's their first time...
+      return 0
+
+    # save this data for next time...
+    self.winlastcpuinfo = useinfo
+
+    # Get the elapsed time...
+    elapsedtime = now - oldnow
+
+    # percent used is the amount of change divided by the time...
+    percentused = (usertime - oldusertime) / elapsedtime
+
+    # Calculate amount of time to sleep for
+    stoptime = calculate_cpu_sleep_interval(self.cpuLimit, percentused,elapsedtime)
+
+    # Call new api to suspend/resume process and sleep for specified time
+    if windowsAPI.timeoutProcess(self.pid, stoptime):
+      # Return how long we slept so parent knows whether it should sleep
+      return stoptime
+    else:
+      # Process must have been making system call, try again next time
+      return -1
       
+  def run(self):
+    # Run while the process is running
+    while True:
+      try:
+        # Base amount of sleeping on return value of 
+    	  # win_check_cpu_use to prevent under/over sleeping
+        slept = self.win_check_cpu_use()
+
+        if slept == -1:
+          # Something went wrong, try again
+          pass
+        elif slept == 0:
+          time.sleep(self.frequency)
+        elif (slept < self.frequency):
+          time.sleep(self.frequency-slept)
+
+      except windowsAPI.DeadProcess:
+        #  Process may be dead
+        harshexit(97)
+
+      except:
+        tracebackrepy.handle_exception()
+        print >> sys.stderr, "CPU Nanny died!   Trying to kill everything else"
+        harshexit(25)
+              
+              
 #### This seems to be used by Mac as well...
 
 def smarter_select(inlist):
@@ -465,26 +574,14 @@ class LinuxCPUTattlerThread(threading.Thread):
           pass
         harshexit(21)
 
-
-# Intervals to retain for rolling average
-ROLLING_PERIOD = 1
-rollingCPU = []
-rollingIntervals = []
-
 # Keep track of last stoptime and resume time
 resumeTime = 0.0
 lastStoptime = 0.0
 segmentedInterval = False
 
-# Debug purposes: Calculate real average
-#rawcpu = 0.0
-#totaltime = 0.0
-
 # this ensures that the CPU quota is actually enforced on the client
 def enforce_cpu_quota(readfobj, cpulimit, frequency, childpid):
   global resumeTime, lastStoptime, segmentedInterval
-  # Debug: Used to calculate averages
-  # global totaltime, rawcpu
 
   elapsedtime, percentused = get_time_and_cpu_percent(readfobj)
 
@@ -502,39 +599,9 @@ def enforce_cpu_quota(readfobj, cpulimit, frequency, childpid):
   else:
     elapsedtimemod = elapsedtime
     percentusedmod = percentused
-    
-  # Update rolling info
-  # Use the *moded version of elapsedtime and percentused
-  # To account for segmented intervals
-  if len(rollingCPU) == ROLLING_PERIOD:
-    rollingCPU.pop(0) # Remove oldest CPU data
-    rollingIntervals.pop(0) # Remove oldest Elapsed time data
-  rollingCPU.append(percentusedmod*elapsedtimemod) # Add new CPU data
-  rollingIntervals.append(elapsedtimemod) # Add new time data
-
-  # Caclulate Averages
-  # Sum up cpu data
-  rollingTotalCPU = 0.0
-  for i in rollingCPU:
-    rollingTotalCPU += i
-
-  # Sum up time data
-  rollingTotalTime = 0.0
-  for i in rollingIntervals:
-    rollingTotalTime += i
   
-  rollingAvg = rollingTotalCPU/rollingTotalTime
-
-  # Calculate Stoptime
-  #  Mathematically Derived from:
-  #  (PercentUsed * TotalTime) / ( TotalTime + StopTime) = CPULimit
-  stoptime = max(((rollingAvg * rollingTotalTime) / cpulimit) - rollingTotalTime , 0)
-
-  # Print debug info
-  #rawcpu += percentused*elapsedtime
-  #totaltime += elapsedtime
-  #print totaltime , "," ,rollingAvg, ",", (rawcpu/totaltime) , "," ,percentused
-  #print "Stopping: ", stoptime
+  #Calculate stop time
+  stoptime = calculate_cpu_sleep_interval(cpulimit, percentusedmod, elapsedtimemod)  
 
   if not stoptime == 0.0:
     # They must be punished by stopping
@@ -556,7 +623,6 @@ def enforce_cpu_quota(readfobj, cpulimit, frequency, childpid):
   if (stoptime < frequency):
     time.sleep(frequency-stoptime)
   
-
 
 lastenforcedata = None
 WAIT_PERIOD = 0.01 # How long to wait for new data if there is none in the pipe
