@@ -741,7 +741,6 @@ def enforce_memory_quota(memorylimit, childpid):
     memoryused = int(memorydata)*(2**10)
 
     if memoryused > memorylimit:
-      os.kill(childpid, signal.SIGKILL)
       raise Exception, "Terminated child '"+str(childpid)+"' with memory use '"+str(memoryused)+"' with limit '"+str(memorylimit)+"'"
   
   
@@ -783,7 +782,6 @@ def enforce_memory_quota(memorylimit, childpid):
     memoryused = int(memorydata)*(2**10)
 
     if memoryused > memorylimit:
-      os.kill(childpid, signal.SIGKILL)
       raise Exception, "Terminated child '"+str(childpid)+"' with memory use '"+str(memoryused)+"' with limit '"+str(memorylimit)+"'"
   
   
