@@ -81,8 +81,17 @@ safe._STR_OK.append("__repr__")
 # allow __ in strings.   I'm 99% sure this is okay (do I want to risk it?)
 safe._NODE_ATTR_OK.append('value')
 
+# Disables safe, and resumes normal fork
+def nonSafe_fork():
+  val = __orig_fork()
+  if val == 0 and safe._builtin_globals_r != None:
+    safe._builtin_restore()
+  return val
 
-
+# Only override fork if it exists (e.g. Windows)
+if "fork" in dir(os):  
+  __orig_fork = os.fork
+  os.fork = nonSafe_fork
 
 
 # This is the user's program after parsing

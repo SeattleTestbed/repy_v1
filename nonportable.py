@@ -147,19 +147,23 @@ def harshexit(val):
 
 
 def monitor_cpu_disk_and_mem(cpuallowed, diskallowed, memallowed):
-  if ostype == 'Linux' or ostype == 'Darwin':
-    # The frequency constant here seems to effect the "burstiness" of the
-    # cpu use but not the overall amount.
-    do_forked_monitor(repy_constants.RESOURCE_POLLING_FREQ_LINUX, cpuallowed, diskallowed, memallowed)
-
+  if ostype == 'Linux' or ostype == 'Darwin':  
+    # Startup a CPU monitoring thread/process
+    do_forked_cpu_monitor(repy_constants.CPU_POLLING_FREQ_LINUX, cpuallowed)
+    
+    # Setup a disk and memory thread to enforce the quota
+    LinuxResourceNannyThread(repy_constants.RESOURCE_POLLING_FREQ_LINUX, diskallowed, memallowed).start()
+    
   elif ostype == 'Windows' or ostype == 'WindowsCE':
     if (ostype == 'WindowsCE'):
       frequency = repy_constants.RESOURCE_POLLING_FREQ_WINCE
+      frequencyCPU = repy_constants.CPU_POLLING_FREQ_WINCE
     else:
       frequency = repy_constants.RESOURCE_POLLING_FREQ_WIN
-
+      frequencyCPU = repy_constants.CPU_POLLING_FREQ_WIN
+      
     # now we set up a cpu and memory / disk thread nanny...
-    WinCPUNannyThread(frequency,cpuallowed).start()
+    WinCPUNannyThread(frequencyCPU,cpuallowed).start()
     WindowsNannyThread(frequency,diskallowed, memallowed).start()
      
   else:
@@ -281,6 +285,7 @@ def calculate_cpu_sleep_interval(cpulimit,percentused,elapsedtime):
   #rawcpu += percentused*elapsedtime
   #totaltime = time.time() - appstart
   #print totaltime , "," , (rawcpu/totaltime) , "," ,elapsedtime , "," ,percentused
+  #print percentused, elapsedtime
   #print "Stopping: ", stoptime
 
   # Return amount of time to sleep for
@@ -670,13 +675,11 @@ def get_time_and_cpu_percent(readfobj):
   clocktime = info[4] 	# processor time (it's in the wrong units...)
   currenttime = info[5]
 
-  usertime = cputime + systime
+  # Child time can be non-zero, due to the fact that subprocess uses fork
+  # And subprocess is used in the Resource Nanny
+  usertime = cputime + systime + childcputime + childsystime
 
-  # How can they have a child?
-  if childcputime != 0.0 or childsystime != 0.0:
-    raise Exception, "Non zero child time!: Cpu time '"+str(childcputime)+"' > Sys time '"+str(childsystime)+"'"
-
-  oldusertime = lastenforcedata[0] + lastenforcedata[1]
+  oldusertime = lastenforcedata[0] + lastenforcedata[1] + lastenforcedata[2] + lastenforcedata[3]
   oldclocktime = lastenforcedata[4]
   oldcurrenttime = lastenforcedata[5]
 
@@ -696,23 +699,7 @@ def get_time_and_cpu_percent(readfobj):
 
   percentused = (usertime - oldusertime) / (clocktime - oldclocktime)
   lastenforcedata = info
-
   return (currenttime - oldcurrenttime, percentused)
-  
-  
-
-# see if the process is over quota and if so terminate with extreme prejudice.
-def enforce_disk_quota(disklimit, childpid):
-
-  diskused = misc.compute_disk_use(".")
-
-  if diskused > disklimit:
-    os.kill(childpid, signal.SIGKILL)
-    raise Exception, "Terminated child '"+str(childpid)+"' with disk use '"+str(diskused)+"' with limit '"+str(disklimit)+"'"
-  
-  
-
-    
 
 # I use this in the planetlab /proc error case to prevent me from turning off
 # memory quotas when /proc is unmounted
@@ -726,15 +713,16 @@ def enforce_memory_quota(memorylimit, childpid):
   # issue this command to ps.   This is likely to be non-portable and a source
   # of constant ire...
   memorycmd = 'ps -p '+str(childpid)+' -o rss'
-  p = subprocess.Popen(memorycmd, shell=True, stdout=subprocess.PIPE, 
-	stderr=subprocess.PIPE, close_fds=True)
-
+  p = subprocess.Popen(memorycmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+   close_fds=True)
+    
   cmddata = p.stdout.read()
   p.stdout.close()
   errdata = p.stderr.read()
   p.stderr.close()
   junkstatus = os.waitpid(p.pid,0)
 
+  #print "C ", cmddata, "E: ", errdata
   # ensure the first line says RSS (i.e. it's normal output
   if 'RSS' == cmddata.split('\n')[0].strip():
     
@@ -809,27 +797,54 @@ def enforce_memory_quota(memorylimit, childpid):
  
   else:
     raise Exception, "Cannot understand '"+memorycmd+"' output: '"+cmddata+"'"
+    
+# Monitors and restricts disk and memory usage
+class LinuxResourceNannyThread(threading.Thread):
+  frequency = None
+  disklimit = None
+  memlimit = None
+  pid = None
 
+  def __init__(self, frequency, disk, mem):
+    self.frequency = frequency
+    self.disklimit = disk
+    self.memlimit = mem
+    self.pid = os.getpid()
+    threading.Thread.__init__(self,name="LinuxResourceNannyThread")
 
-  
+  def run(self):
+    # Run forver, monitoring Memory and Disk usage
+    while True:
+      try:
+        # let's check the process and make sure it's not over quota.  
+        diskused = misc.compute_disk_use(".")
 
-  
+        # Raise exception if we are over limit
+        if diskused > self.disklimit:
+          raise Exception, "Disk use '"+str(diskused)+"' over limit '"+str(self.disklimit)+"'"
 
-
-def do_forked_monitor(frequency, cpulimit, disklimit, memlimit):
-  # Test only, override frequency
-  #frequency = 0.25
-
+        # let's check the process and make sure it's not over quota.
+        enforce_memory_quota(self.memlimit, self.pid)
+        
+        # Sleep for a while
+        time.sleep(self.frequency)
+      except:
+        tracebackrepy.handle_exception()
+        print >> sys.stderr, "Resource Nanny died! Trying to exit repy!"
+        harshexit(28)
+        
+        
+# Creates a thread to pass CPU info to a process which
+# Suspends and resumes the process to maintain CPU throttling
+def do_forked_cpu_monitor(frequency, cpulimit):
   # get a pipe for communication
   readpipefd,writepipefd = os.pipe()
-
 
   # I'll fork a copy of myself
   childpid = os.fork()
 
   if childpid == 0:
     # This is the child (we'll let them continue execution and monitor them).
-
     os.close(readpipefd)
     mywritepipe = os.fdopen(writepipefd,"w")
 
@@ -871,12 +886,6 @@ def do_forked_monitor(frequency, cpulimit, disklimit, memlimit):
         # let's check the process and make sure it's not over quota.  
         enforce_cpu_quota(myreadpipe, cpulimit, frequency, childpid)
 
-        # let's check the process and make sure it's not over quota.  
-        enforce_disk_quota(disklimit, childpid)
-
-        # let's check the process and make sure it's not over quota.  
-        enforce_memory_quota(memlimit, childpid)
-
         # there is no need to sleep here because we block in enforce_cpu_quota
         # waiting for the child to give us accounting information
 
@@ -916,9 +925,6 @@ def do_forked_monitor(frequency, cpulimit, disklimit, memlimit):
     raise
 
 
-
-
-
 ###########     functions that help me figure out the os type    ###########
 
 def init_ostype():
@@ -954,9 +960,6 @@ def init_ostype():
     return
 
   ostype = 'Unknown'
-
-
-  
 
 # Call init_ostype!!!
 init_ostype()
