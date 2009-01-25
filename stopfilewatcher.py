@@ -18,7 +18,7 @@ import nonportable     # for harshexit
 
 
 #frequency to check
-frequency = 1.0
+frequency = 0.5
 
 
 def init(stopfn):
@@ -32,7 +32,6 @@ def init(stopfn):
   
 
 def checkfunction(stopfn):
-
   # run forever
   while True:
     if os.path.exists(stopfn):
