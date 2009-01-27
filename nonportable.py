@@ -648,7 +648,7 @@ def get_time_and_cpu_percent(readfobj):
       # If the Worker process dies, then the pipe is closed and an EOF is inserted
       # readline will return an empty string on hitting the EOF, so we should detect this and die
       if cpudata == '':
-        harshexit(98)
+        raise EnvironmentError, "Failed to receive CPU usage data!"
 
       num += 1
       info = eval(cpudata)
@@ -881,9 +881,19 @@ def do_forked_cpu_monitor(frequency, cpulimit):
       #if pid == 0 and status == 0:
       if pid == 0:
 
-        # let's check the process and make sure it's not over quota.  
-        enforce_cpu_quota(myreadpipe, cpulimit, frequency, childpid)
-
+        try:
+          # let's check the process and make sure it's not over quota.  
+          enforce_cpu_quota(myreadpipe, cpulimit, frequency, childpid)
+        except EnvironmentError:
+          # This means that the CPU info pipe is broken, lets figure out why
+          # If the process is dead, exit silently
+          if os.WIFEXITED(status) or os.WIFSIGNALED(status):
+            sys.exit(0)
+          # Otherwise, terminate forcefully
+          else:
+            os.kill(childpid, signal.SIGKILL)
+            harshexit(98)
+        
         # there is no need to sleep here because we block in enforce_cpu_quota
         # waiting for the child to give us accounting information
 
