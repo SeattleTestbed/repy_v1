@@ -1238,8 +1238,6 @@ def diskUtil(directory):
     dirchk = unicode(directory)
   
   status = _freeDiskSpace(dirchk, ctypes.pointer(bytesFree), ctypes.pointer(totalBytes), ctypes.pointer(totalFreeBytes))
-  
-  print bytesFree, totalBytes, totalFreeBytes
     
   # Check if we succeded
   if status == 0:
