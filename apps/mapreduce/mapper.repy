@@ -1,0 +1,8 @@
+# MapReduce for python/repy!
+#
+
+def map(key, value):
+    toRet = []
+    for word in value.split():
+        toRet.append((word, 1))
+    return toRet

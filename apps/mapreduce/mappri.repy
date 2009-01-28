@@ -1,0 +1,90 @@
+# MapReduce for python/repy!
+#
+#
+# TODO list:
+#
+#
+
+# include parallelize
+
+# !! currently only works for a single reducer !!
+# i'll worry about splitting the file up at a later time
+def initalize_replicas(data_file):
+    for ip, port in mycontext['replica_list']:
+        socketobj = openconn(ip, port)
+        data = data_file.read()
+        socketobj.send(data)
+
+
+
+
+def get_results(ip, port, sockobj, thiscommhandle, listencommhandle):
+    
+    data_len = int(sockobj.recv(4))
+
+    # parse actual data, write to file
+    buf = str(sockobj.recv(data_len))
+    result_file = open("results.dat", "w")
+    result_file.write(buf)
+    result_file.close()
+
+
+
+
+def print_usage():
+    print "Primary map-reduce node"
+    print "Usage: mappri.repy [options] <datafile> <replica-ip>:<replica-port>..."
+    print "    -n                  Do not parse the data file with \t splitting key and value"
+    print "    <datafile>          The data file to use in the map-reduce pipeline"
+    print "    <replica-ip>:<port> A list of the replica addresses to use for the job"    
+
+
+
+
+if callfunc == 'initalize':
+    mycontext['replica_list'] = {}
+
+    if len(callargs) == 0: 
+        print_usage()
+        raise Exception("need to define replica list")
+
+    argpointer = 0
+    port = 12345
+    try:
+        port = int(arg[0])
+        ip = getmyip()
+        argpointer++
+        
+        if len(callargs) == 1:
+            print_usage()
+            raise Exception("need to define replica list")
+
+    except ValueError:
+        ip = '127.0.0.1'
+
+    if callargs[argpointer] == '-n':
+        # do something special here, it's a no-op atm
+        pass
+
+    try:
+        data_file = open(callargs[argpointer], "r")
+    except IOError:
+        raise Exception("Error reading file (does it exist?)")
+
+    for arg in :
+        address = arg.split(':')
+        mycontext['replica_list'][address[0]] = address[1]
+
+    initalize_replicas(data_file)
+    
+
+    # once the job has started, we need to listen for reporting back 
+    # by the replicas (right now, just one handle/no parallelization)
+    
+    is_received = {}
+    for ip in mycontext['replica_list'].keys():
+        is_received[ip] = 0
+    
+    mycontext['recieved_data'] = is_received
+
+    listencommhandle = waitforconn(ip, port, get_results) 

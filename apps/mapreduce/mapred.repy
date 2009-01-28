@@ -1,11 +1,38 @@
+
+'''
+- header at top of file : docstring
+- header for each function (you already have the descriptions) : docstring
+- more space between functions, 3-4 space lines
+'''
+
+
 # MapReduce for python/repy!
 #
+
+#begin include mapper.repy
+# MapReduce for python/repy!
+#
+
+def map_func(key, value):
+    toRet = []
+    print "Key: ", key
+    print "Value: ", value
+    for word in value.split():
+        print word
+        output = (word, 1)
+        toRet.append(output)
+    return toRet
+#end include mapper.repy
+
+
+
+
 
 def get_data(ip, port, sockobj, thiscommhandle, listencommhandle):
     """ Listens for connections on a well-defined port, imports data files """
     
      # parse and save map.py, reduce.py, data file
-    filenames = array('map.py', 'reduce.py', 'map_data.dat')
+    filenames = array('mapper.py', 'reducer.py', 'map_data.dat')
     for i in range(3):
         # get length of following data
         data_len = int(sockobj.recv(4))
@@ -19,13 +46,15 @@ def get_data(ip, port, sockobj, thiscommhandle, listencommhandle):
     # destroy the listen socket as we're done initializing
     mycontext['state'] = 'Initialized'
     stopcomm(listencommhandle)
+
+
+
+
     
 # Assumptions to make this simpler:
 # - all this data fits in memory (<2 GB) in the variable map_result
 # - data is stored in the files/string as "(key)(\t)(value)"  
-def map():
-    from map import *
-    
+def do_map():
     data = open("map_data.dat", "r")
     
     map_result = []
@@ -33,27 +62,18 @@ def map():
         line_parts = line.partition('\t')
         # I assume that results are returned in the form "<key>\t<value>"
         # map.mapper takes key, value as two separate arguments
-        map_result.append(map.mapper(line_parts[0], line_parts[2]))
-                          
-    return map_result.sort(key=str.lower())
+        map_result.append(map_func(line_parts[0], line_parts[2]))
+
+    map_result.sort()
+    return map_result
     
     
-# one artificial restriction here is that the key must start with A-Z or a-z.
-# case is sensitive as in Hadoop
+# the user must define their own partition function.
 def partition(map_result):
-    len_partition = 52 / mycontext["num_reducers"]
-    len_partition_remainder = 52 % mycontext["num_reducers"]
-    
-    firstLetter = 65
-    difference = 26+7
-    
-    #foreach result in map_result:
     pass
     
     
-def reduce():
-    from reduce import *
-    
+def do_reduce():
     data = open("reduce_data.dat", "r")
     
     reduce_result = []
@@ -61,7 +81,7 @@ def reduce():
         line_parts = line.partition('\t')
         # I assume that results are returned in the form "<key>\t<value>"
         # reduce.reducer takes key, value as two separate arguments
-        reduce_result.append(reduce.reducer(line_parts[0], line_parts[2]))
+        reduce_result.append(reducer.reduce(line_parts[0], line_parts[2]))
                           
     return reduce_result.sort()
 
@@ -86,22 +106,49 @@ if callfunc == 'initialize':
         port = 12345
         ip = '127.0.0.1'
     
-    listencommhandle = waitforconn(ip, port, get_data)
+    #listencommhandle = waitforconn(ip, port, get_data)
     
     # block until we've been initialized with data/methods
-    while mycontext['state'] == 'Ready':
-        sleep(5)
+    #while mycontext['state'] == 'Ready':
+        #sleep(1)
     
     # start mapping, synchronous call
-    map_result = map()
+    map_result = do_map()
+    print map_result
+#    data = open("mapper.dat", "w")
+#    data.write(map_result)
+#    data.close()
 
     # send map results to all reducers, split as necessary
-    partition(map_result)
+#===============================================================================
+#    partition(map_result)
+#    
+#    # block until 
+#    while mycontext['state'] == 'ReducerWaiting':
+#        sleep(1)
+#        
+#    # start reducing, synchronous call (wait for all data to come in, then start)
+#    reduce_result = do_reduce()
+#    
+#    report_results(reduce_result)
+#===============================================================================
+
+class TestMapReduceReplica(unittest.TestCase):
     
-    while mycontext['state'] == 'ReducerWaiting':
-        sleep(5)
-        
-    # start reducing, synchronous call (wait for all data to come in, then start)
-    reduce_result = reduce()
-    
-    report_results(reduce_result)
+    def setUp(self):
+        pass
+
+    def testMapper(self):
+        pass
+
+    def testReducer(self):
+        pass
+
+    def tearDown(self):
+        pass
+
+
+if __name__ == '__main__':
+    import unittest
+
+    unittest.main()
