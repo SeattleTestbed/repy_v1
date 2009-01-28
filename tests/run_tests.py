@@ -73,9 +73,25 @@
 """
 
 import glob
-import subprocess
 import os
 import sys
+import shutil
+
+# Used to spawn subprocesses for tests. Fails on
+# WindowsCE so we use WindowsAPI instead
+try:
+  import subprocess
+  mobileNoSubprocess = False
+except ImportError:
+  # Set flag to avoid using subprocess
+  mobileNoSubprocess = True 
+
+  # import windows API
+  import windows_api as windowsAPI
+  pass
+  
+# Import repy constants for use in finding test files
+import repy_constants
 
 import testportfiller
 
@@ -163,14 +179,34 @@ def exec_command(command):
 
   return (theout, theerr)
   
-
+def exec_repy_script(filename, arguments):
+  global mobileNoSubprocess
+  
+  if not mobileNoSubprocess:
+    return exec_command('python repy.py ' + arguments + ' ' + filename)
+  else:
+    if os.path.isfile("execlog.out"):
+      os.remove("execlog.out")
+      
+    windowsAPI.launchPythonScript('repy.py', "--logfile execlog.out " + arguments + " " + filename)
+    
+    theout = file("execlog.out", "r")
+    output = theout.read()
+    theout.close()
+    
+    return (theout, '')
+  
 def do_actual_test(testtype, restrictionfn, testname):
   global endput
-
+  global mobileNoSubprocess
+  
   # match python
   if testtype == 's':
     (pyout, pyerr) = exec_command('python '+testname)
     (testout, testerr) = exec_command('python repy.py --simple '+restrictionfn+" "+testname)
+    
+    capture_test_result(testname, pyout, pyerr, ".py")
+    capture_test_result(testname, testout, testerr, ".repy")
 
     same = True
 
@@ -188,8 +224,10 @@ def do_actual_test(testtype, restrictionfn, testname):
 
   # any out, no err...
   elif testtype == 'n':
-    (testout, testerr) = exec_command('python repy.py --status foo '+restrictionfn+" "+testname)
-    if testout != '' and testerr == '':
+    (testout, testerr) = exec_repy_script(testname, "--status foo "+ restrictionfn)
+    if (not mobileNoSubprocess) and testout != '' and testerr == '':
+      return True
+    elif mobileNoSubprocess and testout != '' and testout.find('Traceback') == -1:
       return True
     else:
       endput = endput+testname+"\nout:"+testout+"err:"+ testerr+"\n\n"
@@ -197,8 +235,10 @@ def do_actual_test(testtype, restrictionfn, testname):
 
   # any err, no out...
   elif testtype == 'e':
-    (testout, testerr) = exec_command('python repy.py --status foo '+restrictionfn+" "+testname)
-    if testout == '' and testerr != '':
+    (testout, testerr) = exec_repy_script(testname, '--status foo '+restrictionfn)
+    if (not mobileNoSubprocess) and testout == '' and testerr != '':
+      return True
+    elif mobileNoSubprocess and testout.find('Traceback') == -1:
       return True
     else:
       endput = endput+testname+"\nout:"+testout+"err:"+ testerr+"\n\n"
@@ -206,7 +246,7 @@ def do_actual_test(testtype, restrictionfn, testname):
 
   # no err, no out...
   elif testtype == 'z':
-    (testout, testerr) = exec_command('python repy.py --status foo '+restrictionfn+" "+testname)
+    (testout, testerr) = exec_repy_script(testname, '--status foo '+restrictionfn)
     if testout == '' and testerr == '':
       return True
     else:
@@ -215,8 +255,10 @@ def do_actual_test(testtype, restrictionfn, testname):
 
   # any err, any out...
   elif testtype == 'b':
-    (testout, testerr) = exec_command('python repy.py --status foo '+restrictionfn+" "+testname)
-    if testout != '' and testerr != '':
+    (testout, testerr) = exec_repy_script(testname, '--status foo '+restrictionfn)
+    if (not mobileNoSubprocess) and testout != '' and testerr != '':
+      return True
+    elif mobileNoSubprocess and testout.find('Traceback') == -1:
       return True
     else:
       endput = endput+testname+"\nout:"+testout+"err:"+ testerr+"\n\n"
@@ -232,25 +274,32 @@ def do_actual_test(testtype, restrictionfn, testname):
       pass
 
     # run the experiment
-    (testout, testerr) = exec_command('python repy.py --logfile experiment.log --status foo '+restrictionfn+" "+testname)
+    if not mobileNoSubprocess:
+      (testout, testerr) = exec_command('python repy.py --logfile experiment.log --status foo '+restrictionfn+" "+testname)
+    else:
+      (testout, testerr) = exec_repy_script(testname, "--status foo " + restrictionfn)
 
     # first, check to make sure there was no output or error
-    if testout == '' and testerr == '':
-      try:
-        myfo = file("experiment.log.old","r")
-        logdata = myfo.read()
-        myfo.close()
-        if os.path.exists("experiment.log.new"):
-          myfo = file("experiment.log.new","r")
-          logdata = logdata + myfo.read()
+    if mobileNoSubprocess or (testout == '' and testerr == ''):
+      if not mobileNoSubprocess:
+        try:
+          myfo = file("experiment.log.old","r")
+          logdata = myfo.read()
           myfo.close()
+          if os.path.exists("experiment.log.new"):
+            myfo = file("experiment.log.new","r")
+            logdata = logdata + myfo.read()
+            myfo.close()
 
-        # use only the last 16KB
-        logdata = logdata[-16*1024:]
+          # use only the last 16KB
+          logdata = logdata[-16*1024:]
 
-      except:
-        endput = endput+testname+"\nCan't read log!\n\n"
-        return False
+        except:
+          endput = endput+testname+"\nCan't read log!\n\n"
+          return False
+      else:
+        logdata = testout
+        
       if "Fail" in logdata:
         endput = endput+testname+"\nString 'Fail' in logdata\n\n"
         return False 
@@ -323,16 +372,69 @@ def do_oddballtests():
     logstream.write("FAILED]\n")
     endput = endput+"Stop Test 3\noutput or errput! out:"+testout+"err:"+ testerr+"\n\n"
 
+def setup_test_capture():
+  global captureDir
+  
+  current_dir = os.getcwd()
+  
+  if not os.path.isdir(captureDir):
+    print "Given capture directory is not a valid directory"
+    sys.exit(1)
+    
+  #set working directory to the test folder
+  os.chdir(captureDir)	
+  files_to_remove = glob.glob("*")
 
-
-
-
+  #clean the test folder
+  for f in files_to_remove: 
+    if os.path.isdir(f):
+      shutil.rmtree(f)		
+    else:
+      os.remove(f)
+      
+  # Pop back to current directory
+  os.chdir(current_dir)
+  
+# Captures the output of a test and puts it into the log file
+def capture_test_result(testname, pyout, pyerr, additionalExt=""):
+  global captureOutput
+  global captureDir
+  
+  # Ignore if we're not capturing output
+  if not captureOutput:
+    return None
+    
+  current_dir = os.getcwd()
+  
+  # Change to directory and write file
+  os.chdir(captureDir)
+  fileh = file(testname + additionalExt + ".out", "w")
+  fileh.write(pyout)
+  fileh.close()
+  
+  fileh = file(testname + additionalExt + ".err", "w")
+  fileh.write(pyerr)
+  fileh.close()
+  
+  # Pop back to test directory
+  os.chdir(current_dir)
   
 if len(sys.argv) > 1 and sys.argv[1] == '-q':
   logstream = file("test.output","w")
+  sys.argv = sys.argv[1:]
 else:
   logstream = sys.stdout
-
+  
+# If boolean is true, then unit test output will be
+# captured and stored
+captureOutput = False
+captureDir = None
+if len(sys.argv) > 1 and sys.argv[1] == '-ce':
+  captureOutput = True
+  captureDir = sys.argv[2]
+  sys.argv = sys.argv[2:]
+  setup_test_capture()
+  
 # these are updated in run_test
 passcount=0
 failcount=0
