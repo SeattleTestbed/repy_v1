@@ -1,0 +1,209 @@
+"""
+<Author>
+  Richard Jordan
+
+<Start Date>
+  January 24th, 2009
+
+<Description>
+  Test that the internals of TCP work as expected.
+
+<Usage>
+  Public Objects:
+    StubConnection - Dummy Tcp Socket.  Minimal set of TCP.
+"""
+
+# Acts like Berkeley Socket.
+class StubConnection:
+  """
+  <Purpose>
+    Wraps up a minimal Tcp socket.
+  <Side Effects>
+    None
+  <Example Use>
+    # Get an object
+    connection = StubConnection()
+    # bind to an address
+    connection.bind(getmyip(), 12345)
+    # open a connection
+    connection.connect('123.4.5.6', 12345)
+    # write information to the connected party
+    connection.send("hello")
+    # receive information from the connected party
+    connection.recv(4096)
+    # and disconnect without checking if they have said anything
+    connection.disconnect()
+  """   
+
+  ########### Public methods #######
+
+  # Get object
+  def __init__(self):
+    self.conn = None
+    (self.STATE_CLOSED, self.STATE_LISTEN, self.STATE_SENDING, \
+     self.STATE_ACKED, self.STATE_ESTAB, self.STATE_FIN_WAIT_1, \
+     self.STATE_FIN_WAIT_2, self.STATE_CLOSING, self.STATE_CLOSE_WAIT, \
+     self.STATE_LAST_ACK, self.STATE_TIME_WAIT) = range(0, 11)
+
+    self.state = self.STATE_CLOSED
+    self.conn  = None
+    self.packet_cache = {}
+  
+    self.RETRIES = 4
+    self.TIMEOUT = .001
+
+  def bind(self, localip, localport):
+    # I am:
+    self.localip = localip
+    self.localport = localport
+
+
+  # Setup a udp callback    
+  def listen(self):
+
+    if not self.localip or not self.localport:
+      raise NotBoundError("need to bind before listening")
+
+    self.conn = recvmess(self.localip, self.localport, self.callback)
+    self.state = self.STATE_LISTEN
+
+  # continue handshake
+  # BUG: need 3-way handshake
+  def accept(self):
+    pass # insert real code here
+
+  # Request connection.
+  def connect(self, remoteip, remoteport):
+    if not self.localip or not self.localport:
+      raise NotBoundError("need to bind before connecting")
+
+    # Peer is:
+    self.remoteip = remoteip
+    self.remoteport = remoteport
+
+    # Agree to start at,
+    start_num = int(randomfloat() * (MAX_SEQ_NUM - 1))
+
+    self.conn = recvmess(self.localip, self.localport, self.callback)
+    # init handshake
+    # ... insert code
+
+
+  # Close the connection
+  # BUG: Need Tcp 4-way close
+  def disconnect(self):
+    if self.conn == None:
+      raise NotConnectedError("cannot disconnect without connection")
+    stopcomm(self.conn)
+    self.conn = None
+
+  # UDP callback
+  def callback(self, ip, port, mess, ch):
+    # print mess # DEBUG
+    self.packet = unpack(mess)
+
+    if(self.state == self.STATE_CLOSED): pass
+    elif(self.state == self.STATE_LISTEN):
+      self.packet_cache[self.packet.seq_num] = self.packet
+    elif(self.state == self.STATE_SENDING):
+      self.state = self.STATE_ACKED
+    elif(self.state == self.STATE_ACKED): pass
+    elif(self.state == self.STATE_ESTAB): pass
+    elif(self.state == self.STATE_FIN_WAIT_1): pass
+    elif(self.state == self.STATE_FIN_WAIT_2): pass               
+    elif(self.state == self.STATE_CLOSING): pass
+    elif(self.state == self.STATE_CLOSE_WAIT): pass
+    elif(self.state == self.STATE_LAST_ACK): pass       
+    elif(self.state == self.STATE_TIME_WAIT): pass 
+    else:
+      raise UnknownStateError("undefined state")
+
+
+### Client Tests #################
+
+  # In test code:
+  # ... # setup code
+  # MESS = "message larger than MSS"
+  # try:
+  #   real_tcp_socket.send(MESS)
+  # except TimeoutError:
+  #   stub.assert_sent_full_window(MESS)
+  # else:
+  #   raise Exception("should have raised timeout")
+  def assert_sent_full_window(self, message):
+    buffer = ""
+    for seq_num in self.packet_cache.keys():
+      buffer += self.packet_cache[seq_num].payload
+      
+    mess_len = len(message)
+    assert len(self.packet_cache.keys()) == mess_len/MSS
+
+
+#### Server Tests ###############
+
+  # Send out of order and then see if the last
+  # ack is cumulative.
+  def assert_cumulative_acking(self):
+    seq_num = 1
+    mess = 'a'
+    self.state = self.STATE_SENDING
+    tries = self.RETRIES
+    while tries and self.state == self.STATE_SENDING:
+      sendmess(self.remoteip, self.remoteport, \
+        TcpPacket(self.localport, self.remoteport, seq_num, 0, "PSH", 1, mess).pack())
+      tries -= 1
+      sleep(self.TIMEOUT)
+    assert self.state == self.STATE_ACKED
+
+    # expect no ack
+    mess = 'c'
+    seq_num = 3
+    self.state = self.STATE_SENDING
+    tries = 2
+    while tries: # send it a few times
+      sendmess(self.remoteip, self.remoteport, \
+        TcpPacket(self.localport, self.remoteport, seq_num, 0, "PSH", 1, mess).pack())
+      tries -= 1
+      sleep(self.TIMEOUT)
+  
+    mess = 'b'
+    seq_num = 2
+    tries = self.RETRIES
+    while tries and self.state == self.STATE_SENDING:
+      sendmess(self.remoteip, self.remoteport, \
+        TcpPacket(self.localport, self.remoteport, seq_num, 0, "PSH", 1, mess).pack())
+      tries -= 1
+  
+    sleep(self.TIMEOUT * self.RETRIES)
+
+    assert self.state == self.STATE_ACKED
+    assert self.packet.ack_num == 4
+
+  # Make sure fails to ack when missing a seq.
+  def assert_does_not_ack_missing(self):
+    seq_num = 1
+    mess = 'a'
+    self.state = self.STATE_SENDING
+    tries = self.RETRIES
+    while tries and self.state == self.STATE_SENDING:
+      sendmess(self.remoteip, self.remoteport, \
+        TcpPacket(self.localport, self.remoteport, seq_num, 0, "PSH", 1, mess).pack())
+      tries -= 1
+      sleep(self.TIMEOUT)
+    assert self.state == self.STATE_ACKED
+
+    # expect no ack
+    mess = 'c'
+    seq_num = 3
+    self.state = self.STATE_SENDING
+    tries = self.RETRIES
+    while tries: # send it a few times
+      sendmess(self.remoteip, self.remoteport, \
+        TcpPacket(self.localport, self.remoteport, seq_num, 0, "PSH", 1, mess).pack())
+      tries -= 1
+      sleep(self.TIMEOUT)
+  
+    # wait a little to make sure
+    sleep(self.TIMEOUT * self.RETRIES)
+
+    assert self.packet.ack_num == 2

@@ -1,0 +1,732 @@
+"""
+<Author>
+  Richard Jordan
+
+<Start Date>
+  January 13th, 2009
+
+<Description>
+  Work towards Tcp over Upd.
+
+  This code implements:
+     * reliable packets (acks)
+     * the sliding window
+
+<Usage>
+  Public Objects:
+    Connection - Tcp Socket.  Sends/Receives messages.
+    NotConnectedError(Exception) - recv or send called without peer
+    TimeoutError(Exception) - no response from peer
+    UnknownStateError(Exception) - unexpected received message
+
+  Public Methods:
+    Connection() - get new socket
+    connection.bind(localip, localport) - sets localip, localport
+    connection.listen() - listen for peers
+    connection.accept() - accept a request from a peer
+    connection.connect(remoteip, remoteport) - request a connection
+    connection.send(data) - send data to current peer
+    connection.recv(maxLen) - recv data from current peer
+    connection.disconnect() - end connection with current peer
+
+  Private Objects:
+    TcpStateMachine - handles event calls
+    TcpPacket - encapsilates packet structure
+    TcpClient - encapsilates sender
+    TcpServer - encapsilates receiver 
+    RangeError(Exception) - bad input to mod_range function
+"""
+
+######### Public Exceptions ###########
+class UnknownStateError(Exception):
+  """This exception indicates our connection is in an unexpected state"""
+
+class NotConnectedError(Exception):
+  """This exception indicates the executed action cannot take place without 
+     starting a connection"""
+
+class NotBoundError(Exception):
+  """This exception indicates the executed action cannot take place without 
+     binding to a local address"""
+
+class TimeoutError(Exception):
+  """This exception indicates that the peer is not responded in enough time"""
+
+######## Constants ##########
+MAX_SEQ_NUM = 2 ** 32 # 16 bits 
+MAX_ACK_NUM = 2 ** 32 # 16 bits 
+
+# BUG: Need to convert testing to use 1050 bytes
+MSS = 1050 # bytes maximum payload
+WINDOW_SIZE = 5 * MSS
+
+######## Public Interface ########
+
+# Acts like Berkeley Socket.
+class Connection:
+  """
+  <Purpose>
+    Wraps up a Tcp socket.
+  <Side Effects>
+    None
+  <Example Use>
+    # Get an object
+    connection = Connection()
+    # bind to an address
+    connection.bind(getmyip(), 12345)
+    # open a connection
+    connection.connect('123.4.5.6', 12345)
+    # write information to the connected party
+    connection.send("hello")
+    # receive information from the connected party
+    connection.recv(4096)
+    # and disconnect without checking if they have said anything
+    connection.disconnect()
+  """   
+
+  ########### Public methods #######
+
+  # Get object
+  def __init__(self):
+    """
+    <Purpose>
+      Initializes an object to communicate from.
+
+    <Arguments>
+      None
+
+    <Exceptions>
+      None
+
+    <Side Effects>
+      None
+
+    <Returns>
+      A new Connection object.
+    """
+
+    # Let's assign some constants
+    self.DEFAULT_MAXLEN = 4096 # 4 kilo bytes ??
+
+    # And also,
+    DEFAULT_MAXDGRAMSIZE = 1050 # bytes of payload to send
+    DEFAULT_RETRIES = 4 # listen times for ack
+    DEFAULT_TIMEOUT = .001 # 1 millisecond to wait
+
+    # Configuration  
+    self.maxdgramsize = DEFAULT_MAXDGRAMSIZE
+    self.retries = DEFAULT_RETRIES
+    self.timeout = DEFAULT_TIMEOUT
+
+    # undefined
+    self.localip = None
+    self.localport = None
+    self.remoteip = None
+    self.remoteport = None
+
+    # Let's put all the protocol details in a state machine
+    self.state_machine = TcpStateMachine()
+    self.conn = None
+
+  # Attach to an address
+  def bind(self, localip, localport):
+    """
+    <Purpose>
+      Attaches the socket to an address.
+
+    <Arguments>
+      localip:
+             The ip to communicate from.  Probably is either '127.0.0.1' or
+             the result from getmyip().
+
+      localport:
+             The port to communicate from.  The restrictions file must allow
+             this port as a messport.
+
+    <Exceptions>
+      None
+
+    <Side Effects>
+      None
+
+    <Returns>
+      Nothing
+    """
+    # I am:
+    self.localip = localip
+    self.localport = localport
+
+  # Setup a udp callback    
+  def listen(self):
+    """
+    <Purpose>
+      Allows the local connection to receive messages.
+
+    <Arguments>
+      None
+
+    <Exceptions>
+      NotBoundError if bind() is not yet called.
+
+    <Side Effects>
+      Sets up a UDP callback.
+
+    <Returns>
+      Nothing
+    """
+
+    if not self.localip or not self.localport:
+      raise NotBoundError("need to bind before listening")
+
+    self.conn = recvmess(self.localip, self.localport, self.callback)
+
+
+  # continue handshake
+  # BUG: need 3-way handshake
+  def accept(self):
+    pass # insert real code here
+
+  # Request connection.
+  def connect(self, remoteip, remoteport):
+    """
+    <Purpose>
+      Requests a TCP connection with the remote party.
+
+    <Arguments>
+      remoteip:
+             The ip to communicate to.
+
+      remoteport:
+             The port to communicate to.
+
+    <Exceptions>
+      NotBoundError if bind() is not yet called.
+
+    <Side Effects>
+      Sets up a UDP callback.
+
+    <Returns>
+      Nothing
+    """
+    if not self.localip or not self.localport:
+      raise NotBoundError("need to bind before connecting")
+
+    # Peer is:
+    self.remoteip = remoteip
+    self.remoteport = remoteport
+
+    # Agree to start at,
+    start_num = int(randomfloat() * (MAX_SEQ_NUM - 1))
+    self.state_machine.reset(start_num)
+
+    self.conn = recvmess(self.localip, self.localport, self.callback)
+    # init handshake
+    # ... insert code
+
+  # Sends via client the data in packets to the server. 
+  # Throws exception on timeout.
+  # Throws an exception when no connection
+  # Returns the bytes sent.
+  def send(self, data):
+    """
+    <Purpose>
+      Send a message over our TCP connection to the remote party.
+
+    <Arguments>
+      data:
+             Whatever message you want to send to the remote party.
+
+    <Exceptions>
+      NotConnectedError if the connection is not established.
+
+    <Side Effects>
+      None
+
+    <Returns>
+      The bytes sent over the network.  The bytes include lost or
+      dropped packets.
+    """
+
+    if self.conn == None:
+      raise NotConnectedError("cannot send data without a receiver")
+   
+    # send them
+    return self.state_machine.send(data, self.remoteip, self.remoteport, \
+					self.localip, self.localport, \
+					self.retries, self.timeout)
+
+  # Throws an exception when no connection
+  # Returns a buffer filled with data. 
+  # Returns a maximum of maxLen bytes.
+  def recv(self, maxLen):
+    """
+    <Purpose>
+      Receive a message over our TCP connection from the remote party.
+
+    <Arguments>
+      maxLen:
+             The maximum bytes you want to receive.
+
+    <Exceptions>
+      NotConnectedError if the connection is not established.
+
+    <Side Effects>
+      Will wait 1 timeout period if the buffer is empty.
+      Deletes the returned data from the connection buffer.
+
+    <Returns>
+      The maxLen bytes.
+    """
+
+    if self.conn == None:
+      raise NotConnectedError("cannot recv data without listening")
+  
+    message = self.state_machine.server.buffer[0:maxLen]
+    
+    # If empty, wait a little
+    if not message:
+      sleep(self.timeout)
+      message = self.state_machine.server.buffer[0:maxLen]
+    
+    # remove from buffer
+    del self.state_machine.server.buffer[0:maxLen]
+
+    return ''.join(message)
+
+  # Close the connection
+  # BUG: Need Tcp 4-way close
+  def disconnect(self):
+    """
+    <Purpose>
+      End our TCP connection with the remote party.
+
+    <Arguments>
+      None
+
+    <Exceptions>
+      NotConnectedError if the connection is not established.
+
+    <Side Effects>
+      Destroys the UDP callback.
+
+    <Returns>
+      Nothing
+    """
+
+    if self.conn == None:
+      raise NotConnectedError("cannot disconnect without connection")
+    stopcomm(self.conn)
+    self.conn = None
+
+  ############# Private ###########
+
+  def callback(self, ip, port, mess, ch):
+    # print mess # DEBUG
+    self.state_machine.next(ip, port, mess, ch)
+
+
+
+
+
+
+############# Private Classes and Methods #############
+
+""" 
+  <Source>
+    RFC 793 -- TCP
+
+  <State Diagram>
+
+                                           Transmission Control Protocol
+                                                Functional Specification
+
+                              +---------+ ---------\      active OPEN  
+                              |  CLOSED |            \    -----------  
+                              +---------+<---------\   \   create TCB  
+                                |     ^              \   \  snd SYN    
+                   passive OPEN |     |   CLOSE        \   \           
+                   ------------ |     | ----------       \   \         
+                    create TCB  |     | delete TCB         \   \       
+                                V     |                      \   \     
+                              +---------+            CLOSE    |    \   
+                              |  LISTEN |          ---------- |     |  
+                              +---------+          delete TCB |     |  
+                   rcv SYN      |     |     SEND              |     |  
+                  -----------   |     |    -------            |     V  
+ +---------+      snd SYN,ACK  /       \   snd SYN          +---------+
+ |         |<-----------------           ------------------>|         |
+ |   SYN   |                    rcv SYN                     |   SYN   |
+ |   RCVD  |<-----------------------------------------------|   SENT  |
+ |         |                    snd ACK                     |         |
+ |         |------------------           -------------------|         |
+ +---------+   rcv ACK of SYN  \       /  rcv SYN,ACK       +---------+
+   |           --------------   |     |   -----------                  
+   |                  x         |     |     snd ACK                    
+   |                            V     V                                
+   |  CLOSE                   +---------+                              
+   | -------                  |  ESTAB  |                              
+   | snd FIN                  +---------+                              
+   |                   CLOSE    |     |    rcv FIN                     
+   V                  -------   |     |    -------                     
+ +---------+          snd FIN  /       \   snd ACK          +---------+
+ |  FIN    |<-----------------           ------------------>|  CLOSE  |
+ | WAIT-1  |------------------                              |   WAIT  |
+ +---------+          rcv FIN  \                            +---------+
+   | rcv ACK of FIN   -------   |                            CLOSE  |  
+   | --------------   snd ACK   |                           ------- |  
+   V        x                   V                           snd FIN V  
+ +---------+                  +---------+                   +---------+
+ |FINWAIT-2|                  | CLOSING |                   | LAST-ACK|
+ +---------+                  +---------+                   +---------+
+   |                rcv ACK of FIN |                 rcv ACK of FIN |  
+   |  rcv FIN       -------------- |    Timeout=2MSL -------------- |  
+   |  -------              x       V    ------------        x       V  
+    \ snd ACK                 +---------+delete TCB         +---------+
+     ------------------------>|TIME WAIT|------------------>| CLOSED  |
+                              +---------+                   +---------+
+
+                      TCP Connection State Diagram
+                               Figure 6.
+"""
+# Keeps track of our connection state.
+class TcpStateMachine:
+
+  def __init__(self):
+    (self.STATE_CLOSED, self.STATE_LISTEN, self.STATE_SYN_SENT, \
+     self.STATE_SYN_RCVD, self.STATE_ESTAB, self.STATE_FIN_WAIT_1, \
+     self.STATE_FIN_WAIT_2, self.STATE_CLOSING, self.STATE_CLOSE_WAIT, \
+     self.STATE_LAST_ACK, self.STATE_TIME_WAIT) = range(0, 11)
+
+    # not initialized yet
+    self.server = TcpServer()
+    self.client = TcpClient()
+    self.state = self.STATE_ESTAB # BUG: need 3-way handshake
+
+  # Callback for received packets
+  def next(self, ip, port, mess, ch):
+    packet = unpack(mess)
+        
+    if(self.state == self.STATE_CLOSED): pass
+    elif(self.state == self.STATE_LISTEN): pass
+    elif(self.state == self.STATE_SYN_SENT): pass
+    elif(self.state == self.STATE_SYN_RCVD): pass
+    elif(self.state == self.STATE_ESTAB):
+
+      # count packet or ignore old ack
+      if packet.is_ack():
+        self.client.process_ack(packet)
+
+      # Send back an ack or reack.
+      elif packet.is_payload():
+	self.server.process_payload(packet, ip, port)
+
+      # who knows?
+      else:
+        stopcomm(ch)
+        raise UnknownStateError("unknown packet")
+
+    elif(self.state == self.STATE_FIN_WAIT_1): pass
+    elif(self.state == self.STATE_FIN_WAIT_2): pass
+    elif(self.state == self.STATE_CLOSING): pass
+    elif(self.state == self.STATE_CLOSE_WAIT): pass
+    elif(self.state == self.STATE_LAST_ACK): pass
+    elif(self.state == self.STATE_TIME_WAIT): pass
+    else:
+      raise UnknownStateError("undefined state")
+
+  # Reset connection statuses
+  # Set sequence to start at
+  def reset(self, start_num):
+    self.server = TcpServer()
+    self.client = TcpClient()
+    self.state = self.STATE_ESTAB # BUG: need 3-way handshake
+
+    # Agree to these
+    self.client.last_ack_recv = start_num
+    self.client.last_seq_sent = mod_sub(start_num, 1, MAX_SEQ_NUM)
+    self.server.last_ack_sent = start_num
+    self.server.last_seq_recv = mod_sub(start_num, 1, MAX_SEQ_NUM)
+
+  def send(self, data, destip, destport, \
+		srcip, srcport, retries, timeout):
+    return self.client.send(data, destip, destport, \
+			srcip, srcport, retries, timeout)
+
+
+# Holds sending structure
+class TcpClient:
+
+  def __init__(self):
+    self.packet_cache = {} # holds currently sent, unacked packets
+
+    # Sliding window accounting
+    self.send_window_size = WINDOW_SIZE # size of window
+    self.last_ack_recv = None # Beginning of window 
+    self.last_seq_sent = None # End of window
+
+
+  def send(self, data, destip, destport, \
+		srcip, srcport, retries, timeout):
+    bytes_sent = 0  # total bytes sent
+
+    # Split up into bytes
+    data = list(data)
+ 
+    # Send them -- Sliding Window Algorithm
+    while data:   
+      # reset variables
+      last_ack = self.last_ack_recv # save to see if changes
+      times_sent = 0
+ 
+      # while we haven't receieved a newer ack
+      while self.last_ack_recv == last_ack:
+	# give up
+        if times_sent > retries:
+	  raise TimeoutError("tried %d times" % times_sent)
+        
+	# Send or Re-send all those in cache
+        # BUG: Should these be modulo sorted?
+        # Say we're never sending the first
+        # one because the window size is too small.
+	seqs = self.packet_cache.keys() 
+	free_window = self.send_window_size
+	for seq_num in seqs:
+          if len(self.packet_cache[seq_num].payload) <= free_window:
+  	    free_window -= len(self.packet_cache[seq_num].payload)
+            bytes_sent += sendmess(destip, destport, \
+		self.packet_cache[seq_num].pack(), srcip, srcport)
+          else: # can't send anymore
+  	    free_window = 0
+            break
+
+        # make and Send a new packet -- Slow Start Algorithm
+        if data and free_window:
+            # can we send the whole window?
+            if free_window < MSS: # yes
+              payload_size = self.send_window_size
+            else: # no just send MSS of the window
+              payload_size = MSS 
+            # make the packet
+            next_seq_num = mod_add(self.last_seq_sent, 1, MAX_SEQ_NUM)
+            packet = TcpPacket(srcport, destport, next_seq_num, 0, "PSH", WINDOW_SIZE, ''.join(data[0:payload_size - 1]))
+            del data[0:payload_size - 1]
+            self.packet_cache[packet.seq_num] = packet
+            self.last_seq_sent = mod_add(packet.seq_num, len(packet.payload) - 1, MAX_SEQ_NUM)
+            # send it as well
+            bytes_sent += sendmess(destip, destport, packet.pack(), srcip, srcport)
+
+	# increment tries	
+ 	times_sent += 1	
+
+	# take a deep breath
+	sleep(timeout)
+
+    return bytes_sent
+
+  # Throws an error if the last seq number is undefined
+  # or if the packet is not an ack.
+  # Accounts to stop resending the acked packet.
+  def process_ack(self, packet):
+    if not packet.is_ack():
+      raise UnknownStateError("expected an ack")
+    if self.last_seq_sent == None:
+      raise NotConnectedError("no packets sent to ack")
+    
+    # if a newer ack that falls in current window     
+    if mod_gt(packet.ack_num, self.last_ack_recv, \
+              MAX_ACK_NUM, self.send_window_size):
+
+      # -- Cumulative ACK Processing
+      for seq_num in self.packet_cache.keys():  
+        # Delete all packets below this recvd ack_num.
+        # We never received their acks but the sender must have
+        # received the payloads of all seq_num before this ack by
+        # the definition of our protocol.
+        if mod_lt(seq_num, packet.ack_num, MAX_ACK_NUM, self.send_window_size):
+          del self.packet_cache[seq_num]
+
+      # all done up to this ack
+      self.last_ack_recv = packet.ack_num
+
+    else: # old ack 
+      pass # ignore it
+
+# Holds receiving structure
+class TcpServer:
+
+  def __init__(self):
+    self.buffer = [] # Receiver buffer of payloads
+    self.packet_cache = {} # holds received, out-of-order packets
+
+    # Sliding window accounting
+    self.recv_window_size = WINDOW_SIZE # size of window
+    self.last_ack_sent = None # Begining of window
+    self.last_seq_recv = None # BUG: Do we need this? What for?
+
+  # Throws exception if not a payload or no connection.
+  # Then, if payload is next, fills buffer with payload.
+  # Else, if payload is in window, caches packet.
+  # Otherwise, re-acks packet.
+  def process_payload(self, packet, ip, port):
+    if not packet.is_payload():
+      raise UnknownStateError("expected a payload")
+    if self.last_ack_sent == None:
+      self.last_ack_sent = packet.seq_num
+#      raise NotConnectedError("no client yet")
+    if not packet.payload: # no data?
+      return None
+
+    # Is it the payload we want?
+    if self.last_ack_sent == packet.seq_num:
+      #  -- Cumulative Acking
+      # See how many we have in our window. 
+      # We can skip all these acks.
+      seq_num = packet.seq_num
+      self.packet_cache[packet.seq_num] = packet
+      while seq_num in self.packet_cache.keys():
+        packet = self.packet_cache[seq_num]
+        self.buffer += packet.payload
+        new_seq_num = mod_add(packet.seq_num, len(packet.payload), MAX_SEQ_NUM)
+        del self.packet_cache[seq_num]
+        seq_num = new_seq_num
+
+      # Ask for the next missing one
+      self.last_ack_sent = seq_num
+      sendmess(ip, packet.srcport, TcpPacket(port, packet.srcport, 0, self.last_ack_sent, \
+                 "ACK", WINDOW_SIZE, "ack...").pack())
+
+    # Maybe we can cache it.  Is it inside our window?
+    elif packet.seq_num in mod_range(self.last_ack_sent, self.last_ack_sent \
+					+ self.recv_window_size, MAX_ACK_NUM):
+      # don't have it yet?
+      if not packet.seq_num in self.packet_cache.keys():
+	# save it quietly
+        self.packet_cache[packet.seq_num] = packet
+      else: # ignore the already cached seq
+        pass
+
+    # Send back an ack again for the payload we really want.
+    else: 
+      sendmess(ip, port, TcpPacket(port, packet.srcport, 0, self.last_ack_sent, "ACK", WINDOW_SIZE, \
+		"resending ack...").pack())
+
+
+"""
+TCP Header Format
+
+    0                   1                   2                   3   
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |          Source Port          |       Destination Port        |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                        Sequence Number                        |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                    Acknowledgment Number                      |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |  Data |           |U|A|P|R|S|F|                               |
+   | Offset| Reserved  |R|C|S|S|Y|I|            Window             |
+   |       |           |G|K|H|T|N|N|                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |           Checksum            |         Urgent Pointer        |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                    Options                    |    Padding    |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                             data                              |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+                            TCP Header Format
+
+          Note that one tick mark represents one bit position.
+
+                               Figure 3.
+"""
+# Keeps track of our packet.
+class TcpPacket:
+
+  def __init__(self, srcport, destport, seq_num, ack_num, control_bits, window, payload):
+    self.srcport = int(srcport)
+    self.destport = int(destport)
+    self.seq_num = int(seq_num)
+    self.ack_num = int(ack_num)
+    self.control_bits = control_bits
+    self.window = int(window)
+    self.payload = payload
+
+  # Returns true if this packet has control bits of an ack.
+  # Otherwise, false.
+  def is_ack(self):
+    return self.control_bits == "ACK"
+
+  # Returns true if this packet has control bits of a payload packet.
+  # Otherwise, false.
+  def is_payload(self):
+    return self.control_bits == "PSH"
+
+  # Pack up into Tcp header format Return message.
+  # BUG: Need to encode in bits
+  def pack(self):
+    return "%d~%d~%d~%d~%s~%d~%s" % (self.srcport, self.destport, \
+				self.seq_num, self.ack_num, self.control_bits, \
+				self.window, self.payload)
+
+
+
+####### Other Private Methods ############
+
+# Unpack a tcp message into parts
+# Returns a packet
+def unpack(data):
+  res = data.split("~")
+  return TcpPacket(res[0], res[1], res[2], res[3], \
+		   res[4], res[5], ''.join(res[6:]))
+
+# Modulo helpers
+# BUG: Watch out for edge cases.
+#      Are they right?
+class RangeError(Exception):
+  """This exception indicates the start of the range is out of range"""
+
+# Pre : Start must be <= max
+# Post: Returns range from start to end
+#       not including end.
+def mod_range(start, end, max):
+  if start >= max:
+    raise RangeError("start of range cannot be greater " + \
+                      "than or equal to maximum")
+  # wrap around
+  if end > max:
+    return range(start, max) + range(0, end % max)
+  else: # end <= max
+    return range(start, end)
+
+def mod_add(value1, value2, max):
+  return (value1 + value2) % max
+
+def mod_sub(value1, value2, max):
+  return (value1 - value2) % max
+
+# Return true if, within window, value1 is > value2 
+# modulo max.
+# Returns false if the values are not within the window or
+# value1 <= value2.
+def mod_gt(value1, value2, max, window):
+  separation = len(mod_range(value2, value1, max))
+  return separation and separation <= window
+
+# Return true if, within window, value1 is >= value2 
+# modulo max.
+# Returns false if the values are not within the window or
+# value1 < value2.
+def mod_gte(value1, value2, max, window):
+  if value1 == value2:
+    return True
+  separation = len(mod_range(value2, value1, max))
+  return separation and separation <= window
+	 
+# Return true if, within window, value1 is < value2 
+# modulo max.
+# Returns false if the values are not within the window or
+# value1 > value2.
+def mod_lt(value1, value2, max, window):
+  separation = len(mod_range(value1, value2, max))
+  return separation and separation <= window
