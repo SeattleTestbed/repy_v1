@@ -26,6 +26,8 @@ import platform
 # needed for signal numbers
 import signal
 
+import traceback
+
 # used to query status, etc.
 # This may fail on Windows CE
 try:
@@ -414,6 +416,10 @@ class WinCPUNannyThread(threading.Thread):
     # Get the elapsed time...
     elapsedtime = now - oldnow
 
+    # This is a problem
+    if elapsedtime == 0:
+      return -1 # Error condition
+      
     # percent used is the amount of change divided by the time...
     percentused = (usertime - oldusertime) / elapsedtime
 
@@ -435,7 +441,6 @@ class WinCPUNannyThread(threading.Thread):
         # Base amount of sleeping on return value of 
     	  # win_check_cpu_use to prevent under/over sleeping
         slept = self.win_check_cpu_use()
-
         if slept == -1:
           # Something went wrong, try again
           pass
@@ -447,7 +452,7 @@ class WinCPUNannyThread(threading.Thread):
       except windowsAPI.DeadProcess:
         #  Process may be dead
         harshexit(97)
-
+        
       except:
         tracebackrepy.handle_exception()
         print >> sys.stderr, "CPU Nanny died!   Trying to kill everything else"
