@@ -165,7 +165,15 @@ def monitor_cpu_disk_and_mem(cpuallowed, diskallowed, memallowed):
       frequencyCPU = repy_constants.CPU_POLLING_FREQ_WIN
       
     # now we set up a cpu and memory / disk thread nanny...
-    WinCPUNannyThread(frequencyCPU,cpuallowed).start()
+    # Use an external CPU monitor for WinCE
+    if ostype == 'WindowsCE':
+      nannypath = repy_constants.PATH_SEATTLE_INSTALL + 'win_cpu_nanny.py'
+      cmdline = str(os.getpid())+" "+str(cpuallowed)+" "+str(frequencyCPU)
+      windowsAPI.launchPythonScript(nannypath, cmdline)
+    else:
+      WinCPUNannyThread(frequencyCPU,cpuallowed).start()
+    
+    # Launch mem./disk resource nanny
     WindowsNannyThread(frequency,diskallowed, memallowed).start()
      
   else:
