@@ -14,6 +14,9 @@ import time
 # Used for OS detection
 import os
 
+# Used for suspend thread
+import threading
+
 # Detect whether or not it is Windows CE/Mobile
 MobileCE = False
 if os.name == 'ce':
@@ -92,11 +95,10 @@ def _suspendThread(handle):
   except ValueError:
     pass
   return result
-  
+      
 _resumeThread = kerneldll.ResumeThread # Resumes Thread execution
 _openProcess = kerneldll.OpenProcess # Returns Process Handle
 _createProcess = kerneldll.CreateProcessW # Launches new process
-_currentThreadId = kerneldll.GetCurrentThreadId # Returns the ThreadID of the current thread
 
 _processExitCode = kerneldll.GetExitCodeProcess # Gets Process Exit code
 _terminateProcess = kerneldll.TerminateProcess # Kills a process
@@ -107,7 +109,6 @@ _createMutex = kerneldll.CreateMutexW # Creates a Mutex, Unicode version
 _releaseMutex = kerneldll.ReleaseMutex # Releases mutex
 
 _freeDiskSpace = kerneldll.GetDiskFreeSpaceExW # Determines free disk space
-
 
 # Load CE Specific function
 if MobileCE:
@@ -136,7 +137,10 @@ if MobileCE:
   # Non-Supported functions:
   # _processTimes, there is no tracking of this on a process level
   # _processMemory, CE does not track memory usage
+  # _currentThreadId, CE has this defined inline in a header file, so we need to do it
   # These must be handled specifically
+  # We override this later
+  _currentThreadId = None 
   
   # Heap functions only needed on CE for getting memory info
   _heapListFirst = toolhelp.Heap32ListFirst # Initializes Heap List
@@ -156,6 +160,7 @@ else:
   _nextThread = kerneldll.Thread32Next # Reads next Thread from snapshot
   _openMutex = kerneldll.OpenMutexW # Opens an existing Mutex, Unicode Version
   _globalMemoryStatus = kerneldll.GlobalMemoryStatusEx # Gets global memory info
+  _currentThreadId = kerneldll.GetCurrentThreadId # Returns the ThreadID of the current thread
   
   # These process specific functions are only available on the desktop
   _processTimes = kerneldll.GetProcessTimes # Returns data about Process CPU use
@@ -530,10 +535,10 @@ def suspendProcess(PID):
   <Returns>
     True on success, false on failure
   """
-  
+
   # Get List of threads related to Process
   threads = getProcessThreads(PID)
-  
+
   # Suspend each thread serially
   for t in threads:
     sleep = False # Loop until thread sleeps
@@ -547,6 +552,7 @@ def suspendProcess(PID):
       except DeadThread:
         # If the thread is dead, lets just say its asleep and continue
         sleep = True
+
   return True
 
 
@@ -612,6 +618,8 @@ def timeoutProcess(PID, stime):
   <Returns>
     True of success, false on failure.
   """
+  if stime==0: # Don't waste time
+    return True
   try:
     # Attempt to suspend process, return immediately on failure
     if suspendProcess(PID):
@@ -1203,6 +1211,17 @@ def _revertPermissions():
 	if not _originalPermissionsCE == None:
 		_setCurrentProcPermissions(_originalPermissionsCE)
 
+# Returns ID of current thread on WinCE
+def _currentThreadIdCE():
+  # We need to check this specific memory address
+  loc = ctypes.cast(0xFFFFC808, ctypes.POINTER(ctypes.c_ulong))
+  # Then follow the pointer to get the value there
+  return loc.contents.value
+
+# Over ride this for CE
+if MobileCE:
+  _currentThreadId = _currentThreadIdCE
+  
 ## Resource Determining Functions
 # For number of CPU's check the %NUMBER_OF_PROCESSORS% Environment variable 
 
