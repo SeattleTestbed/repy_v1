@@ -375,64 +375,68 @@ class WindowsNannyThread(threading.Thread):
         print >> sys.stderr, "Nanny died!   Trying to kill everything else"
         harshexit(20)
 
-# Dedicated Thread for monitoring CPU
+# Windows specific CPU Nanny Stuff
+winlastcpuinfo = [0,0]
+
+# Enfoces CPU limit on Windows and Windows CE
+def win_check_cpu_use(cpulim, pid):
+  global winlastcpuinfo
+  
+  # get use information and time...
+  now = time.time()
+  usedata = windowsAPI.processTimes(pid)
+
+  # Add kernel and user time together...   It's in units of 100ns so divide
+  # by 10,000,000
+  usertime = (usedata['KernelTime'] + usedata['UserTime'] ) / 10000000.0
+  useinfo = [usertime, now]
+
+  # get the previous time and cpu so we can compute the percentage
+  oldusertime = winlastcpuinfo[0]
+  oldnow = winlastcpuinfo[1]
+
+  if winlastcpuinfo == [0,0]:
+    winlastcpuinfo = useinfo
+    # give them a free pass if it's their first time...
+    return 0
+
+  # save this data for next time...
+  winlastcpuinfo = useinfo
+
+  # Get the elapsed time...
+  elapsedtime = now - oldnow
+
+  # This is a problem
+  if elapsedtime == 0:
+    return -1 # Error condition
+    
+  # percent used is the amount of change divided by the time...
+  percentused = (usertime - oldusertime) / elapsedtime
+
+  # Calculate amount of time to sleep for
+  stoptime = calculate_cpu_sleep_interval(cpulim, percentused,elapsedtime)
+
+  # Call new api to suspend/resume process and sleep for specified time
+  if windowsAPI.timeoutProcess(pid, stoptime):
+    # Return how long we slept so parent knows whether it should sleep
+    return stoptime
+  else:
+    # Process must have been making system call, try again next time
+    return -1
+    
+            
+# Dedicated Thread for monitoring CPU, this is run as a part of repy
 class WinCPUNannyThread(threading.Thread):
   # Thread variables
   frequency = 0.1 # Sampling frequency
   cpuLimit = 0.1 # CPU % used limit
   pid = 0 # Process pid
   
-  # Windows specific CPU Nanny Stuff
-  winlastcpuinfo = [0,0]
-  
   def __init__(self,freq,cpulimit):
     self.frequency = freq
     self.cpuLimit = cpulimit
     self.pid = os.getpid()
     threading.Thread.__init__(self,name="CPUNannyThread")
-
-  def win_check_cpu_use(self):
-    # get use information and time...
-    now = time.time()
-    usedata = windowsAPI.processTimes(self.pid)
-
-    # Add kernel and user time together...   It's in units of 100ns so divide
-    # by 10,000,000
-    usertime = (usedata['KernelTime'] + usedata['UserTime'] ) / 10000000.0
-    useinfo = [usertime, now]
-
-    # get the previous time and cpu so we can compute the percentage
-    oldusertime = self.winlastcpuinfo[0]
-    oldnow = self.winlastcpuinfo[1]
-
-    if self.winlastcpuinfo == [0,0]:
-      self.winlastcpuinfo = useinfo
-      # give them a free pass if it's their first time...
-      return 0
-
-    # save this data for next time...
-    self.winlastcpuinfo = useinfo
-
-    # Get the elapsed time...
-    elapsedtime = now - oldnow
-
-    # This is a problem
-    if elapsedtime == 0:
-      return -1 # Error condition
-      
-    # percent used is the amount of change divided by the time...
-    percentused = (usertime - oldusertime) / elapsedtime
-
-    # Calculate amount of time to sleep for
-    stoptime = calculate_cpu_sleep_interval(self.cpuLimit, percentused,elapsedtime)
-
-    # Call new api to suspend/resume process and sleep for specified time
-    if windowsAPI.timeoutProcess(self.pid, stoptime):
-      # Return how long we slept so parent knows whether it should sleep
-      return stoptime
-    else:
-      # Process must have been making system call, try again next time
-      return -1
       
   def run(self):
     # Run while the process is running
@@ -440,7 +444,7 @@ class WinCPUNannyThread(threading.Thread):
       try:
         # Base amount of sleeping on return value of 
     	  # win_check_cpu_use to prevent under/over sleeping
-        slept = self.win_check_cpu_use()
+        slept = win_check_cpu_use(self.cpuLimit, self.pid)
         if slept == -1:
           # Something went wrong, try again
           pass
