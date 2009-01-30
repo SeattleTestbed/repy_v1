@@ -14,9 +14,6 @@ import time
 # Used for OS detection
 import os
 
-# Used for suspend thread
-import threading
-
 # Detect whether or not it is Windows CE/Mobile
 MobileCE = False
 if os.name == 'ce':
