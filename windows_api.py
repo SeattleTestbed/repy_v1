@@ -55,15 +55,16 @@ INVALID_HANDLE_VALUE = -1
 THREAD_SUSPEND_RESUME = ctypes.c_ulong(0x0002)
 PROCESS_TERMINATE = 0x0001
 PROCESS_QUERY_INFORMATION = 0x0400
-PROCESS_QUERY_AND_TERMINATE = PROCESS_TERMINATE | PROCESS_QUERY_INFORMATION
-ERROR_ALREADY_EXISTS = 183
 SYNCHRONIZE = 0x00100000L
+PROCESS_QUERY_AND_TERMINATE = PROCESS_TERMINATE | PROCESS_QUERY_INFORMATION | SYNCHRONIZE
+ERROR_ALREADY_EXISTS = 183
 WAIT_FAILED = 0xFFFFFFFF
 WAIT_OBJECT_0 = 0x00000000L
 WAIT_ABANDONED = 0x00000080L
 CE_FULL_PERMISSIONS = ctypes.c_ulong(0xFFFFFFFF)
 NORMAL_PRIORITY_CLASS = ctypes.c_ulong(0x00000020)
 HIGH_PRIORITY_CLASS = ctypes.c_ulong(0x00000080)
+INFINITE = 0xFFFFFFFF
 
 # How many times to attempt sleeping/resuming thread or proces
 # before giving up with failure
@@ -852,7 +853,31 @@ def processTimes(PID):
   # Extract the values from the structures, and return then in a dictionary
   return {"CreationTime":creationTime.dwLowDateTime,"KernelTime":kernelTime.dwLowDateTime,"UserTime":userTime.dwLowDateTime}
 
+# Wait for a process to exit
+def waitForProcess(PID):
+  """
+  <Purpose>
+    Blocks execution until the specified Process finishes execution.
+  
+  <Arguments>
+    PID:
+      The process identifier to wait for
+  """
+  try:
+    # Get process handle
+    handle = getProcessHandle(PID)
+  except DeadProcess:
+    # Process is likely dead, so just return
+    return
 
+  # Pass in code as a pointer to store the output
+  status = _waitForSingleObject(handle, INFINITE)
+  if status != WAIT_OBJECT_0:
+    raise EnvironmentError, "Failed to wait for Process!"
+  
+  # Close the Process Handle
+  _closeHandle(handle)
+  
 
 # Get the exit code of a process
 def processExitCode(PID):
