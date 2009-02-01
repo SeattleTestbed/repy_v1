@@ -189,24 +189,24 @@ def exec_repy_script(filename, restrictionsfile, arguments):
   if not mobileNoSubprocess:
     return exec_command('python repy.py ' + arguments + ' ' + filename)
   else:
-    if os.path.isfile(repy_constants.PATH_SEATTLE_INSTALL + "execlog.out"):
-      os.remove(repy_constants.PATH_SEATTLE_INSTALL + "execlog.out")
+    if os.path.isfile(repy_constants.PATH_SEATTLE_INSTALL + "execlog.out.old"):
+      os.remove(repy_constants.PATH_SEATTLE_INSTALL + "execlog.out.old")
       
     repy_path =  repy_constants.PATH_SEATTLE_INSTALL + "repy.py"
-    cmd = arguments + " --logfile execlog.out --cwd "+ repy_constants.PATH_SEATTLE_INSTALL + " " + restrictionsfile + " \"" + repy_constants.PATH_SEATTLE_INSTALL + filename + "\""
+    cmd = "--logfile execlog.out " + arguments + " --cwd \""+ repy_constants.PATH_SEATTLE_INSTALL + "\" " + restrictionsfile + " \"" + repy_constants.PATH_SEATTLE_INSTALL + filename + "\""
     print cmd
-    time.sleep(60)
-    childpid = windowsAPI.launchPythonScript(repy_path, "")
+    childpid = windowsAPI.launchPythonScript(repy_path, cmd)
     
-    print "Child PID: ", childpid
     # Wait for Child to finish execution
     windowsAPI.waitForProcess(childpid)
     
-    theout = file(repy_constants.PATH_SEATTLE_INSTALL + "execlog.out", "r")
+    time.sleep(5)
+    
+    theout = file(repy_constants.PATH_SEATTLE_INSTALL + "execlog.out.old", "r")
     output = theout.read()
     theout.close()
     
-    return (theout, '')
+    return (output, '')
   
 def do_actual_test(testtype, restrictionfn, testname):
   global endput
@@ -461,12 +461,10 @@ if len(sys.argv) > 1 and sys.argv[1] == '-ce':
 passcount=0
 failcount=0
 
-print "Location 2"
 # Have the testportfiller fill in all of the messport/connport
 # tags with default values so that the tests can be successfully
 # run locally. - Brent
 testportfiller.main()
-print "Location 3"
 
 # for each test... run it!
 # if the -n flag is specified, only run node manager tests
@@ -480,7 +478,6 @@ else:
 	  glob.glob("re_*.py") + glob.glob("rl_*.py") +glob.glob("s_*.py") + \
 	  glob.glob("n_*.py") + glob.glob("z_*.py") + glob.glob("b_*.py") + \
 	  glob.glob("u_*.py") + glob.glob("e_*.py") + glob.glob("l_*.py"):
-    print "In For Loop"
     run_test(testfile)
     
   do_oddballtests()
