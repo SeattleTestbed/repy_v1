@@ -211,8 +211,14 @@ def do_actual_test(testtype, restrictionfn, testname):
   
   # match python
   if testtype == 's':
-    (pyout, pyerr) = exec_command('python '+testname)
-    (testout, testerr) = exec_command('python repy.py --simple '+restrictionfn+" "+testname)
+    if not mobileNoSubprocess:
+      (pyout, pyerr) = exec_command('python '+testname)
+      (testout, testerr) = exec_command('python repy.py --simple '+restrictionfn+" "+testname)
+    else:
+      # TODO: Read in captured tests and compare with exec repy script output?
+      (testout, testerr) = exec_repy_script(testname, "--simple " + restrictionfn)
+      pyout = testout
+      pyerr = testerr
     
     capture_test_result(testname, pyout, pyerr, ".py")
     capture_test_result(testname, testout, testerr, ".repy")
@@ -336,7 +342,7 @@ def do_oddballtests():
   logstream.write("Running test %-50s [" % "Stop Test 1")
   logstream.flush()
 
-  (testout, testerr) = exec_command('python repy.py  --stop nonexist --status foo restrictions.default stop_testsleep.py')
+  (testout, testerr) = exec_repy_script("stop_testsleep.py", "--stop nonexist --status foo restrictions.default")
   if testout == '' and testerr == '':
     passcount = passcount + 1
     logstream.write(" PASS ]\n")
@@ -351,8 +357,11 @@ def do_oddballtests():
   logstream.write("Running test %-50s [" % "Stop Test 2")
   logstream.flush()
 
-  (testout, testerr) = exec_command('python repy.py  --stop repy.py --status foo restrictions.default stop_testsleep.py')
-  if testout == '' and testerr != '':
+  (testout, testerr) = exec_repy_script("stop_testsleep.py", '--stop repy.py --status foo restrictions.default')
+  if (not mobileNoSubprocess) and testout == '' and testerr != '':
+    passcount = passcount + 1
+    logstream.write(" PASS ]\n")
+  elif mobileNoSubprocess and testout.find('Traceback') == -1:
     passcount = passcount + 1
     logstream.write(" PASS ]\n")
   else:
@@ -372,7 +381,7 @@ def do_oddballtests():
   logstream.write("Running test %-50s [" % "Stop Test 3")
   logstream.flush()
 
-  (testout, testerr) = exec_command('python repy.py  --stop junk_test.out --status foo restrictions.default stop_testsleepwrite.py')
+  (testout, testerr) = exec_repy_script('stop_testsleepwrite.py', '--stop junk_test.out --status foo restrictions.default')
   if testout == '' and testerr == '':
     passcount = passcount + 1
     logstream.write(" PASS ]\n")
@@ -453,7 +462,7 @@ print "Location 2"
 # Have the testportfiller fill in all of the messport/connport
 # tags with default values so that the tests can be successfully
 # run locally. - Brent
-#testportfiller.main()
+testportfiller.main()
 print "Location 3"
 
 # for each test... run it!
@@ -470,7 +479,7 @@ else:
 	  glob.glob("u_*.py") + glob.glob("e_*.py") + glob.glob("l_*.py"):
     print "In For Loop"
     run_test(testfile)
-
+    
   do_oddballtests()
 
 print "Done running"
