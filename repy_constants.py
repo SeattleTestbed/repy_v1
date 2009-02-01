@@ -12,7 +12,8 @@ PYTHON_DEFAULT_FLAGS = "/new /nopcceshell "
 #PYTHON_DEFAULT_FLAGS = ""
 
 # Repy Installation path
-PATH_SEATTLE_INSTALL = "\\Storage Card\\Program Files\\Python25\\Lib\\SEATTLE\\"
+#PATH_SEATTLE_INSTALL = "\\Storage Card\\Program Files\\Python25\\Lib\\SEATTLE\\"
+PATH_SEATTLE_INSTALL = "\\SEATTLE\\"
 #PATH_SEATTLE_INSTALL = "Z:\\Projects\\seattle\\trunk\\repy\\"
 
 # Current Working directory

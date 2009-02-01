@@ -76,6 +76,7 @@ import glob
 import os
 import sys
 import shutil
+import time
 
 # Used to spawn subprocesses for tests. Fails on
 # WindowsCE so we use WindowsAPI instead
@@ -102,6 +103,9 @@ endput = ''
 def run_test(testname):
   global passcount
   global failcount
+  
+  print "Running on: ", testname
+  
   if testname.startswith('rs_') or testname.startswith('re_') or \
 	testname.startswith('rz_') or testname.startswith('rn_') or \
 	testname.startswith('rb_') or testname.startswith('rl_'):
@@ -185,12 +189,17 @@ def exec_repy_script(filename, arguments):
   if not mobileNoSubprocess:
     return exec_command('python repy.py ' + arguments + ' ' + filename)
   else:
-    if os.path.isfile("execlog.out"):
-      os.remove("execlog.out")
+    if os.path.isfile(repy_constants.PATH_SEATTLE_INSTALL + "execlog.out"):
+      os.remove(repy_constants.PATH_SEATTLE_INSTALL + "execlog.out")
       
-    windowsAPI.launchPythonScript('repy.py', "--logfile execlog.out " + arguments + " " + filename)
+    repy_path =  "\"" + repy_constants.PATH_SEATTLE_INSTALL + "repy.py"  + "\""
+    childpid = windowsAPI.launchPythonScript(repy_path, "--logfile execlog.out --cwd "+ repy_constants.PATH_SEATTLE_INSTALL +  " " + arguments + " \"" + repy_constants.PATH_SEATTLE_INSTALL + filename + "\"")
     
-    theout = file("execlog.out", "r")
+    print "Child PID: ", childpid
+    # Wait for Child to finish execution
+    windowsAPI.waitForProcess(childpid)
+    
+    theout = file(repy_constants.PATH_SEATTLE_INSTALL + "execlog.out", "r")
     output = theout.read()
     theout.close()
     
@@ -424,7 +433,8 @@ if len(sys.argv) > 1 and sys.argv[1] == '-q':
   sys.argv = sys.argv[1:]
 else:
   logstream = sys.stdout
-  
+
+print "1, Current Dir: ", os.getcwd()  
 # If boolean is true, then unit test output will be
 # captured and stored
 captureOutput = False
@@ -439,10 +449,12 @@ if len(sys.argv) > 1 and sys.argv[1] == '-ce':
 passcount=0
 failcount=0
 
+print "Location 2"
 # Have the testportfiller fill in all of the messport/connport
 # tags with default values so that the tests can be successfully
 # run locally. - Brent
-testportfiller.main()
+#testportfiller.main()
+print "Location 3"
 
 # for each test... run it!
 # if the -n flag is specified, only run node manager tests
@@ -450,17 +462,23 @@ if (len(sys.argv) > 1 and sys.argv[1] == '-n') or (len(sys.argv) > 2 and sys.arg
   for testfile in glob.glob("nmtest*.py"):
     run_test(testfile)
 else:
+  print "Current Dir: ", os.getcwd()
   for testfile in glob.glob("rs_*.py") + glob.glob("rn_*.py") + \
   	  glob.glob("rz_*.py") + glob.glob("rb_*.py") + glob.glob("ru_*.py") + \
 	  glob.glob("re_*.py") + glob.glob("rl_*.py") +glob.glob("s_*.py") + \
 	  glob.glob("n_*.py") + glob.glob("z_*.py") + glob.glob("b_*.py") + \
 	  glob.glob("u_*.py") + glob.glob("e_*.py") + glob.glob("l_*.py"):
+    print "In For Loop"
     run_test(testfile)
 
   do_oddballtests()
 
+print "Done running"
 print >> logstream, passcount,"tests passed,",failcount,"tests failed"
 
 # only print if there is something to print
 if endput:
   print endput
+
+print "Quiting"
+time.sleep(120)
