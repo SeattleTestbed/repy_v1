@@ -59,5 +59,4 @@ def main():
     windowsAPI.killProcess(ppid)
 
 if __name__ == '__main__':
-  print "Starting CPU Nanny Proc"
   main()
