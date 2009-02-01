@@ -183,7 +183,7 @@ def exec_command(command):
 
   return (theout, theerr)
   
-def exec_repy_script(filename, arguments):
+def exec_repy_script(filename, restrictionsfile, arguments):
   global mobileNoSubprocess
   
   if not mobileNoSubprocess:
@@ -192,8 +192,11 @@ def exec_repy_script(filename, arguments):
     if os.path.isfile(repy_constants.PATH_SEATTLE_INSTALL + "execlog.out"):
       os.remove(repy_constants.PATH_SEATTLE_INSTALL + "execlog.out")
       
-    repy_path =  "\"" + repy_constants.PATH_SEATTLE_INSTALL + "repy.py"  + "\""
-    childpid = windowsAPI.launchPythonScript(repy_path, "--logfile execlog.out --cwd "+ repy_constants.PATH_SEATTLE_INSTALL +  " " + arguments + " \"" + repy_constants.PATH_SEATTLE_INSTALL + filename + "\"")
+    repy_path =  repy_constants.PATH_SEATTLE_INSTALL + "repy.py"
+    cmd = arguments + " --logfile execlog.out --cwd "+ repy_constants.PATH_SEATTLE_INSTALL + " " + restrictionsfile + " \"" + repy_constants.PATH_SEATTLE_INSTALL + filename + "\""
+    print cmd
+    time.sleep(60)
+    childpid = windowsAPI.launchPythonScript(repy_path, "")
     
     print "Child PID: ", childpid
     # Wait for Child to finish execution
@@ -216,7 +219,7 @@ def do_actual_test(testtype, restrictionfn, testname):
       (testout, testerr) = exec_command('python repy.py --simple '+restrictionfn+" "+testname)
     else:
       # TODO: Read in captured tests and compare with exec repy script output?
-      (testout, testerr) = exec_repy_script(testname, "--simple " + restrictionfn)
+      (testout, testerr) = exec_repy_script(testname, restrictionfn, "--simple ")
       pyout = testout
       pyerr = testerr
     
@@ -239,7 +242,7 @@ def do_actual_test(testtype, restrictionfn, testname):
 
   # any out, no err...
   elif testtype == 'n':
-    (testout, testerr) = exec_repy_script(testname, "--status foo "+ restrictionfn)
+    (testout, testerr) = exec_repy_script(testname, restrictionfn, "--status foo")
     if (not mobileNoSubprocess) and testout != '' and testerr == '':
       return True
     elif mobileNoSubprocess and testout != '' and testout.find('Traceback') == -1:
@@ -250,7 +253,7 @@ def do_actual_test(testtype, restrictionfn, testname):
 
   # any err, no out...
   elif testtype == 'e':
-    (testout, testerr) = exec_repy_script(testname, '--status foo '+restrictionfn)
+    (testout, testerr) = exec_repy_script(testname, restrictionfn, '--status foo')
     if (not mobileNoSubprocess) and testout == '' and testerr != '':
       return True
     elif mobileNoSubprocess and testout.find('Traceback') == -1:
@@ -261,7 +264,7 @@ def do_actual_test(testtype, restrictionfn, testname):
 
   # no err, no out...
   elif testtype == 'z':
-    (testout, testerr) = exec_repy_script(testname, '--status foo '+restrictionfn)
+    (testout, testerr) = exec_repy_script(testname, restrictionfn, '--status foo')
     if testout == '' and testerr == '':
       return True
     else:
@@ -270,7 +273,7 @@ def do_actual_test(testtype, restrictionfn, testname):
 
   # any err, any out...
   elif testtype == 'b':
-    (testout, testerr) = exec_repy_script(testname, '--status foo '+restrictionfn)
+    (testout, testerr) = exec_repy_script(testname, restrictionfn, '--status foo')
     if (not mobileNoSubprocess) and testout != '' and testerr != '':
       return True
     elif mobileNoSubprocess and testout.find('Traceback') == -1:
@@ -292,7 +295,7 @@ def do_actual_test(testtype, restrictionfn, testname):
     if not mobileNoSubprocess:
       (testout, testerr) = exec_command('python repy.py --logfile experiment.log --status foo '+restrictionfn+" "+testname)
     else:
-      (testout, testerr) = exec_repy_script(testname, "--status foo " + restrictionfn)
+      (testout, testerr) = exec_repy_script(testname, restrictionfn, "--status foo")
 
     # first, check to make sure there was no output or error
     if mobileNoSubprocess or (testout == '' and testerr == ''):
@@ -342,7 +345,7 @@ def do_oddballtests():
   logstream.write("Running test %-50s [" % "Stop Test 1")
   logstream.flush()
 
-  (testout, testerr) = exec_repy_script("stop_testsleep.py", "--stop nonexist --status foo restrictions.default")
+  (testout, testerr) = exec_repy_script("stop_testsleep.py", "restrictions.default", "--stop nonexist --status foo")
   if testout == '' and testerr == '':
     passcount = passcount + 1
     logstream.write(" PASS ]\n")
@@ -357,7 +360,7 @@ def do_oddballtests():
   logstream.write("Running test %-50s [" % "Stop Test 2")
   logstream.flush()
 
-  (testout, testerr) = exec_repy_script("stop_testsleep.py", '--stop repy.py --status foo restrictions.default')
+  (testout, testerr) = exec_repy_script("stop_testsleep.py", "restrictions.default", '--stop repy.py --status foo')
   if (not mobileNoSubprocess) and testout == '' and testerr != '':
     passcount = passcount + 1
     logstream.write(" PASS ]\n")
@@ -381,7 +384,7 @@ def do_oddballtests():
   logstream.write("Running test %-50s [" % "Stop Test 3")
   logstream.flush()
 
-  (testout, testerr) = exec_repy_script('stop_testsleepwrite.py', '--stop junk_test.out --status foo restrictions.default')
+  (testout, testerr) = exec_repy_script('stop_testsleepwrite.py', "restrictions.default", '--stop junk_test.out --status foo')
   if testout == '' and testerr == '':
     passcount = passcount + 1
     logstream.write(" PASS ]\n")
