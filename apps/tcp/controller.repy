@@ -1,0 +1,293 @@
+"""
+<Program Name>
+  controller.repy
+
+<Started>
+  January 2009
+
+<Author>
+  Andreas Sekine
+
+<Purpose>
+  To provide an abstract view of connections to allow multiple Tcp Connection
+  objects to share a single UDP port
+
+"""
+
+include tcp.repy
+
+
+class PortAlreadyBoundError(Exception):
+  """ A port was attempted to be bound but was previously bound by another 
+  Connection """
+
+
+class PortNotOwnedError(Exception):
+  """ A Connection tried to use a port it didn't own """
+
+
+class ControllerAlreadyStartedError(Exception):
+  """ A Controller was started multiple times without being stopped """
+  
+  
+class ControllerStoppedError(Exception):
+  """ A Controller was used without being started """
+  
+  
+  
+
+class Controller:
+  """
+  <Purpose>
+    Provide an abstract view of UDP connections for Tcp Connection objects,
+    so multiple Connection objects can share a single UDP port. 
+  <Side Effects>
+    
+  <Example Use>
+    #Create controller
+    ctlr = Controller()
+    #Bind it to listen to UDP port 12345 
+    ctlr.start(12345)
+    #Create a connection
+    c1 = Connection()
+    #Bind it to the controller, and TCP port 2345
+    c1.bind(ctlr, 2345)
+    
+    #Create a second connection
+    c2 = Connection()
+    #Bind it to the controller, and tcp port 2346
+    c2.bind(ctlr, 2346)
+    
+    #Have each connection connect to a different remote host
+    c1.connect('123.4.5.6', 54321)
+    c2.connect('123.1.2.3', 26544)
+    #send messages from both
+    c1.send("hello")
+    c2.send("world")
+    #Receive info on both connections, even though they share
+    #a UDP port
+    c1.recv(4096)
+    c2.recv(4096)
+    #Disconnect without checking if they said anything
+    c1.disconnect()
+    c2.disconnect()
+    #Stop the controller 
+    ctlr.stop()
+  """   
+
+  
+  def __init__(self):
+    #This is for the UDP address
+    self.port = None
+    self.ip = None
+    
+    #The Connection objects registered for this controller
+    self.connections = {}
+    
+    #The UDP listner event handler. Also acts as a flag
+    #for whether or not the controller has been started.
+    self.comm_handle = None
+    
+    #To protect accesses to the shared connections dict
+    self.conn_lock = getlock()
+    
+    
+  def start(self,ipaddr, udpport):
+    """
+    <Purpose>
+      Start this Connection object, by having it listen on ipaddr:udpport.
+
+    <Arguments>
+      udpport:
+          The udp port to listen on for incoming messages, and to send outgoing
+          messages from
+      ipaddr:
+          The local ip address to use for incoming/outgoing messages.
+
+    <Exceptions>
+      ControllerAlreadyStartedError if this controller was already started
+
+    <Side Effects>
+      Registers an event handler to use conn.callback when packets are received
+      for it
+
+    <Returns>
+      None
+          
+    """
+    #The single UDP listener to handle all incoming Connection packets
+    
+    if self.comm_handle is not None:
+      #Starting a controller that was already started...
+      raise ControllerAlreadyStartedError("already listening on %s:%s" % (self.ip, self.port))
+    
+    self.ip = ipaddr
+    #This is the UDP port
+    self.port = udpport
+    
+    self.comm_handle = recvmess(ipaddr, udpport, self.recv)
+    
+    
+  def stop(self):
+    """
+    <Purpose>
+      Stop this controller's event handler
+
+    <Arguments>
+      None
+      
+    <Exceptions>
+      ControllerAlreadyStartedError if this controller was already started
+
+    <Side Effects>
+      Clears the connections dict, and for each connection that was still
+      listening on it, unbinds it
+
+    <Returns>
+      None
+          
+    """
+    
+    if self.comm_handle is None:
+      raise ControllerStoppedError("Controller already stopped")
+      
+    self.ip = None
+    self.port = None
+    
+    #TODO should we error/warn if Connections are still using this Controller?
+    #for now let's just kill all listening Connections
+    self.conn_lock.acquire()
+    for connection in self.connections:
+      connection.remoteip = None
+      connection.remoteport = None
+      
+    self.connections.clear()
+    self.conn_lock.release()
+    stopcomm(self.comm_handle)
+    self.comm_handle = None
+    
+    
+  def register(self, conn):
+    """
+    <Purpose>
+      Registers a connection object to receive packets sent to the UDP address of
+      this controller, and to the TCP port specified in conn.localport
+      
+      When packets are received that are destined for this Connection, conn's
+      callback method is called
+
+    <Arguments>
+      conn:
+          A connection object which has already been bound to a local ip/port
+
+    <Exceptions>
+      PortAlreadyBoundError if conn's port was previously bound
+
+    <Side Effects>
+      Registers an event handler to use conn.callback when packets are received
+      for it
+
+    <Returns>
+      None
+      
+    """    
+    if self.comm_handle is None:
+      raise ControllerStoppedError("Cannot register connections on stopped Controller")
+    
+    self.conn_lock.acquire()
+    if conn.localport in self.connections:
+      self.conn_lock.release()
+      raise PortAlreadyBoundError("Port " + str(conn.localport) + " in use")
+    
+    self.connections[conn.localport] = conn
+    self.conn_lock.release()
+    
+  def unregister(self, conn):
+    """
+   <Purpose>
+      Unregister's conn's event handler, so conn.callback will not be called
+      any further when new packets are received for it
+
+    <Arguments>
+      conn:
+          A connection object which has already been bound to a local ip/port,
+          which was previously registered. 
+
+    <Exceptions>
+      PortAlreadyBoundError if conn's port was previously bound
+
+    <Side Effects>
+      Registers an event handler to use conn.callback when packets are received
+      for it
+
+    <Returns>
+      None
+         
+    """
+    
+    if self.comm_handle is None:
+      raise ControllerStoppedError("Controller is not started yet!")
+    
+    self.conn_lock.acquire()
+    
+    #Make sure that this conn's port is mapped
+    if conn.localport in self.connections:
+      #And make sure this conn actually owns the port
+      if self.connections[conn.localport] is not conn:
+        self.conn_lock.release()
+        raise PortNotOwnedError("Connection wasn't bount to port " + str(conn.localport))
+        
+      del self.connections[conn.localport]
+      self.conn_lock.release()
+    else:
+      self.conn_lock.release()
+      raise NotBoundError("connection not registered on port " + str(conn.localport))
+    
+  
+  def send(self, conn, mess):
+    """
+    <Purpose>
+      Send a message to conn's remoteport/remoteip
+
+    <Arguments>
+      conn:
+          A connection object which has already been bound to a local ip/port,
+          which previously had a call to register. 
+
+    <Exceptions>
+      PortAlreadyBoundError if conn's port was previously bound
+
+    <Side Effects>
+      Registers an event handler to use conn.callback when packets are received
+      for it
+
+    <Returns>
+      True if the port was previously bound by conn and was successfully unbound,
+      False otherwise
+    
+    """
+    if self.comm_handle is None:
+      raise ControllerStoppedError("Cannot send using stopped controller"
+                                   )
+    #TODO for now assume dest and src use the same port
+    destport = self.port
+    sendmess(conn.remoteip, destport, mess, self.ip, self.port)
+  
+  
+  ###Private###
+  def recv(self, remoteip, remoteport, msg, ch):
+    """
+    The callback interface for recvmess for this controller. 
+    Responsible for demultiplexing the packet to the right Connection object
+  
+    """
+    
+    tcp_pkt = unpack(msg)
+    
+    if tcp_pkt.destport not in self.connections:
+      #Got a packet for a port that isn't registered... just drop it
+      print "dropping packet for port", tcp_pkt.destport, " current conns =", self.connections
+      return
+    
+    self.connections[tcp_pkt.destport].callback(remoteip, remoteport, msg, ch)
+  
