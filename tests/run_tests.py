@@ -187,7 +187,7 @@ def exec_repy_script(filename, restrictionsfile, arguments):
   global mobileNoSubprocess
   
   if not mobileNoSubprocess:
-    return exec_command('python repy.py ' + arguments + ' ' + filename)
+    return exec_command('python repy.py ' + arguments + ' ' + restrictionsfile + ' ' + filename)
   else:
     if os.path.isfile(repy_constants.PATH_SEATTLE_INSTALL + "execlog.out.old"):
       os.remove(repy_constants.PATH_SEATTLE_INSTALL + "execlog.out.old")
