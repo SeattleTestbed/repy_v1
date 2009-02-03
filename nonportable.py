@@ -167,7 +167,7 @@ def monitor_cpu_disk_and_mem(cpuallowed, diskallowed, memallowed):
     # now we set up a cpu and memory / disk thread nanny...
     # Use an external CPU monitor for WinCE
     if ostype == 'WindowsCE':
-      nannypath = repy_constants.PATH_SEATTLE_INSTALL + 'win_cpu_nanny.py'
+      nannypath = "\"" + repy_constants.PATH_SEATTLE_INSTALL + 'win_cpu_nanny.py' + "\""
       cmdline = str(os.getpid())+" "+str(cpuallowed)+" "+str(frequencyCPU)
       windowsAPI.launchPythonScript(nannypath, cmdline)
     else:

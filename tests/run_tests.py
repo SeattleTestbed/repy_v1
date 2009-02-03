@@ -104,7 +104,7 @@ def run_test(testname):
   global passcount
   global failcount
   
-  print "Running on: ", testname
+  #print "Running on: ", testname
   
   if testname.startswith('rs_') or testname.startswith('re_') or \
 	testname.startswith('rz_') or testname.startswith('rn_') or \
@@ -192,7 +192,7 @@ def exec_repy_script(filename, restrictionsfile, arguments):
     if os.path.isfile(repy_constants.PATH_SEATTLE_INSTALL + "execlog.out.old"):
       os.remove(repy_constants.PATH_SEATTLE_INSTALL + "execlog.out.old")
       
-    repy_path =  repy_constants.PATH_SEATTLE_INSTALL + "repy.py"
+    repy_path =  "\"" + repy_constants.PATH_SEATTLE_INSTALL + "repy.py" + "\""
     cmd = "--logfile execlog.out " + arguments + " --cwd \""+ repy_constants.PATH_SEATTLE_INSTALL + "\" " + restrictionsfile + " \"" + repy_constants.PATH_SEATTLE_INSTALL + filename + "\""
     print cmd
     childpid = windowsAPI.launchPythonScript(repy_path, cmd)
@@ -489,5 +489,5 @@ print >> logstream, passcount,"tests passed,",failcount,"tests failed"
 if endput:
   print endput
 
-print "Quiting"
-time.sleep(120)
+#print "Quiting"
+#time.sleep(120)

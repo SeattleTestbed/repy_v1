@@ -697,15 +697,19 @@ def launchProcess(application,cmdline = None, priority = NORMAL_PRIORITY_CLASS):
     priority = 0
     windowInfoAddr = 0
     # Always use absolute path
-    application = os.path.abspath(application) 
+    application = unicode(os.path.abspath(application))
   else:
+    # For some reason, Windows Desktop uses the first part of the second parameter as the
+    # Application... This is documented on MSDN under CreateProcess in the user comments
     # Create struct to hold window info
     windowInfo = _STARTUPINFO()
     windowInfoAddr = ctypes.pointer(windowInfo)
+    cmdlineParam = unicode(application) + " " + cmdlineParam
+    application = None
   
   # Lauch process, and save status
   status = _createProcess(
-    unicode(application), 
+    application, 
     cmdlineParam,
     None,
     None,
@@ -735,7 +739,7 @@ def launchPythonScript(script, params=""):
   
   <Arguments>
     script:
-      The python script to be started
+      The python script to be started. This should be an absolute path (and quoted if it contains spaces).
     params:
       A string command line parameter for the script
       
@@ -751,7 +755,7 @@ def launchPythonScript(script, params=""):
   
   # Create python command line string
   # Use absolute path for compatibility
-  cmd = repy_constants.PYTHON_DEFAULT_FLAGS + "\"" + os.path.abspath(script) + "\" " + params
+  cmd = repy_constants.PYTHON_DEFAULT_FLAGS + " " + script + " " + params
   
   # Launch process and store return value
   retval = launchProcess(repy_constants.PATH_PYTHON_INSTALL,cmd)
