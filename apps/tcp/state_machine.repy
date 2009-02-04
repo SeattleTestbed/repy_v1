@@ -1,0 +1,483 @@
+""" 
+  <Source>
+    RFC 793 -- TCP
+
+  <State Diagram>
+
+                                           Transmission Control Protocol
+                                                Functional Specification
+
+                              +---------+ ---------\      active OPEN  
+                              |  CLOSED |            \    -----------  
+                              +---------+<---------\   \   create TCB  
+                                |     ^              \   \  snd SYN    
+                   passive OPEN |     |   CLOSE        \   \           
+                   ------------ |     | ----------       \   \         
+                    create TCB  |     | delete TCB         \   \       
+                                V     |                      \   \     
+                              +---------+            CLOSE    |    \   
+                              |  LISTEN |          ---------- |     |  
+                              +---------+          delete TCB |     |  
+                   rcv SYN      |     |     SEND              |     |  
+                  -----------   |     |    -------            |     V  
+ +---------+      snd SYN,ACK  /       \   snd SYN          +---------+
+ |         |<-----------------           ------------------>|         |
+ |   SYN   |                    rcv SYN                     |   SYN   |
+ |   RCVD  |<-----------------------------------------------|   SENT  |
+ |         |                    snd ACK                     |         |
+ |         |------------------           -------------------|         |
+ +---------+   rcv ACK of SYN  \       /  rcv SYN,ACK       +---------+
+   |           --------------   |     |   -----------                  
+   |                  x         |     |     snd ACK                    
+   |                            V     V                                
+   |  CLOSE                   +---------+                              
+   | -------                  |  ESTAB  |                              
+   | snd FIN                  +---------+                              
+   |                   CLOSE    |     |    rcv FIN                     
+   V                  -------   |     |    -------                     
+ +---------+          snd FIN  /       \   snd ACK          +---------+
+ |  FIN    |<-----------------           ------------------>|  CLOSE  |
+ | WAIT-1  |------------------                              |   WAIT  |
+ +---------+          rcv FIN  \                            +---------+
+   | rcv ACK of FIN   -------   |                            CLOSE  |  
+   | --------------   snd ACK   |                           ------- |  
+   V        x                   V                           snd FIN V  
+ +---------+                  +---------+                   +---------+
+ |FINWAIT-2|                  | CLOSING |                   | LAST-ACK|
+ +---------+                  +---------+                   +---------+
+   |                rcv ACK of FIN |                 rcv ACK of FIN |  
+   |  rcv FIN       -------------- |    Timeout=2MSL -------------- |  
+   |  -------              x       V    ------------        x       V  
+    \ snd ACK                 +---------+delete TCB         +---------+
+     ------------------------>|TIME WAIT|------------------>| CLOSED  |
+                              +---------+                   +---------+
+
+                      TCP Connection State Diagram
+                               Figure 6.
+"""
+
+class UnknownStateError(Exception):
+  """This exception indicates our connection is in an unexpected state"""
+
+# Keeps track of our connection state.
+class TcpStateMachine:
+  """
+  <Purpose>
+    
+    
+  <Side Effects>
+    
+    
+  <Example Use>
+
+  """
+  
+  def __init__(self):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    (self.STATE_CLOSED, self.STATE_LISTEN, self.STATE_SYN_SENT, \
+     self.STATE_SYN_RCVD, self.STATE_ESTAB, self.STATE_FIN_WAIT_1, \
+     self.STATE_FIN_WAIT_2, self.STATE_CLOSING, self.STATE_CLOSE_WAIT, \
+     self.STATE_LAST_ACK, self.STATE_TIME_WAIT) = range(0, 11)
+
+    # not initialized yet
+    self.server = TcpServer()
+    self.client = TcpClient()
+    self.state = self.STATE_CLOSED
+    self.conn = None # not yet
+
+    # pass back to connection
+    self.synip = None 
+    self.synport = None
+
+    # state changes must be atomic
+    self.lock = getlock()
+
+
+    
+  # Callback for received packets
+  def next(self, ip, port, mess, ch):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    packet = unpack(mess)
+    # two threads could come in, right?
+    self.lock.acquire()       
+    if(self.state == self.STATE_CLOSED): pass
+    elif(self.state == self.STATE_LISTEN):
+      if packet.is_syn():
+        self.acceptHandShake(packet, ip, port)
+        self.save_remote_address(ip, packet.srcport)
+        self.state = self.STATE_SYN_RCVD
+      else:
+        stopcomm(ch)
+        self.lock.release()
+        raise UnknownStateError("unknown packet: expected SYN not " + str(packet.control_bits))
+    elif(self.state == self.STATE_SYN_SENT): 
+      # finish the handshake with an ACK...
+      if packet.is_synack():
+        self.state = self.STATE_ESTAB
+        self.responseHandShake(packet, ip, port)
+      elif packet.is_syn():
+        self.state = self.STATE_SYN_RCVD
+        self.responseHandShake(packet, ip, port)
+        self.save_remote_address(ip, packet.srcport)
+      # who knows?
+      else:
+        stopcomm(ch)
+        self.lock.release()
+        raise UnknownStateError("unknown packet: expected SYN or SYNACK not " + str(packet.control_bits))
+    elif(self.state == self.STATE_SYN_RCVD):
+      # skip the ack then...
+      if packet.is_payload():
+        self.state = self.STATE_ESTAB
+        self.server.process_payload(packet, ip, port) 
+      # ok ready
+      elif packet.is_ack():
+        self.state = self.STATE_ESTAB
+      else:
+        stopcomm(ch)
+        self.lock.release()
+        raise UnknownStateError("unknown packet: expected ACK not " + str(packet.control_bits))
+    elif(self.state == self.STATE_ESTAB):
+      # count packet or ignore old ack
+      if packet.is_ack():
+        self.client.process_ack(packet)
+      # Send back an ack or reack.
+      elif packet.is_payload():
+        self.server.process_payload(packet, ip, port)
+
+      # who knows?
+      else:
+        stopcomm(ch)
+        self.lock.release()
+        raise UnknownStateError("unknown packet: expected PSH or ACK not " + str(packet.control_bits))
+
+    elif(self.state == self.STATE_FIN_WAIT_1): pass
+    elif(self.state == self.STATE_FIN_WAIT_2): pass
+    elif(self.state == self.STATE_CLOSING): pass
+    elif(self.state == self.STATE_CLOSE_WAIT): pass
+    elif(self.state == self.STATE_LAST_ACK): pass
+    elif(self.state == self.STATE_TIME_WAIT): pass
+    else:
+      self.lock.release()
+      raise UnknownStateError("undefined state")
+    
+    self.lock.release()
+
+
+
+
+
+  # Block until a SYN comes.  Then, return.
+  # State should be in STATE_SYN_RCVD.
+  def listen(self):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+
+    self.state = self.STATE_LISTEN 
+    # wait for a request
+    retries = DEFAULT_RETRIES    
+    while self.state == self.STATE_LISTEN and retries > 0:
+      retries -= 1
+      sleep(DEFAULT_TIMEOUT)
+
+    if retries == 0 and self.state == self.STATE_LISTEN:
+      raise TimeoutError("timed out listening")
+
+    # make sure and return the syn address
+    self.lock.acquire()
+    assert self.synip != None
+    assert self.synport != None
+    ans = (self.synip, self.synport)
+    self.lock.release()
+    return ans
+
+
+
+  # Send out a SYN
+  # Block until response SYN or SYNACK
+  def connect(self, destip, destport, srcip, srcport):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+
+    # Agree to start at,
+    start_num = self.rand_start_num()
+    self.client.last_ack_recv = start_num
+    self.client.last_seq_sent = mod_sub(start_num, 1, MAX_SEQ_NUM)
+    self.server.last_ack_sent = start_num
+    self.server.last_seq_recv = mod_sub(start_num, 1, MAX_SEQ_NUM)
+
+    # init handshake
+    handShakePack = TcpPacket(srcport, destport, start_num, 0, "SYN", WINDOW_SIZE, "syncing...").pack()
+    self.state = self.STATE_SYN_SENT
+
+    retries = DEFAULT_RETRIES    
+    while self.state == self.STATE_SYN_SENT and retries > 0:
+      sendmess(destip, destport, handShakePack)
+      retries -= 1
+      sleep(DEFAULT_TIMEOUT)
+ 
+ 
+    if retries == 0 and self.state == self.STATE_SYN_SENT:
+      raise TimeoutError("timed out waiting to connect")
+
+
+
+    
+  # Method called by application to continue handshake
+  def accept(self, destip, destport, srcip, srcport):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
+    # we haven't sent a syn yet
+    if self.state == self.STATE_SYN_RCVD:
+      responseTcpPack = TcpPacket(srcport, destport, self.seqNum, 0, "SYNACK", 0, "synacking...")
+
+      # wait for ack or data    
+      retries = DEFAULT_RETRIES    
+      while self.state == self.STATE_SYN_RCVD and retries > 0:
+        sendmess(destip, destport, responseTcpPack.pack())
+        retries -= 1
+        sleep(DEFAULT_TIMEOUT)
+
+      if retries == 0 and self.state == self.STATE_SYN_RCVD:
+        raise TimeoutError("timed out waiting to accept")
+
+    # was before accept() or is now
+    assert self.state == self.STATE_ESTAB
+
+
+
+    
+  # Pass on to the client
+  def send(self, data, destip, destport, \
+                srcip, srcport, retries, timeout):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
+    return self.client.send(data, destip, destport, \
+                        srcip, srcport, retries, timeout)
+
+
+
+
+
+  ##############################################################
+  # Private
+  ##############################################################
+
+  # New sequence number to start with
+  def rand_start_num(self):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
+    return int(randomfloat() * (MAX_SEQ_NUM - 1))
+
+  # Method will be called when a HandShake request is recieved by passive comp.
+  def acceptHandShake(self, tcpPack, ip, port):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
+    self.seqNum = tcpPack.seq_num 
+    self.window = tcpPack.window
+    if (WINDOW_SIZE < tcpPack.window):
+      self.window = WINDOW_SIZE                
+
+
+  # save these to send back by listen() to connection obj
+  # Later used by conn.accept()
+  def save_remote_address(self, ip, port):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
+    self.synip = ip
+    self.synport = port
+
+
+
+  # Method will be called when a response handshake from passive is recieved.
+  def responseHandShake(self, tcpPack, ip, port):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
+    self.seqNum = tcpPack.seq_num
+    self.window = tcpPack.window
+    if (WINDOW_SIZE < self.window):
+      self.window = WINDOW_SIZE
+    tcpAck = TcpPacket(tcpPack.destport, tcpPack.srcport, 0, 0, "ACK", 0, "acking syn ...").pack()
+    sendmess(ip, tcpPack.srcport, tcpAck)
+
+
+
+
+
+
+  # Waits for state change.
+  # Raises Timeout if the state doesn't change.
+  def timer(self, beg_state):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
+    retries = DEFAULT_RETRIES
+    while self.state == beg_state and retries > 0:
+      retries -= 1
+      sleep(DEFAULT_TIMEOUT)
+
+    if retries == 0:
+      raise TimeoutError("timed out waiting for state change from " + \
+                        str(beg_state))
+

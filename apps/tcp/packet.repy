@@ -1,0 +1,221 @@
+"""
+TCP Header Format
+
+    0                   1                   2                   3   
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |          Source Port          |       Destination Port        |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                        Sequence Number                        |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                    Acknowledgment Number                      |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |  Data |           |U|A|P|R|S|F|                               |
+   | Offset| Reserved  |R|C|S|S|Y|I|            Window             |
+   |       |           |G|K|H|T|N|N|                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |           Checksum            |         Urgent Pointer        |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                    Options                    |    Padding    |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                             data                              |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+                            TCP Header Format
+
+          Note that one tick mark represents one bit position.
+
+                               Figure 3.
+"""
+# Keeps track of our packet.
+class TcpPacket:
+  """
+  <Purpose>
+    
+    
+  <Side Effects>
+    
+    
+  <Example Use>
+
+  """
+
+  def __init__(self, srcport, destport, seq_num, ack_num, control_bits, window, payload):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
+    self.srcport = int(srcport)
+    self.destport = int(destport)
+    self.seq_num = int(seq_num)
+    self.ack_num = int(ack_num)
+    self.control_bits = control_bits
+    self.window = int(window)
+    self.payload = payload
+
+  # Returns true if this packet has control bits of an ack.
+  # Otherwise, false.
+  def is_ack(self):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
+    return self.control_bits == "ACK"
+
+
+
+  # Returns true if this packet has control bits of a syn.
+  # Otherwise, false.
+  def is_syn(self):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
+    return self.control_bits == "SYN"
+
+
+
+  # Returns true if this packet has control bits of an syn, ack.
+  # Otherwise, false.
+  def is_synack(self):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
+    return self.control_bits == "SYNACK"
+
+
+
+
+  # Returns true if this packet has control bits of a payload packet.
+  # Otherwise, false.
+  def is_payload(self):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
+    return self.control_bits == "PSH"
+
+
+
+  # Pack up into Tcp header format Return message.
+  # BUG: Need to encode in bits
+  def pack(self):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
+    return "%d~%d~%d~%d~%s~%d~%s" % (self.srcport, self.destport, \
+                                self.seq_num, self.ack_num, self.control_bits, \
+                                self.window, self.payload)
+
+
+
+
+
+
+##############################################################
+# Other Private Methods
+##############################################################
+
+# Unpack a tcp message into parts
+# Returns a packet
+def unpack(data):
+  """
+  <Purpose>
+    
+    
+  <Arguments>
+    
+    
+  <Exceptions>
+        
+    
+  <Side Effects>
+    
+     
+  <Returns>
+    
+  """
+  
+  res = data.split("~")
+  return TcpPacket(res[0], res[1], res[2], res[3], \
+                   res[4], res[5], ''.join(res[6:]))

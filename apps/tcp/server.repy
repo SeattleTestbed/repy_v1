@@ -1,0 +1,105 @@
+# Holds receiving structure
+class TcpServer:
+  """
+  <Purpose>
+    
+    
+  <Side Effects>
+    
+    
+  <Example Use>
+
+  """
+
+  def __init__(self):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
+    self.buffer = [] # Receiver buffer of payloads
+    self.packet_cache = {} # holds received, out-of-order packets
+
+    # Sliding window accounting
+    self.recv_window_size = WINDOW_SIZE # size of window
+    self.last_ack_sent = None # Begining of window
+    self.last_seq_recv = None # BUG: Do we need this? What for?
+
+
+
+  # Throws exception if not a payload or no connection.
+  # Then, if payload is next, fills buffer with payload.
+  # Else, if payload is in window, caches packet.
+  # Otherwise, re-acks packet.
+  def process_payload(self, packet, ip, port):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
+    if not packet.is_payload():
+      raise UnknownStateError("expected a payload")
+    if self.last_ack_sent == None:
+      self.last_ack_sent = packet.seq_num
+#      raise NotConnectedError("no client yet")
+    if not packet.payload: # no data?
+      return None
+
+    # Is it the payload we want?
+    if self.last_ack_sent == packet.seq_num:
+      #  -- Cumulative Acking
+      # See how many we have in our window. 
+      # We can skip all these acks.
+      seq_num = packet.seq_num
+      self.packet_cache[packet.seq_num] = packet
+      while seq_num in self.packet_cache.keys():
+        packet = self.packet_cache[seq_num]
+        self.buffer += packet.payload
+        new_seq_num = mod_add(packet.seq_num, len(packet.payload), MAX_SEQ_NUM)
+        del self.packet_cache[seq_num]
+        seq_num = new_seq_num
+
+      # Ask for the next missing one
+      self.last_ack_sent = seq_num
+      sendmess(ip, packet.srcport, TcpPacket(port, packet.srcport, 0, self.last_ack_sent, \
+                 "ACK", WINDOW_SIZE, "ack...").pack())
+
+    # Maybe we can cache it.  Is it inside our window?
+    elif packet.seq_num in mod_range(self.last_ack_sent, self.last_ack_sent \
+                                        + self.recv_window_size, MAX_ACK_NUM):
+      # don't have it yet?
+      if not packet.seq_num in self.packet_cache.keys():
+        # save it quietly
+        self.packet_cache[packet.seq_num] = packet
+      else: # ignore the already cached seq
+        pass
+
+    # Send back an ack again for the payload we really want.
+    else: 
+      sendmess(ip, port, TcpPacket(port, packet.srcport, 0, self.last_ack_sent, "ACK", WINDOW_SIZE, \
+                "resending ack...").pack())
+

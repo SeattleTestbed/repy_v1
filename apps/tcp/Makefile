@@ -23,7 +23,8 @@ run: build
 	cd ${TEST_DIR} && python repy.py restrictions.default ${FN}
 
 clean: 
-	rm -f ${TEST_DIR}/[zne]_test*.py ${TEST_DIR}/*.pyc ${TEST_DIR}/foo-Terminated-* ${UNIT_TESTS_DIR}/tcp.repy
+	rm -f ${TEST_DIR}/[zne]_test*.py ${TEST_DIR}/*.pyc ${TEST_DIR}/foo-Terminated-* 
+	for file in `ls *.repy`; do rm -f ${UNIT_TESTS_DIR}/$${file}; done
 
 #### Private ####
 build:

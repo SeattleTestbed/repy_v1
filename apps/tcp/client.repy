@@ -1,0 +1,161 @@
+# Holds sending structure
+class TcpClient:
+  """
+  <Purpose>
+    
+    
+  <Side Effects>
+    
+    
+  <Example Use>
+
+  """
+
+  def __init__(self):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
+    self.packet_cache = {} # holds currently sent, unacked packets
+
+    # Sliding window accounting
+    self.send_window_size = WINDOW_SIZE # size of window
+    self.last_ack_recv = None # Beginning of window 
+    self.last_seq_sent = None # End of window
+
+
+  def send(self, data, destip, destport, \
+                srcip, srcport, retries, timeout):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
+    bytes_sent = 0  # total bytes sent
+
+    # Split up into bytes
+    data = list(data)
+ 
+    # Send them -- Sliding Window Algorithm
+    while data:   
+      # reset variables
+      last_ack = self.last_ack_recv # save to see if changes
+      times_sent = 0
+ 
+      # while we haven't receieved a newer ack
+      while self.last_ack_recv == last_ack:
+        # give up
+        if times_sent > retries:
+          raise TimeoutError("tried %d times" % times_sent)
+        
+        # Send or Re-send all those in cache
+        # BUG: Should these be modulo sorted?
+        # Say we're never sending the first
+        # one because the window size is too small.
+        seqs = self.packet_cache.keys() 
+        free_window = self.send_window_size
+        for seq_num in seqs:
+          if len(self.packet_cache[seq_num].payload) <= free_window:
+            free_window -= len(self.packet_cache[seq_num].payload)
+            bytes_sent += sendmess(destip, destport, \
+                self.packet_cache[seq_num].pack(), srcip, srcport)
+          else: # can't send anymore
+            free_window = 0
+            break
+
+        # make and Send a new packet -- Slow Start Algorithm
+        if data and free_window:
+            # can we send the whole window?
+            if free_window < MSS: # yes
+              payload_size = self.send_window_size
+            else: # no just send MSS of the window
+              payload_size = MSS 
+            # make the packet
+            next_seq_num = mod_add(self.last_seq_sent, 1, MAX_SEQ_NUM)
+            packet = TcpPacket(srcport, destport, next_seq_num, 0, "PSH", WINDOW_SIZE, ''.join(data[0:payload_size - 1]))
+            del data[0:payload_size - 1]
+            self.packet_cache[packet.seq_num] = packet
+            self.last_seq_sent = mod_add(packet.seq_num, len(packet.payload) - 1, MAX_SEQ_NUM)
+            # send it as well
+            bytes_sent += sendmess(destip, destport, packet.pack(), srcip, srcport)
+
+        # increment tries
+        times_sent += 1
+
+        # take a deep breath
+        sleep(timeout)
+
+    return bytes_sent
+
+
+
+  # Throws an error if the last seq number is undefined
+  # or if the packet is not an ack.
+  # Accounts to stop resending the acked packet.
+  def process_ack(self, packet):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
+    if not packet.is_ack():
+      raise UnknownStateError("expected an ack")
+    if self.last_seq_sent == None:
+      raise NotConnectedError("no packets sent to ack")
+    
+    # if a newer ack that falls in current window     
+    if mod_gt(packet.ack_num, self.last_ack_recv, \
+              MAX_ACK_NUM, self.send_window_size):
+
+      # -- Cumulative ACK Processing
+      for seq_num in self.packet_cache.keys():  
+        # Delete all packets below this recvd ack_num.
+        # We never received their acks but the sender must have
+        # received the payloads of all seq_num before this ack by
+        # the definition of our protocol.
+        if mod_lt(seq_num, packet.ack_num, MAX_ACK_NUM, self.send_window_size):
+          del self.packet_cache[seq_num]
+
+      # all done up to this ack
+      self.last_ack_recv = packet.ack_num
+
+    else: # old ack 
+      pass # ignore it
+

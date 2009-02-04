@@ -1,0 +1,165 @@
+# Modulo helpers
+# BUG: Watch out for edge cases.
+#      Are they right?
+class RangeError(Exception):
+  """This exception indicates the start of the range is out of range"""
+
+# Pre : Start must be <= max
+# Post: Returns range from start to end
+#       not including end.
+def mod_range(start, end, max):
+  """
+  <Purpose>
+    
+    
+  <Arguments>
+    
+    
+  <Exceptions>
+    
+    
+  <Side Effects>
+    
+     
+  <Returns>
+    
+  """
+  
+  if start >= max:
+    raise RangeError("start of range cannot be greater " + \
+                      "than or equal to maximum")
+  # wrap around
+  if end > max:
+    return range(start, max) + range(0, end % max)
+  else: # end <= max
+    return range(start, end)
+
+
+
+
+def mod_add(value1, value2, max):
+  """
+  <Purpose>
+      
+    
+  <Arguments>
+  
+    
+  <Exceptions>
+      
+  
+  <Side Effects>
+  
+     
+  <Returns>
+  
+  """
+  
+  return (value1 + value2) % max
+
+
+
+def mod_sub(value1, value2, max):
+  """
+  <Purpose>
+    
+  
+  <Arguments>
+    
+  
+  <Exceptions>
+    
+  
+  <Side Effects>
+    
+  
+  <Returns>
+    
+  """
+  
+  return (value1 - value2) % max
+
+
+
+# Return true if, within window, value1 is > value2 
+# modulo max.
+# Returns false if the values are not within the window or
+# value1 <= value2.
+def mod_gt(value1, value2, max, window):
+  """
+  <Purpose>
+    
+  
+  <Arguments>
+    
+  
+  <Exceptions>
+    
+  
+  <Side Effects>
+    
+  
+  <Returns>
+    
+  """
+  
+  separation = len(mod_range(value2, value1, max))
+  return separation and separation <= window
+
+
+
+
+# Return true if, within window, value1 is >= value2 
+# modulo max.
+# Returns false if the values are not within the window or
+# value1 < value2.
+def mod_gte(value1, value2, max, window):
+  """
+  <Purpose>
+    
+  
+  <Arguments>
+    
+  
+  <Exceptions>
+    
+  
+  <Side Effects>
+    
+  
+  <Returns>
+    
+  """
+  
+  if value1 == value2:
+    return True
+  separation = len(mod_range(value2, value1, max))
+  return separation and separation <= window
+
+
+         
+# Return true if, within window, value1 is < value2 
+# modulo max.
+# Returns false if the values are not within the window or
+# value1 > value2.
+def mod_lt(value1, value2, max, window):
+  """
+  <Purpose>
+    
+    
+  <Arguments>
+    
+    
+  <Exceptions>
+    
+    
+  <Side Effects>
+    
+     
+  <Returns>
+    
+  """
+  
+  separation = len(mod_range(value1, value2, max))
+  return separation and separation <= window
+
