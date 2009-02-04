@@ -37,7 +37,10 @@
     RangeError(Exception) - bad input to mod_range function
 """
 
-######### Public Exceptions ###########
+##############################################################
+# Public Exceptions
+##############################################################
+
 class UnknownStateError(Exception):
   """This exception indicates our connection is in an unexpected state"""
 
@@ -52,7 +55,11 @@ class NotBoundError(Exception):
 class TimeoutError(Exception):
   """This exception indicates that the peer is not responded in enough time"""
 
-######## Constants ##########
+
+##############################################################
+# Constants
+##############################################################
+
 MAX_SEQ_NUM = 2 ** 32 # 16 bits 
 MAX_ACK_NUM = 2 ** 32 # 16 bits 
 
@@ -65,7 +72,9 @@ DEFAULT_TIMEOUT = .001 # 1 millisecond to wait
 # lock
 conn_lock = getlock()
 
-######## Public Interface ########
+##############################################################
+# Public Interface
+##############################################################
 
 # Acts like Berkeley Socket.
 class Connection:
@@ -89,7 +98,9 @@ class Connection:
     connection.disconnect()
   """   
 
-  ########### Public methods #######
+  ##############################################################
+  # Public methods
+  ##############################################################
 
   # Get object
   def __init__(self):
@@ -186,6 +197,22 @@ class Connection:
 
   # continue handshake
   def accept(self):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
     self.state_machine.accept(self.remoteip, self.remoteport, self.localip, self.localport)
 
   # Request connection.
@@ -318,9 +345,27 @@ class Connection:
     stopcomm(self.conn)
     self.conn = None
 
-  ############# Private ###########
+  ##############################################################
+  # Private
+  ##############################################################
 
   def callback(self, ip, port, mess, ch):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
     # print mess # DEBUG
     self.state_machine.next(ip, port, mess, ch)
 
@@ -329,7 +374,9 @@ class Connection:
 
 
 
-############# Private Classes and Methods #############
+##############################################################
+# Private Classes and Methods
+##############################################################
 
 """ 
   <Source>
@@ -390,8 +437,34 @@ class Connection:
 """
 # Keeps track of our connection state.
 class TcpStateMachine:
+  """
+  <Purpose>
+    
+    
+  <Side Effects>
+    
+    
+  <Example Use>
 
+  """
+  
   def __init__(self):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
     (self.STATE_CLOSED, self.STATE_LISTEN, self.STATE_SYN_SENT, \
      self.STATE_SYN_RCVD, self.STATE_ESTAB, self.STATE_FIN_WAIT_1, \
      self.STATE_FIN_WAIT_2, self.STATE_CLOSING, self.STATE_CLOSE_WAIT, \
@@ -409,8 +482,27 @@ class TcpStateMachine:
 
     # state changes must be atomic
     self.lock = getlock()
+
+
+    
   # Callback for received packets
   def next(self, ip, port, mess, ch):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
     packet = unpack(mess)
     # two threads could come in, right?
     self.lock.acquire()       
@@ -476,9 +568,30 @@ class TcpStateMachine:
     
     self.lock.release()
 
+
+
+
+
   # Block until a SYN comes.  Then, return.
   # State should be in STATE_SYN_RCVD.
   def listen(self):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+
     self.state = self.STATE_LISTEN 
     # wait for a request
     retries = DEFAULT_RETRIES    
@@ -497,9 +610,28 @@ class TcpStateMachine:
     self.lock.release()
     return ans
 
+
+
   # Send out a SYN
   # Block until response SYN or SYNACK
   def connect(self, destip, destport, srcip, srcport):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+
     # Agree to start at,
     start_num = self.rand_start_num()
     self.client.last_ack_recv = start_num
@@ -520,9 +652,29 @@ class TcpStateMachine:
  
     if retries == 0 and self.state == self.STATE_SYN_SENT:
       raise TimeoutError("timed out waiting to connect")
+
+
+
     
   # Method called by application to continue handshake
   def accept(self, destip, destport, srcip, srcport):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
     # we haven't sent a syn yet
     if self.state == self.STATE_SYN_RCVD:
       responseTcpPack = TcpPacket(srcport, destport, self.seqNum, 0, "SYNACK", 0, "synacking...")
@@ -539,21 +691,81 @@ class TcpStateMachine:
 
     # was before accept() or is now
     assert self.state == self.STATE_ESTAB
+
+
+
     
   # Pass on to the client
   def send(self, data, destip, destport, \
 		srcip, srcport, retries, timeout):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
     return self.client.send(data, destip, destport, \
 			srcip, srcport, retries, timeout)
 
-  ###### Private ######
+
+
+
+
+  ##############################################################
+  # Private
+  ##############################################################
 
   # New sequence number to start with
   def rand_start_num(self):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
     return int(randomfloat() * (MAX_SEQ_NUM - 1))
 
   # Method will be called when a HandShake request is recieved by passive comp.
   def acceptHandShake(self, tcpPack, ip, port):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
     self.seqNum = tcpPack.seq_num 
     self.window = tcpPack.window
     if (WINDOW_SIZE < tcpPack.window):
@@ -563,11 +775,47 @@ class TcpStateMachine:
   # save these to send back by listen() to connection obj
   # Later used by conn.accept()
   def save_remote_address(self, ip, port):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
     self.synip = ip
     self.synport = port
 
+
+
   # Method will be called when a response handshake from passive is recieved.
   def responseHandShake(self, tcpPack, ip, port):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
     self.seqNum = tcpPack.seq_num
     self.window = tcpPack.window
     if (WINDOW_SIZE < self.window):
@@ -575,9 +823,31 @@ class TcpStateMachine:
     tcpAck = TcpPacket(tcpPack.destport, tcpPack.srcport, 0, 0, "ACK", 0, "acking syn ...").pack()
     sendmess(ip, tcpPack.srcport, tcpAck)
 
+
+
+
+
+
   # Waits for state change.
   # Raises Timeout if the state doesn't change.
   def timer(self, beg_state):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
     retries = DEFAULT_RETRIES
     while self.state == beg_state and retries > 0:
       retries -= 1
@@ -587,10 +857,40 @@ class TcpStateMachine:
       raise TimeoutError("timed out waiting for state change from " + \
 			str(beg_state))
 
+
+
+
 # Holds sending structure
 class TcpClient:
+  """
+  <Purpose>
+    
+    
+  <Side Effects>
+    
+    
+  <Example Use>
+
+  """
 
   def __init__(self):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
     self.packet_cache = {} # holds currently sent, unacked packets
 
     # Sliding window accounting
@@ -601,6 +901,23 @@ class TcpClient:
 
   def send(self, data, destip, destport, \
 		srcip, srcport, retries, timeout):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
     bytes_sent = 0  # total bytes sent
 
     # Split up into bytes
@@ -657,10 +974,29 @@ class TcpClient:
 
     return bytes_sent
 
+
+
   # Throws an error if the last seq number is undefined
   # or if the packet is not an ack.
   # Accounts to stop resending the acked packet.
   def process_ack(self, packet):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
     if not packet.is_ack():
       raise UnknownStateError("expected an ack")
     if self.last_seq_sent == None:
@@ -685,10 +1021,42 @@ class TcpClient:
     else: # old ack 
       pass # ignore it
 
+
+
+
+
+
 # Holds receiving structure
 class TcpServer:
+  """
+  <Purpose>
+    
+    
+  <Side Effects>
+    
+    
+  <Example Use>
+
+  """
 
   def __init__(self):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
     self.buffer = [] # Receiver buffer of payloads
     self.packet_cache = {} # holds received, out-of-order packets
 
@@ -697,11 +1065,30 @@ class TcpServer:
     self.last_ack_sent = None # Begining of window
     self.last_seq_recv = None # BUG: Do we need this? What for?
 
+
+
   # Throws exception if not a payload or no connection.
   # Then, if payload is next, fills buffer with payload.
   # Else, if payload is in window, caches packet.
   # Otherwise, re-acks packet.
   def process_payload(self, packet, ip, port):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
     if not packet.is_payload():
       raise UnknownStateError("expected a payload")
     if self.last_ack_sent == None:
@@ -776,8 +1163,35 @@ TCP Header Format
 """
 # Keeps track of our packet.
 class TcpPacket:
+  """
+  <Purpose>
+    
+    
+  <Side Effects>
+    
+    
+  <Example Use>
+
+  """
 
   def __init__(self, srcport, destport, seq_num, ack_num, control_bits, window, payload):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
     self.srcport = int(srcport)
     self.destport = int(destport)
     self.seq_num = int(seq_num)
@@ -789,40 +1203,158 @@ class TcpPacket:
   # Returns true if this packet has control bits of an ack.
   # Otherwise, false.
   def is_ack(self):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
     return self.control_bits == "ACK"
+
+
 
   # Returns true if this packet has control bits of a syn.
   # Otherwise, false.
   def is_syn(self):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
     return self.control_bits == "SYN"
+
+
 
   # Returns true if this packet has control bits of an syn, ack.
   # Otherwise, false.
   def is_synack(self):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
     return self.control_bits == "SYNACK"
+
+
+
 
   # Returns true if this packet has control bits of a payload packet.
   # Otherwise, false.
   def is_payload(self):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
     return self.control_bits == "PSH"
+
+
 
   # Pack up into Tcp header format Return message.
   # BUG: Need to encode in bits
   def pack(self):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
     return "%d~%d~%d~%d~%s~%d~%s" % (self.srcport, self.destport, \
 				self.seq_num, self.ack_num, self.control_bits, \
 				self.window, self.payload)
 
 
 
-####### Other Private Methods ############
+
+
+
+##############################################################
+# Other Private Methods
+##############################################################
 
 # Unpack a tcp message into parts
 # Returns a packet
 def unpack(data):
+  """
+  <Purpose>
+    
+    
+  <Arguments>
+    
+    
+  <Exceptions>
+        
+    
+  <Side Effects>
+    
+     
+  <Returns>
+    
+  """
+  
   res = data.split("~")
   return TcpPacket(res[0], res[1], res[2], res[3], \
 		   res[4], res[5], ''.join(res[6:]))
+
+
 
 # Modulo helpers
 # BUG: Watch out for edge cases.
@@ -834,6 +1366,23 @@ class RangeError(Exception):
 # Post: Returns range from start to end
 #       not including end.
 def mod_range(start, end, max):
+  """
+  <Purpose>
+    
+    
+  <Arguments>
+    
+    
+  <Exceptions>
+    
+    
+  <Side Effects>
+    
+     
+  <Returns>
+    
+  """
+  
   if start >= max:
     raise RangeError("start of range cannot be greater " + \
                       "than or equal to maximum")
@@ -843,34 +1392,131 @@ def mod_range(start, end, max):
   else: # end <= max
     return range(start, end)
 
+
+
+
 def mod_add(value1, value2, max):
+  """
+  <Purpose>
+      
+    
+  <Arguments>
+  
+    
+  <Exceptions>
+      
+  
+  <Side Effects>
+  
+     
+  <Returns>
+  
+  """
+  
   return (value1 + value2) % max
 
+
+
 def mod_sub(value1, value2, max):
+  """
+  <Purpose>
+    
+  
+  <Arguments>
+    
+  
+  <Exceptions>
+    
+  
+  <Side Effects>
+    
+  
+  <Returns>
+    
+  """
+  
   return (value1 - value2) % max
+
+
 
 # Return true if, within window, value1 is > value2 
 # modulo max.
 # Returns false if the values are not within the window or
 # value1 <= value2.
 def mod_gt(value1, value2, max, window):
+  """
+  <Purpose>
+    
+  
+  <Arguments>
+    
+  
+  <Exceptions>
+    
+  
+  <Side Effects>
+    
+  
+  <Returns>
+    
+  """
+  
   separation = len(mod_range(value2, value1, max))
   return separation and separation <= window
+
+
+
 
 # Return true if, within window, value1 is >= value2 
 # modulo max.
 # Returns false if the values are not within the window or
 # value1 < value2.
 def mod_gte(value1, value2, max, window):
+  """
+  <Purpose>
+    
+  
+  <Arguments>
+    
+  
+  <Exceptions>
+    
+  
+  <Side Effects>
+    
+  
+  <Returns>
+    
+  """
+  
   if value1 == value2:
     return True
   separation = len(mod_range(value2, value1, max))
   return separation and separation <= window
+
+
 	 
 # Return true if, within window, value1 is < value2 
 # modulo max.
 # Returns false if the values are not within the window or
 # value1 > value2.
 def mod_lt(value1, value2, max, window):
+  """
+  <Purpose>
+    
+    
+  <Arguments>
+    
+    
+  <Exceptions>
+    
+    
+  <Side Effects>
+    
+     
+  <Returns>
+    
+  """
+  
   separation = len(mod_range(value1, value2, max))
   return separation and separation <= window
