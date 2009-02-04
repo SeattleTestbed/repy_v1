@@ -13,3 +13,4 @@ if callfunc == 'initialize':
   bytes = socket.send(MESSAGE)
 
   socket.disconnect()
+  exitall()

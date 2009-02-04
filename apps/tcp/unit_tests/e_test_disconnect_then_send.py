@@ -6,8 +6,18 @@ if callfunc == 'initialize':
 
   socket = Connection()
   socket.bind(IP, PORT)
+
+def server():
+  socket.listen()
+  socket.accept()
+
+if callfunc == 'initialize':
+  # fork thread for server
+  settimer(0, server, ())
+
   socket.connect(IP, PORT)
   socket.disconnect()
 
   # should raise NotConnected exception
   socket.send("hi")
+  exitall()

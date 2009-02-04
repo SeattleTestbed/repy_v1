@@ -40,23 +40,25 @@ class StubConnection:
   # Get object
   def __init__(self):
     self.conn = None
-    (self.STATE_CLOSED, self.STATE_LISTEN, self.STATE_SENDING, \
+    (self.STATE_CLOSED, self.STATE_LISTEN, self.STATE_SYN_RCVD, self.STATE_SENDING, \
      self.STATE_ACKED, self.STATE_ESTAB, self.STATE_FIN_WAIT_1, \
      self.STATE_FIN_WAIT_2, self.STATE_CLOSING, self.STATE_CLOSE_WAIT, \
-     self.STATE_LAST_ACK, self.STATE_TIME_WAIT) = range(0, 11)
+     self.STATE_LAST_ACK, self.STATE_TIME_WAIT) = range(0, 12)
 
     self.state = self.STATE_CLOSED
     self.conn  = None
-    self.packet_cache = {}
+    self.packet_cache = {} # any packets we recv
   
     self.RETRIES = 4
-    self.TIMEOUT = .001
+    self.TIMEOUT = .01
 
+    self.SEQ_NUM = 1 # just start at the same one for all
+
+    self.lock = getlock()
   def bind(self, localip, localport):
     # I am:
     self.localip = localip
     self.localport = localport
-
 
   # Setup a udp callback    
   def listen(self):
@@ -67,27 +69,48 @@ class StubConnection:
     self.conn = recvmess(self.localip, self.localport, self.callback)
     self.state = self.STATE_LISTEN
 
-  # continue handshake
-  # BUG: need 3-way handshake
+    # wait a little
+    retries = self.RETRIES
+    while self.state == self.STATE_LISTEN and retries > 0:
+      sleep(self.TIMEOUT)
+      retries -= 1
+
+    assert retries != 0
+
+    self.seq_num = self.synseqnum
+    self.remoteip = self.synip
+    self.remoteport = self.synport
+
   def accept(self):
-    pass # insert real code here
+    # response with SYNACK
+    retries = self.RETRIES
+    while self.state == self.STATE_SYN_RCVD and retries > 0:
+      sendmess(self.remoteip, self.remoteport, \
+        TcpPacket(self.localport, self.remoteport, self.seq_num, 0, "SYNACK", 1, "synacking...").pack())
+      sleep(self.TIMEOUT)
+      retries -= 1
+    
+    assert retries != 0
 
-  # Request connection.
+  # do the handshake
   def connect(self, remoteip, remoteport):
-    if not self.localip or not self.localport:
-      raise NotBoundError("need to bind before connecting")
-
-    # Peer is:
     self.remoteip = remoteip
     self.remoteport = remoteport
-
-    # Agree to start at,
-    start_num = int(randomfloat() * (MAX_SEQ_NUM - 1))
-
+    self.state = self.STATE_SENDING
     self.conn = recvmess(self.localip, self.localport, self.callback)
-    # init handshake
-    # ... insert code
 
+    # wait a little
+    retries = self.RETRIES
+    while self.state == self.STATE_SENDING and retries > 0:
+      sendmess(remoteip, remoteport, \
+        TcpPacket(self.localport, remoteport, self.SEQ_NUM, 0, "SYN", 1, "syncing...").pack())
+      sleep(self.TIMEOUT)
+      retries -= 1
+
+    assert self.state == self.STATE_ACKED
+    # send final ack for 3-way
+    sendmess(remoteip, remoteport, \
+      TcpPacket(self.localport, remoteport, self.SEQ_NUM, 0, "ACK", 1, "acking synack...").pack())
 
   # Close the connection
   # BUG: Need Tcp 4-way close
@@ -100,15 +123,25 @@ class StubConnection:
   # UDP callback
   def callback(self, ip, port, mess, ch):
     # print mess # DEBUG
-    self.packet = unpack(mess)
-
+    self.lock.acquire()
+    packet = unpack(mess)
+    self.last_packet = packet
     if(self.state == self.STATE_CLOSED): pass
     elif(self.state == self.STATE_LISTEN):
-      self.packet_cache[self.packet.seq_num] = self.packet
+      if packet.is_syn():
+        self.synip = ip
+        self.synport = packet.srcport
+        self.synseqnum = packet.seq_num
+        self.state = self.STATE_SYN_RCVD
+    elif(self.state == self.STATE_SYN_RCVD):
+      if packet.is_ack() or packet.is_payload():
+        self.state = self.STATE_ESTAB
     elif(self.state == self.STATE_SENDING):
       self.state = self.STATE_ACKED
     elif(self.state == self.STATE_ACKED): pass
-    elif(self.state == self.STATE_ESTAB): pass
+    elif(self.state == self.STATE_ESTAB):
+      if packet.is_payload():
+        self.packet_cache[packet.seq_num] = packet
     elif(self.state == self.STATE_FIN_WAIT_1): pass
     elif(self.state == self.STATE_FIN_WAIT_2): pass               
     elif(self.state == self.STATE_CLOSING): pass
@@ -116,7 +149,10 @@ class StubConnection:
     elif(self.state == self.STATE_LAST_ACK): pass       
     elif(self.state == self.STATE_TIME_WAIT): pass 
     else:
+      self.lock.release()
       raise UnknownStateError("undefined state")
+
+    self.lock.release()
 
 
 ### Client Tests #################
@@ -136,10 +172,40 @@ class StubConnection:
       buffer += self.packet_cache[seq_num].payload
       
     mess_len = len(message)
-    assert len(self.packet_cache.keys()) == mess_len/MSS
+    assert len(self.packet_cache) == mess_len/MSS
+
+  # Make sure sends a syn
+  def assert_sent_syn(self):
+    assert len(self.packet_cache) == 1 # only sent SYN
+    (seq_num, packet) = self.packet_cache.popitem() # get the SYN
+    assert packet.control_bits == "SYN"
 
 
 #### Server Tests ###############
+
+  # Make sure responds to syn
+  def assert_responds_to_syn(self, remoteip, remoteport):
+    if not self.localip or not self.localport:
+      raise NotBoundError("need to bind before connecting")
+
+    # Peer is:
+    self.remoteip = remoteip
+    self.remoteport = remoteport
+
+    seq_num = int(randomfloat() * (MAX_SEQ_NUM - 1))
+    self.conn = recvmess(self.localip, self.localport, self.callback)
+    self.state = self.STATE_ESTAB
+
+    sendmess(remoteip, remoteport, \
+      TcpPacket(self.localport, remoteport, seq_num, 0, "SYN", 1, "syncing...").pack())
+
+    retries = self.RETRIES
+    while len(self.packet_cache) == 0 and retries > 0:
+      sleep(self.TIMEOUT)
+      retries -= 1
+
+    packet = self.last_packet # get the SYN
+    assert packet.control_bits == "SYNACK"
 
   # Send out of order and then see if the last
   # ack is cumulative.
@@ -177,11 +243,11 @@ class StubConnection:
     sleep(self.TIMEOUT * self.RETRIES)
 
     assert self.state == self.STATE_ACKED
-    assert self.packet.ack_num == 4
+    assert self.last_packet.ack_num == 4
 
   # Make sure fails to ack when missing a seq.
   def assert_does_not_ack_missing(self):
-    seq_num = 1
+    seq_num = self.SEQ_NUM
     mess = 'a'
     self.state = self.STATE_SENDING
     tries = self.RETRIES
@@ -206,4 +272,4 @@ class StubConnection:
     # wait a little to make sure
     sleep(self.TIMEOUT * self.RETRIES)
 
-    assert self.packet.ack_num == 2
+    assert self.last_packet.ack_num == 2

@@ -12,3 +12,4 @@ if callfunc == 'initialize':
   mess = socket.recv(MAXLEN)
 
   socket.disconnect()
+  exitall()

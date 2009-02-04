@@ -9,3 +9,4 @@ if callfunc == 'initialize':
 
   # should raise NotConnected exception
   socket.disconnect()
+  exitall()

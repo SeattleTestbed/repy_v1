@@ -10,3 +10,4 @@ if callfunc == 'initialize':
 
   # not bound error
   socket.listen()
+  exitall()

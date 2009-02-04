@@ -17,3 +17,4 @@ if callfunc == 'initialize':
   evil.hide()
   # raise TimeoutError
   socket.send("hi")
+  exitall()

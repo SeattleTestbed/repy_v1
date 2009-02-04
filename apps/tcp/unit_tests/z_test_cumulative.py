@@ -6,13 +6,20 @@ if callfunc == 'initialize':
   PORT = 12345
   STUB_PORT = 12346
 
-  stub = StubConnection()
-  stub.bind(IP, STUB_PORT)
-
   socket = Connection()
   socket.bind(IP, PORT)
+
+
+def server():
   socket.listen()
+  socket.accept()
   
+if callfunc == 'initialize':
+  # fork thread for server
+  settimer(0, server, ())
+
+  stub = StubConnection()
+  stub.bind(IP, STUB_PORT)
   stub.connect(IP, PORT)
 
   # shouldn't raise AssertionError
@@ -20,3 +27,5 @@ if callfunc == 'initialize':
 
   stub.disconnect()
   socket.disconnect()
+  exitall()
+

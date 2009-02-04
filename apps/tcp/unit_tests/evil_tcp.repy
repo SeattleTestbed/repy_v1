@@ -51,7 +51,8 @@ class EvilConnection:
     self.state = self.STATE_CLOSED
   
     self.RETRIES = 4
-    self.TIMEOUT = .001
+    self.TIMEOUT = .01
+    self.SEQ_NUM = 1
 
   def bind(self, localip, localport):
     # I am:
@@ -69,6 +70,17 @@ class EvilConnection:
     self.victimport = victimport
 
     self.conn = recvmess(self.localip, self.localport, self.callback)
+  
+    # fake the handshake
+    self.state = self.STATE_SENDING
+    retries = self.RETRIES       
+    while self.state == self.STATE_SENDING and retries > 0:
+      sendmess(victimip, victimport, \
+        TcpPacket(self.localport, self.victimport, self.SEQ_NUM, 0, "SYN", 1, "syncing...").pack())
+      sleep(self.TIMEOUT)
+      retries -= 1    
+
+    assert self.state == self.STATE_ACKED   
 
   def disappear(self):
     stopcomm(self.conn)
@@ -98,7 +110,8 @@ class EvilConnection:
     elif(self.state == self.STATE_HIDE): 
       pass      # ignore
     elif(self.state == self.STATE_HACKING):
-      raise CorruptionSuccess("victim sent response to hack!")
+      if packet.is_ack():
+        raise CorruptionSuccess("victim sent response to exploit!")
     elif(self.state == self.STATE_SENDING):
       self.state = self.STATE_ACKED
     elif(self.state == self.STATE_ACKED): 

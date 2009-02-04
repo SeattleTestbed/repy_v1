@@ -6,32 +6,24 @@ if callfunc == 'initialize':
   PORT = 12345
   STUB_PORT = 12346
 
-
   stub = StubConnection()
   stub.bind(IP, STUB_PORT)
 
 def server():
   stub.listen()
-  stub.accept()
 
 if callfunc == 'initialize':
-
   # fork thread for server
   settimer(0, server, ())
 
   socket = Connection()
   socket.bind(IP, PORT)
-  socket.connect(IP, STUB_PORT)
 
   # shouldn't raise AssertionError
-  fn = 'seattle.txt'
-  fobj = open(fn, 'r')
-  MESS = fobj.read()
-
   try:
-    socket.send(MESS)                               
+    socket.connect(IP, STUB_PORT)
   except TimeoutError:
-    stub.assert_sent_full_window(MESS)
+    pass
   else:
     raise Exception("should have raised timeout")
 

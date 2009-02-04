@@ -6,24 +6,26 @@ if callfunc == 'initialize':
   PORT = 12345
   STUB_PORT = 12346
 
+def server():
   socket = Connection()
   socket.bind(IP, PORT)
-
-def server():
-  socket.listen()
-  socket.accept()
+  try:
+    socket.listen()
+    socket.accept()
+  except:
+    pass
+  socket.disconnect()
 
 if callfunc == 'initialize':
-  # fork thread for server
-  settimer(0, server, ())
 
   stub = StubConnection()
   stub.bind(IP, STUB_PORT)
 
-  stub.connect(IP, PORT)
-  # shouldn't raise AssertionError
-  stub.assert_does_not_ack_missing()
+  # fork a thread to server
+  settimer(0, server, ())
 
+  # shouldn't raise error
+  stub.assert_responds_to_syn(IP, PORT)
   stub.disconnect()
-  socket.disconnect()
   exitall()
+

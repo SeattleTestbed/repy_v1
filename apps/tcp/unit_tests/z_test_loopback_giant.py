@@ -23,3 +23,4 @@ if callfunc == 'initialize':
 
 
   socket.disconnect()
+  exitall()

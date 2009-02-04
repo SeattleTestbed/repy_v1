@@ -56,9 +56,14 @@ class TimeoutError(Exception):
 MAX_SEQ_NUM = 2 ** 32 # 16 bits 
 MAX_ACK_NUM = 2 ** 32 # 16 bits 
 
-# BUG: Need to convert testing to use 1050 bytes
 MSS = 1050 # bytes maximum payload
+DEFAULT_MAXDGRAMSIZE = MSS # always same as MSS
 WINDOW_SIZE = 5 * MSS
+DEFAULT_RETRIES = 4 # listen times for ack
+DEFAULT_TIMEOUT = .001 # 1 millisecond to wait
+
+# lock
+conn_lock = getlock()
 
 ######## Public Interface ########
 
@@ -108,10 +113,6 @@ class Connection:
     # Let's assign some constants
     self.DEFAULT_MAXLEN = 4096 # 4 kilo bytes ??
 
-    # And also,
-    DEFAULT_MAXDGRAMSIZE = 1050 # bytes of payload to send
-    DEFAULT_RETRIES = 4 # listen times for ack
-    DEFAULT_TIMEOUT = .001 # 1 millisecond to wait
 
     # Configuration  
     self.maxdgramsize = DEFAULT_MAXDGRAMSIZE
@@ -126,7 +127,6 @@ class Connection:
 
     # Let's put all the protocol details in a state machine
     self.state_machine = TcpStateMachine()
-    self.conn = None
 
   # Attach to an address
   def bind(self, localip, localport):
@@ -178,13 +178,15 @@ class Connection:
     if not self.localip or not self.localport:
       raise NotBoundError("need to bind before listening")
 
+    
     self.conn = recvmess(self.localip, self.localport, self.callback)
-
+    # block until syn request
+    (self.remoteip, self.remoteport) = self.state_machine.listen() 
+    
 
   # continue handshake
-  # BUG: need 3-way handshake
   def accept(self):
-    pass # insert real code here
+    self.state_machine.accept(self.remoteip, self.remoteport, self.localip, self.localport)
 
   # Request connection.
   def connect(self, remoteip, remoteport):
@@ -215,13 +217,11 @@ class Connection:
     self.remoteip = remoteip
     self.remoteport = remoteport
 
-    # Agree to start at,
-    start_num = int(randomfloat() * (MAX_SEQ_NUM - 1))
-    self.state_machine.reset(start_num)
-
+    # listen for responses
     self.conn = recvmess(self.localip, self.localport, self.callback)
-    # init handshake
-    # ... insert code
+
+    self.state_machine.connect(remoteip, remoteport, \
+		self.localip, self.localport) # block until syn recv
 
   # Sends via client the data in packets to the server. 
   # Throws exception on timeout.
@@ -400,22 +400,60 @@ class TcpStateMachine:
     # not initialized yet
     self.server = TcpServer()
     self.client = TcpClient()
-    self.state = self.STATE_ESTAB # BUG: need 3-way handshake
+    self.state = self.STATE_CLOSED
+    self.conn = None # not yet
 
+    # pass back to connection
+    self.synip = None 
+    self.synport = None
+
+    # state changes must be atomic
+    self.lock = getlock()
   # Callback for received packets
   def next(self, ip, port, mess, ch):
     packet = unpack(mess)
-        
+    # two threads could come in, right?
+    self.lock.acquire()       
     if(self.state == self.STATE_CLOSED): pass
-    elif(self.state == self.STATE_LISTEN): pass
-    elif(self.state == self.STATE_SYN_SENT): pass
-    elif(self.state == self.STATE_SYN_RCVD): pass
+    elif(self.state == self.STATE_LISTEN):
+      if packet.is_syn():
+        self.acceptHandShake(packet, ip, port)
+        self.save_remote_address(ip, packet.srcport)
+        self.state = self.STATE_SYN_RCVD
+      else:
+        stopcomm(ch)
+        self.lock.release()
+        raise UnknownStateError("unknown packet: expected SYN not " + str(packet.control_bits))
+    elif(self.state == self.STATE_SYN_SENT): 
+      # finish the handshake with an ACK...
+      if packet.is_synack():
+        self.state = self.STATE_ESTAB
+        self.responseHandShake(packet, ip, port)
+      elif packet.is_syn():
+        self.state = self.STATE_SYN_RCVD
+        self.responseHandShake(packet, ip, port)
+        self.save_remote_address(ip, packet.srcport)
+      # who knows?
+      else:
+        stopcomm(ch)
+        self.lock.release()
+        raise UnknownStateError("unknown packet: expected SYN or SYNACK not " + str(packet.control_bits))
+    elif(self.state == self.STATE_SYN_RCVD):
+      # skip the ack then...
+      if packet.is_payload():
+        self.state = self.STATE_ESTAB
+	self.server.process_payload(packet, ip, port) 
+      # ok ready
+      elif packet.is_ack():
+        self.state = self.STATE_ESTAB
+      else:
+        stopcomm(ch)
+        self.lock.release()
+        raise UnknownStateError("unknown packet: expected ACK not " + str(packet.control_bits))
     elif(self.state == self.STATE_ESTAB):
-
       # count packet or ignore old ack
       if packet.is_ack():
         self.client.process_ack(packet)
-
       # Send back an ack or reack.
       elif packet.is_payload():
 	self.server.process_payload(packet, ip, port)
@@ -423,7 +461,8 @@ class TcpStateMachine:
       # who knows?
       else:
         stopcomm(ch)
-        raise UnknownStateError("unknown packet")
+        self.lock.release()
+        raise UnknownStateError("unknown packet: expected PSH or ACK not " + str(packet.control_bits))
 
     elif(self.state == self.STATE_FIN_WAIT_1): pass
     elif(self.state == self.STATE_FIN_WAIT_2): pass
@@ -432,26 +471,121 @@ class TcpStateMachine:
     elif(self.state == self.STATE_LAST_ACK): pass
     elif(self.state == self.STATE_TIME_WAIT): pass
     else:
+      self.lock.release()
       raise UnknownStateError("undefined state")
+    
+    self.lock.release()
 
-  # Reset connection statuses
-  # Set sequence to start at
-  def reset(self, start_num):
-    self.server = TcpServer()
-    self.client = TcpClient()
-    self.state = self.STATE_ESTAB # BUG: need 3-way handshake
+  # Block until a SYN comes.  Then, return.
+  # State should be in STATE_SYN_RCVD.
+  def listen(self):
+    self.state = self.STATE_LISTEN 
+    # wait for a request
+    retries = DEFAULT_RETRIES    
+    while self.state == self.STATE_LISTEN and retries > 0:
+      retries -= 1
+      sleep(DEFAULT_TIMEOUT)
 
-    # Agree to these
+    if retries == 0 and self.state == self.STATE_LISTEN:
+      raise TimeoutError("timed out listening")
+
+    # make sure and return the syn address
+    self.lock.acquire()
+    assert self.synip != None
+    assert self.synport != None
+    ans = (self.synip, self.synport)
+    self.lock.release()
+    return ans
+
+  # Send out a SYN
+  # Block until response SYN or SYNACK
+  def connect(self, destip, destport, srcip, srcport):
+    # Agree to start at,
+    start_num = self.rand_start_num()
     self.client.last_ack_recv = start_num
     self.client.last_seq_sent = mod_sub(start_num, 1, MAX_SEQ_NUM)
     self.server.last_ack_sent = start_num
     self.server.last_seq_recv = mod_sub(start_num, 1, MAX_SEQ_NUM)
 
+    # init handshake
+    handShakePack = TcpPacket(srcport, destport, start_num, 0, "SYN", WINDOW_SIZE, "syncing...").pack()
+    self.state = self.STATE_SYN_SENT
+
+    retries = DEFAULT_RETRIES    
+    while self.state == self.STATE_SYN_SENT and retries > 0:
+      sendmess(destip, destport, handShakePack)
+      retries -= 1
+      sleep(DEFAULT_TIMEOUT)
+ 
+ 
+    if retries == 0 and self.state == self.STATE_SYN_SENT:
+      raise TimeoutError("timed out waiting to connect")
+    
+  # Method called by application to continue handshake
+  def accept(self, destip, destport, srcip, srcport):
+    # we haven't sent a syn yet
+    if self.state == self.STATE_SYN_RCVD:
+      responseTcpPack = TcpPacket(srcport, destport, self.seqNum, 0, "SYNACK", 0, "synacking...")
+
+      # wait for ack or data    
+      retries = DEFAULT_RETRIES    
+      while self.state == self.STATE_SYN_RCVD and retries > 0:
+        sendmess(destip, destport, responseTcpPack.pack())
+        retries -= 1
+        sleep(DEFAULT_TIMEOUT)
+
+      if retries == 0 and self.state == self.STATE_SYN_RCVD:
+        raise TimeoutError("timed out waiting to accept")
+
+    # was before accept() or is now
+    assert self.state == self.STATE_ESTAB
+    
+  # Pass on to the client
   def send(self, data, destip, destport, \
 		srcip, srcport, retries, timeout):
     return self.client.send(data, destip, destport, \
 			srcip, srcport, retries, timeout)
 
+  ###### Private ######
+
+  # New sequence number to start with
+  def rand_start_num(self):
+    return int(randomfloat() * (MAX_SEQ_NUM - 1))
+
+  # Method will be called when a HandShake request is recieved by passive comp.
+  def acceptHandShake(self, tcpPack, ip, port):
+    self.seqNum = tcpPack.seq_num 
+    self.window = tcpPack.window
+    if (WINDOW_SIZE < tcpPack.window):
+      self.window = WINDOW_SIZE                
+
+
+  # save these to send back by listen() to connection obj
+  # Later used by conn.accept()
+  def save_remote_address(self, ip, port):
+    self.synip = ip
+    self.synport = port
+
+  # Method will be called when a response handshake from passive is recieved.
+  def responseHandShake(self, tcpPack, ip, port):
+    self.seqNum = tcpPack.seq_num
+    self.window = tcpPack.window
+    if (WINDOW_SIZE < self.window):
+      self.window = WINDOW_SIZE
+    tcpAck = TcpPacket(tcpPack.destport, tcpPack.srcport, 0, 0, "ACK", 0, "acking syn ...").pack()
+    sendmess(ip, tcpPack.srcport, tcpAck)
+
+  # Waits for state change.
+  # Raises Timeout if the state doesn't change.
+  def timer(self, beg_state):
+    retries = DEFAULT_RETRIES
+    while self.state == beg_state and retries > 0:
+      retries -= 1
+      sleep(DEFAULT_TIMEOUT)
+
+    if retries == 0:
+      raise TimeoutError("timed out waiting for state change from " + \
+			str(beg_state))
 
 # Holds sending structure
 class TcpClient:
@@ -656,6 +790,16 @@ class TcpPacket:
   # Otherwise, false.
   def is_ack(self):
     return self.control_bits == "ACK"
+
+  # Returns true if this packet has control bits of a syn.
+  # Otherwise, false.
+  def is_syn(self):
+    return self.control_bits == "SYN"
+
+  # Returns true if this packet has control bits of an syn, ack.
+  # Otherwise, false.
+  def is_synack(self):
+    return self.control_bits == "SYNACK"
 
   # Returns true if this packet has control bits of a payload packet.
   # Otherwise, false.

@@ -10,3 +10,4 @@ if callfunc == 'initialize':
 
   # should raise NotBound
   bytes = socket.connect(IP, PORT)
+  exitall()

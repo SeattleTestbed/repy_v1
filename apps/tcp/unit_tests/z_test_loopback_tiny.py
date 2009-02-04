@@ -19,3 +19,4 @@ if callfunc == 'initialize':
     print "%s != %s" % (mess, MESSAGE)
 
   socket.disconnect()
+  exitall()
