@@ -50,6 +50,7 @@ class EvilConnection:
 
     self.state = self.STATE_CLOSED
   
+    self.WINDOW = WINDOW_SIZE
     self.RETRIES = 4
     self.TIMEOUT = .01
     self.SEQ_NUM = 1
@@ -76,7 +77,7 @@ class EvilConnection:
     retries = self.RETRIES       
     while self.state == self.STATE_SENDING and retries > 0:
       sendmess(victimip, victimport, \
-        TcpPacket(self.localport, self.victimport, self.SEQ_NUM, 0, "SYN", 1, "syncing...").pack())
+        TcpPacket(self.localport, self.victimport, self.SEQ_NUM, 0, "SYN", self.WINDOW, "syncing...").pack())
       sleep(self.TIMEOUT)
       retries -= 1    
 

@@ -68,12 +68,7 @@ class TimeoutError(Exception):
 # Constants
 ##############################################################
 
-MAX_SEQ_NUM = 2 ** 32 # 16 bits 
-MAX_ACK_NUM = 2 ** 32 # 16 bits 
-
-MSS = 1050 # bytes maximum payload
-DEFAULT_MAXDGRAMSIZE = MSS # always same as MSS
-WINDOW_SIZE = 5 * MSS
+DEFAULT_MAXDGRAMSIZE = 1050 # MSS
 DEFAULT_RETRIES = 4 # listen times for ack
 DEFAULT_TIMEOUT = .001 # 1 millisecond to wait
 

@@ -55,6 +55,11 @@
                       TCP Connection State Diagram
                                Figure 6.
 """
+# constants
+MSS = 1050 # bytes maximum payload    
+WINDOW_SIZE = 5 * MSS
+MAX_SEQ_NUM = 2 ** 32 # 16 bits
+MAX_ACK_NUM = 2 ** 32 # 16 bits
 
 class UnknownStateError(Exception):
   """This exception indicates our connection is in an unexpected state"""
@@ -148,6 +153,7 @@ class TcpStateMachine:
       if packet.is_synack():
         self.state = self.STATE_ESTAB
         self.responseHandShake(packet, ip, port)
+        self.acceptHandShake(packet, ip)
       elif packet.is_syn():
         self.state = self.STATE_SYN_RCVD
         self.responseHandShake(packet, ip, port)
@@ -181,6 +187,8 @@ class TcpStateMachine:
       elif packet.is_payload():
         self.server.process_payload(packet, ip, port)
       # who knows?
+      elif packet.is_synack():
+	pass # ignore old synack
       else:
         stopcomm(ch)
         self.lock.release()
@@ -263,7 +271,7 @@ class TcpStateMachine:
 
     # Agree to start at,
     start_num = self.rand_start_num()
-    self.client.reset(start_num)
+    self.client.reset(start_num, None)
     self.server.reset(start_num)
 
     # init handshake
@@ -304,7 +312,7 @@ class TcpStateMachine:
     
     # we haven't sent a syn yet
     if self.state == self.STATE_SYN_RCVD:
-      responseTcpPack = TcpPacket(srcport, destport, 0, self.server.last_ack_sent, "SYNACK", 0, "synacking...")
+      responseTcpPack = TcpPacket(srcport, destport, 0, self.server.last_ack_sent, "SYNACK", WINDOW_SIZE, "synacking...")
 
       # wait for ack or data    
       retries = DEFAULT_RETRIES    
@@ -400,12 +408,13 @@ class TcpStateMachine:
     self.synport = tcpPack.srcport    
 
     # Set up the client and server to be ready
+    # choose the lesser window
+    synwindow = tcpPack.window
+    if (WINDOW_SIZE < synwindow):
+      synwindow = WINDOW_SIZE
 
-    self.client.reset(tcpPack.seq_num)
+    self.client.reset(tcpPack.seq_num, synwindow)
     self.server.reset(tcpPack.seq_num)
-#    self.synwindow = tcpPack.window
-#    if (WINDOW_SIZE < self.synwindow):
-#      self.synwindow = WINDOW_SIZE
 
   # Handshake: Step 3
   # Method will be called when a response handshake from passive is recieved.

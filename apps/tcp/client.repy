@@ -32,7 +32,7 @@ class TcpClient:
     self.packet_cache = {} # holds currently sent, unacked packets
 
     # Sliding window accounting
-    self.send_window_size = WINDOW_SIZE # size of window
+    self.send_window_size = None # size of window
     self.last_ack_recv = None # Beginning of window 
     self.last_seq_sent = None # End of window
 
@@ -55,7 +55,6 @@ class TcpClient:
     <Returns>
       
     """
-    
     bytes_sent = 0  # total bytes sent
 
     # Split up into bytes
@@ -97,8 +96,8 @@ class TcpClient:
               payload_size = MSS 
             # make the packet
             next_seq_num = mod_add(self.last_seq_sent, 1, MAX_SEQ_NUM)
-            packet = TcpPacket(srcport, destport, next_seq_num, 0, "PSH", WINDOW_SIZE, ''.join(data[0:payload_size - 1]))
-            del data[0:payload_size - 1]
+            packet = TcpPacket(srcport, destport, next_seq_num, 0, "PSH", WINDOW_SIZE, ''.join(data[0:payload_size]))
+            del data[0:payload_size]
             self.packet_cache[packet.seq_num] = packet
             self.last_seq_sent = mod_add(packet.seq_num, len(packet.payload) - 1, MAX_SEQ_NUM)
             # send it as well
@@ -161,6 +160,7 @@ class TcpClient:
 
 
 
-  def reset(self, start_num):
+  def reset(self, start_num, send_window):
     self.last_ack_recv = start_num
     self.last_seq_sent = mod_sub(start_num, 1, MAX_SEQ_NUM)
+    self.send_window_size = send_window
