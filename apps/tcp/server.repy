@@ -84,7 +84,7 @@ class TcpServer:
 
       # Ask for the next missing one
       self.last_ack_sent = seq_num
-      sendmess(ip, packet.srcport, TcpPacket(port, packet.srcport, 0, self.last_ack_sent, \
+      register_sendmess(ip, packet.srcport, TcpPacket(port, packet.srcport, 0, self.last_ack_sent, \
                  "ACK", WINDOW_SIZE, "ack...").pack())
 
     # Maybe we can cache it.  Is it inside our window?
@@ -99,7 +99,7 @@ class TcpServer:
 
     # Send back an ack again for the payload we really want.
     else: 
-      sendmess(ip, port, TcpPacket(port, packet.srcport, 0, self.last_ack_sent, "ACK", WINDOW_SIZE, \
+      register_sendmess(ip, port, TcpPacket(port, packet.srcport, 0, self.last_ack_sent, "ACK", WINDOW_SIZE, \
                 "resending ack...").pack())
 
   def reset(self, start_num):

@@ -81,7 +81,7 @@ class TcpClient:
         for seq_num in seqs:
           if len(self.packet_cache[seq_num].payload) <= free_window:
             free_window -= len(self.packet_cache[seq_num].payload)
-            bytes_sent += sendmess(destip, destport, \
+            bytes_sent += register_sendmess(destip, destport, \
                 self.packet_cache[seq_num].pack(), srcip, srcport)
           else: # can't send anymore
             free_window = 0
@@ -101,7 +101,7 @@ class TcpClient:
             self.packet_cache[packet.seq_num] = packet
             self.last_seq_sent = mod_add(packet.seq_num, len(packet.payload) - 1, MAX_SEQ_NUM)
             # send it as well
-            bytes_sent += sendmess(destip, destport, packet.pack(), srcip, srcport)
+            bytes_sent += register_sendmess(destip, destport, packet.pack(), srcip, srcport)
 
         # increment tries
         times_sent += 1

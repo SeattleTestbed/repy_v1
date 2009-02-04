@@ -23,7 +23,7 @@ run: build
 	cd ${TEST_DIR} && python repy.py restrictions.default ${FN}
 
 clean: 
-	rm -f ${TEST_DIR}/[zne]_test*.py ${TEST_DIR}/*.pyc ${TEST_DIR}/foo-Terminated-* 
+	rm -f ${TEST_DIR}/[zne]_test*.py ${TEST_DIR}/*.pyc ${TEST_DIR}/foo-Terminated-* ${TEST_DIR}/junk_test.out
 	for file in `ls *.repy`; do rm -f ${UNIT_TESTS_DIR}/$${file}; done
 
 #### Private ####

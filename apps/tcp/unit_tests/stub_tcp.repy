@@ -57,13 +57,53 @@ class StubConnection:
 
     self.lock = getlock()
   def bind(self, localip, localport):
+    """
+    <Purpose>
+      Attaches the socket to an address.
+
+    <Arguments>
+      localip:
+             The ip to communicate from.  Probably is either '127.0.0.1' or
+             the result from getmyip().
+
+      localport:
+             The port to communicate from.  The restrictions file must allow
+             this port as a messport.
+
+    <Exceptions>
+      None              
+
+    <Side Effects>
+      None   
+
+    <Returns>
+      Nothing  
+    """
     # I am:
     self.localip = localip
     self.localport = localport
 
   # Setup a udp callback    
   def listen(self):
+    """
+    <Purpose>
+      Allows the local connection to receive messages.
+      Waits RETRIES * TIMEOUT times for a connection request.
+      If it doesn't hear back, it raises an exception.
+      Otherwise it grabs the remote address (see callback on how).
 
+    <Arguments>
+      None
+
+    <Exceptions>
+      NotBoundError if bind() is not yet called.
+      TimeoutError if no request.
+    <Side Effects>
+      Sets up a UDP callback.
+
+    <Returns>
+      Nothing           
+    """         
     if not self.localip or not self.localport:
       raise NotBoundError("need to bind before listening")
 
@@ -76,13 +116,38 @@ class StubConnection:
       sleep(self.TIMEOUT)
       retries -= 1
 
-    assert retries != 0
+    if retries == 0:
+      raise TimeoutError("timed out listening")
 
+    # see callback for how these are set
+    # who requested?
     self.seq_num = self.synseqnum
     self.remoteip = self.synip
     self.remoteport = self.synport
 
+   # Fake the synack.
   def accept(self):
+    """
+    <Purpose>
+      Fakes the continuation the 3-way handshake.
+      Called by application after a call to listen() receives
+      a request by connect().  Continues the process of connecting
+      with the remote host.
+      Blocks until the remote host responds or times out.
+   
+    <Arguments>
+      None
+
+    <Exceptions>
+      TimeoutError if the remote host does not respond in default
+        timeout times retries seconds.           
+
+    <Side Effects>
+      None
+
+    <Returns>
+      Nothing  
+    """        
     # response with SYNACK
     retries = self.RETRIES
     while self.state == self.STATE_SYN_RCVD and retries > 0:
@@ -91,10 +156,37 @@ class StubConnection:
       sleep(self.TIMEOUT)
       retries -= 1
     
-    assert retries != 0
+    if retries == 0:
+      raise TimeoutError("timed out accepting")
 
-  # do the handshake
+  # Start faking the handshake
   def connect(self, remoteip, remoteport):
+    """
+    <Purpose>   
+      Starts a mock handshake.          
+      Requests a TCP connection with the remote party.
+      The remote party should have called listen().  Blocks
+      until the remote party responds by calling accept().
+      Then returns and waits for calls to send() and recv().        
+
+    <Arguments>
+      remoteip:                 
+             The ip to communicate to.    
+
+      remoteport:      
+             The port to communicate to.
+
+    <Exceptions>
+      NotBoundError if bind() is not yet called.
+      TimeoutError if the remote host does not respond in default
+        timeout times retries seconds.
+
+    <Side Effects>
+      Sets up a UDP callback.
+
+    <Returns>
+      Nothing
+    """
     self.remoteip = remoteip
     self.remoteport = remoteport
     self.state = self.STATE_SENDING
@@ -108,7 +200,9 @@ class StubConnection:
       sleep(self.TIMEOUT)
       retries -= 1
 
-    assert self.state == self.STATE_ACKED
+    if self.state != self.STATE_ACKED:
+      raise TimeoutError("timed out during connect()")
+
     # send final ack for 3-way
     sendmess(remoteip, remoteport, \
       TcpPacket(self.localport, remoteport, self.SEQ_NUM, 0, "ACK", self.WINDOW, "acking synack...").pack())
@@ -174,6 +268,9 @@ class StubConnection:
       
     mess_len = len(message)
     assert len(self.packet_cache) == mess_len/MSS
+    
+    if len(self.packet_cache) != mess_len/MSS:
+      raise Exception(str(len(self.packet_cache)) + " != " + str(mess_len/MSS))
 
   # window_size < len(message) < MSS
   def assert_sent_tiny_window(self, message, window_size):

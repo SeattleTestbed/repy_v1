@@ -280,7 +280,7 @@ class TcpStateMachine:
 
     retries = DEFAULT_RETRIES    
     while self.state == self.STATE_SYN_SENT and retries > 0:
-      sendmess(destip, destport, handShakePack)
+      register_sendmess(destip, destport, handShakePack)
       retries -= 1
       sleep(DEFAULT_TIMEOUT)
  
@@ -317,7 +317,7 @@ class TcpStateMachine:
       # wait for ack or data    
       retries = DEFAULT_RETRIES    
       while self.state == self.STATE_SYN_RCVD and retries > 0:
-        sendmess(destip, destport, responseTcpPack.pack())
+        register_sendmess(destip, destport, responseTcpPack.pack())
         retries -= 1
         sleep(DEFAULT_TIMEOUT)
 
@@ -436,4 +436,4 @@ class TcpStateMachine:
       
     """
     tcpAck = TcpPacket(tcpPack.destport, tcpPack.srcport, 0, tcpPack.seq_num, "ACK", 0, "acking syn ...").pack()
-    sendmess(ip, tcpPack.srcport, tcpAck)
+    register_sendmess(ip, tcpPack.srcport, tcpAck)

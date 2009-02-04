@@ -118,7 +118,10 @@ class Connection:
       None
 
     <Side Effects>
-      None
+      Sets defaults for:
+        * maxdgramsize - the maximum size of a packet
+        * retries - times to retry sending
+        * timeout - seconds to wait before retrying
 
     <Returns>
       A new Connection object.
@@ -175,12 +178,16 @@ class Connection:
     """
     <Purpose>
       Allows the local connection to receive messages.
+      Blocks until it receives a connection request.
+      Then returns for the application to call accept().
 
     <Arguments>
       None
 
     <Exceptions>
       NotBoundError if bind() is not yet called.
+      TimeoutError if no request comes in default
+        timeout times retries seconds.
 
     <Side Effects>
       Sets up a UDP callback.
@@ -192,37 +199,46 @@ class Connection:
     if not self.localip or not self.localport:
       raise NotBoundError("need to bind before listening")
 
-    
-    self.conn = recvmess(self.localip, self.localport, self.callback)
+    self.conn = register_recvmess(self.localip, self.localport, self.callback)
     # block until syn request
     (self.remoteip, self.remoteport) = self.state_machine.listen() 
-    
 
   # continue handshake
   def accept(self):
     """
     <Purpose>
-      
+      Called by application after a call to listen() receives
+      a request by connect().  Continues the process of connecting
+      with the remote host.
+      Blocks until the remote host responds or times out.
     
     <Arguments>
-      
+      None      
     
     <Exceptions>
-      
+      TimeoutError if the remote host does not respond in default
+        timeout times retries seconds.
+      NotConnectedError if the connection is not established.
     
     <Side Effects>
-      
+      None      
      
     <Returns>
-      
+      Nothing
     """
+    if self.conn == None:
+      raise NotConnectedError("cannot accept without a request")
+
     self.state_machine.accept(self.remoteip, self.remoteport, self.localip, self.localport)
 
   # Request connection.
   def connect(self, remoteip, remoteport):
     """
     <Purpose>
-      Requests a TCP connection with the remote party.
+      Requests a TCP connection with the remote party.  
+      The remote party should have called listen().  Blocks
+      until the remote party responds by calling accept().
+      Then returns and waits for calls to send() and recv().
 
     <Arguments>
       remoteip:
@@ -233,6 +249,8 @@ class Connection:
 
     <Exceptions>
       NotBoundError if bind() is not yet called.
+      TimeoutError if the remote host does not respond in default
+        timeout times retries seconds.
 
     <Side Effects>
       Sets up a UDP callback.
@@ -248,7 +266,7 @@ class Connection:
     self.remoteport = remoteport
 
     # listen for responses
-    self.conn = recvmess(self.localip, self.localport, self.callback)
+    self.conn = register_recvmess(self.localip, self.localport, self.callback)
 
     self.state_machine.connect(remoteip, remoteport, \
 		self.localip, self.localport) # block until syn recv
@@ -355,19 +373,39 @@ class Connection:
   def callback(self, ip, port, mess, ch):
     """
     <Purpose>
-      
+      Provides a single way point between received messages.
+      Allows for easier debugging.  By putting a single print 
+      statement you can output all messages that come in.
     
+      Passes call down to statemachine's callback.
     <Arguments>
-      
+      Same as a UDP callback.
     
     <Exceptions>
-      
+      Undefined
     
     <Side Effects>
-      
+      Undefined
      
     <Returns>
-      
+      Nothing
     """
     # print mess # DEBUG
     self.state_machine.next(ip, port, mess, ch)
+
+
+##############################################################
+# Other Public and Private Methods
+##############################################################
+
+# Hook for controller to handle recv
+def register_recvmess(ip, port, callback):
+  return recvmess(ip, port, callback)
+
+
+# Hook for controller to handle send
+def register_sendmess(destip, destport, message, srcip = None, srcport = None):
+  if srcip is None:
+    return sendmess(destip, destport, message)
+  else:  
+    return sendmess(destip, destport, message, srcip, srcport)
