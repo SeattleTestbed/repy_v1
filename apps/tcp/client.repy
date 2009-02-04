@@ -159,3 +159,8 @@ class TcpClient:
     else: # old ack 
       pass # ignore it
 
+
+
+  def reset(self, start_num):
+    self.last_ack_recv = start_num
+    self.last_seq_sent = mod_sub(start_num, 1, MAX_SEQ_NUM)

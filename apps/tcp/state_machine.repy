@@ -127,19 +127,22 @@ class TcpStateMachine:
     <Returns>
       
     """
-    packet = unpack(mess)
     # two threads could come in, right?
     self.lock.acquire()       
+
+    packet = unpack(mess)
     if(self.state == self.STATE_CLOSED): pass
+
     elif(self.state == self.STATE_LISTEN):
       if packet.is_syn():
-        self.acceptHandShake(packet, ip, port)
-        self.save_remote_address(ip, packet.srcport)
         self.state = self.STATE_SYN_RCVD
+        self.acceptHandShake(packet, ip)
       else:
         stopcomm(ch)
         self.lock.release()
         raise UnknownStateError("unknown packet: expected SYN not " + str(packet.control_bits))
+
+
     elif(self.state == self.STATE_SYN_SENT): 
       # finish the handshake with an ACK...
       if packet.is_synack():
@@ -148,12 +151,14 @@ class TcpStateMachine:
       elif packet.is_syn():
         self.state = self.STATE_SYN_RCVD
         self.responseHandShake(packet, ip, port)
-        self.save_remote_address(ip, packet.srcport)
+        self.acceptHandShake(packet, ip)
       # who knows?
       else:
         stopcomm(ch)
         self.lock.release()
         raise UnknownStateError("unknown packet: expected SYN or SYNACK not " + str(packet.control_bits))
+
+
     elif(self.state == self.STATE_SYN_RCVD):
       # skip the ack then...
       if packet.is_payload():
@@ -166,6 +171,8 @@ class TcpStateMachine:
         stopcomm(ch)
         self.lock.release()
         raise UnknownStateError("unknown packet: expected ACK not " + str(packet.control_bits))
+
+
     elif(self.state == self.STATE_ESTAB):
       # count packet or ignore old ack
       if packet.is_ack():
@@ -173,7 +180,6 @@ class TcpStateMachine:
       # Send back an ack or reack.
       elif packet.is_payload():
         self.server.process_payload(packet, ip, port)
-
       # who knows?
       else:
         stopcomm(ch)
@@ -193,9 +199,7 @@ class TcpStateMachine:
     self.lock.release()
 
 
-
-
-
+  # Part of handshake: Step 2
   # Block until a SYN comes.  Then, return.
   # State should be in STATE_SYN_RCVD.
   def listen(self):
@@ -230,12 +234,13 @@ class TcpStateMachine:
     self.lock.acquire()
     assert self.synip != None
     assert self.synport != None
-    ans = (self.synip, self.synport)
+    remote_address = (self.synip, self.synport)
     self.lock.release()
-    return ans
+    return remote_address
 
 
 
+  # Handshake: Step 1
   # Send out a SYN
   # Block until response SYN or SYNACK
   def connect(self, destip, destport, srcip, srcport):
@@ -258,10 +263,8 @@ class TcpStateMachine:
 
     # Agree to start at,
     start_num = self.rand_start_num()
-    self.client.last_ack_recv = start_num
-    self.client.last_seq_sent = mod_sub(start_num, 1, MAX_SEQ_NUM)
-    self.server.last_ack_sent = start_num
-    self.server.last_seq_recv = mod_sub(start_num, 1, MAX_SEQ_NUM)
+    self.client.reset(start_num)
+    self.server.reset(start_num)
 
     # init handshake
     handShakePack = TcpPacket(srcport, destport, start_num, 0, "SYN", WINDOW_SIZE, "syncing...").pack()
@@ -279,7 +282,7 @@ class TcpStateMachine:
 
 
 
-    
+  # Handshake: Step 2
   # Method called by application to continue handshake
   def accept(self, destip, destport, srcip, srcport):
     """
@@ -301,7 +304,7 @@ class TcpStateMachine:
     
     # we haven't sent a syn yet
     if self.state == self.STATE_SYN_RCVD:
-      responseTcpPack = TcpPacket(srcport, destport, self.seqNum, 0, "SYNACK", 0, "synacking...")
+      responseTcpPack = TcpPacket(srcport, destport, 0, self.server.last_ack_sent, "SYNACK", 0, "synacking...")
 
       # wait for ack or data    
       retries = DEFAULT_RETRIES    
@@ -315,7 +318,6 @@ class TcpStateMachine:
 
     # was before accept() or is now
     assert self.state == self.STATE_ESTAB
-
 
 
     
@@ -350,6 +352,7 @@ class TcpStateMachine:
   # Private
   ##############################################################
 
+  # Helps Handshake: Step 1
   # New sequence number to start with
   def rand_start_num(self):
     """
@@ -371,8 +374,9 @@ class TcpStateMachine:
     
     return int(randomfloat() * (MAX_SEQ_NUM - 1))
 
+  # Helps Handshake: Step 2
   # Method will be called when a HandShake request is recieved by passive comp.
-  def acceptHandShake(self, tcpPack, ip, port):
+  def acceptHandShake(self, tcpPack, ip):
     """
     <Purpose>
       
@@ -389,38 +393,21 @@ class TcpStateMachine:
     <Returns>
       
     """
-    
-    self.seqNum = tcpPack.seq_num 
-    self.window = tcpPack.window
-    if (WINDOW_SIZE < tcpPack.window):
-      self.window = WINDOW_SIZE                
 
-
-  # save these to send back by listen() to connection obj
-  # Later used by conn.accept()
-  def save_remote_address(self, ip, port):
-    """
-    <Purpose>
-      
-    
-    <Arguments>
-      
-    
-    <Exceptions>
-      
-    
-    <Side Effects>
-      
-     
-    <Returns>
-      
-    """
-    
+    # save these to send back by listen() to connection obj
+    # Later used by conn.accept()
     self.synip = ip
-    self.synport = port
+    self.synport = tcpPack.srcport    
 
+    # Set up the client and server to be ready
 
+    self.client.reset(tcpPack.seq_num)
+    self.server.reset(tcpPack.seq_num)
+#    self.synwindow = tcpPack.window
+#    if (WINDOW_SIZE < self.synwindow):
+#      self.synwindow = WINDOW_SIZE
 
+  # Handshake: Step 3
   # Method will be called when a response handshake from passive is recieved.
   def responseHandShake(self, tcpPack, ip, port):
     """
@@ -439,45 +426,5 @@ class TcpStateMachine:
     <Returns>
       
     """
-    
-    self.seqNum = tcpPack.seq_num
-    self.window = tcpPack.window
-    if (WINDOW_SIZE < self.window):
-      self.window = WINDOW_SIZE
-    tcpAck = TcpPacket(tcpPack.destport, tcpPack.srcport, 0, 0, "ACK", 0, "acking syn ...").pack()
+    tcpAck = TcpPacket(tcpPack.destport, tcpPack.srcport, 0, tcpPack.seq_num, "ACK", 0, "acking syn ...").pack()
     sendmess(ip, tcpPack.srcport, tcpAck)
-
-
-
-
-
-
-  # Waits for state change.
-  # Raises Timeout if the state doesn't change.
-  def timer(self, beg_state):
-    """
-    <Purpose>
-      
-    
-    <Arguments>
-      
-    
-    <Exceptions>
-      
-    
-    <Side Effects>
-      
-     
-    <Returns>
-      
-    """
-    
-    retries = DEFAULT_RETRIES
-    while self.state == beg_state and retries > 0:
-      retries -= 1
-      sleep(DEFAULT_TIMEOUT)
-
-    if retries == 0:
-      raise TimeoutError("timed out waiting for state change from " + \
-                        str(beg_state))
-

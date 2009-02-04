@@ -64,8 +64,7 @@ class TcpServer:
     if not packet.is_payload():
       raise UnknownStateError("expected a payload")
     if self.last_ack_sent == None:
-      self.last_ack_sent = packet.seq_num
-#      raise NotConnectedError("no client yet")
+      raise NotConnectedError("no client yet")
     if not packet.payload: # no data?
       return None
 
@@ -102,4 +101,8 @@ class TcpServer:
     else: 
       sendmess(ip, port, TcpPacket(port, packet.srcport, 0, self.last_ack_sent, "ACK", WINDOW_SIZE, \
                 "resending ack...").pack())
+
+  def reset(self, start_num):
+    self.last_ack_sent = start_num
+    self.last_seq_recv = mod_sub(start_num, 1, MAX_SEQ_NUM)
 
