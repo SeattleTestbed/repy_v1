@@ -121,7 +121,7 @@ class TcpClient:
         # increment tries
         times_sent += 1
         # take a deep breath
-        sleep(timeout)
+        spin_sleep(timeout, self.sleep_cond, last_ack)
 
     return bytes_sent
 
@@ -182,3 +182,8 @@ class TcpClient:
     self.last_ack_recv = start_num
     self.last_seq_sent = mod_sub(start_num, 1, MAX_SEQ_NUM)
     self.send_window_size = send_window
+
+  # True continues conditional spin_sleep
+  # False ends it early.
+  def sleep_cond(self, last_ack):
+    return self.last_ack_recv == last_ack

@@ -163,3 +163,16 @@ def mod_lt(value1, value2, max, window):
   separation = len(mod_range(value1, value2, max))
   return separation and separation <= window
 
+# BUGFIX: 2/05/09
+# Timeouts should end immediately
+# when ACK comes. - RJ    
+def spin_sleep(seconds_to_sleep, cond_func, cond_arg):     
+  start_time = getruntime()
+  cur_time = start_time
+
+  # I hate to spin the whole time so
+  # maybe stepwise sleeping?                  
+  sleep_step = seconds_to_sleep/10.0
+  while cur_time - start_time < seconds_to_sleep and cond_func(cond_arg):
+    sleep(sleep_step)   
+    cur_time = getruntime()
