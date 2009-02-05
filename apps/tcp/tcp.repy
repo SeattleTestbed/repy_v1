@@ -364,7 +364,7 @@ class Connection:
     """
     <Purpose>
       Provides a single way point between received messages.
-      Allows for easier debugging.  By putting a single print 
+      Allows for easier debugging.  By putting a single output 
       statement you can output all messages that come in.
     
       Passes call down to statemachine's callback.
@@ -382,15 +382,18 @@ class Connection:
     <Returns>
       Nothing
     """
-    # print mess # DEBUG
+    # print "recving: " + mess + " at: " + str(ip) + ":" + str(port) # DEBUG
+    self.lock.acquire()
     self.state_machine.next(ip, mess, ch)
+    self.lock.release()
+
 
   # Hook for controller to handle recv
   def register_recvmess(self, ip, port, callback):
     """
     <Purpose>
       Provides a single point for setting up a listener.
-      Allows for easier debugging.  By putting a single print 
+      Allows for easier debugging.  By putting a single output 
       statement you can know whenever the code sets up a listener.
 
     <Arguments>
@@ -405,6 +408,7 @@ class Connection:
     <Returns>
       A handle to the listener event.
     """
+    # print "listening on: " + str(ip) + ":" + str(port) # DEBUG
     return recvmess(ip, port, self.callback)
 
 ##############################################################
@@ -417,7 +421,7 @@ def register_sendmess(destip, destport, message, srcip = None, srcport = None):
   """
   <Purpose>
     Provides a single outlet for tracking sent messages.
-    Allows for easier debugging.  By putting a single print 
+    Allows for easier debugging.  By putting a single output
     statement you can output all messages that go out.
 
   <Arguments>
@@ -432,6 +436,7 @@ def register_sendmess(destip, destport, message, srcip = None, srcport = None):
   <Returns>
     The bytes sent.
   """
+  # print "sending: " + message # DEBUG
   if srcip is None:
     return sendmess(destip, destport, message)
   else:  

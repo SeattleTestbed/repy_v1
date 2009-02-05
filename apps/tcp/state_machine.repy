@@ -123,8 +123,11 @@ class TcpStateMachine:
 
     # state changes must be atomic
     self.lock = getlock()
+    self.sleep_lock = getlock()
+    self.sleep_timer = None
 
-
+    # timeout for handshakes
+    self.HANDSHAKE_TIMEOUT = DEFAULT_RETRIES * DEFAULT_TIMEOUT
     
   # Callback for received packets
   def next(self, ip, mess, ch):
@@ -165,8 +168,10 @@ class TcpStateMachine:
       if packet.is_syn():
         self.state = self.STATE_SYN_RCVD
         self.acceptHandShake(ip, packet)
+        self.wake_up()
       else:
         stopcomm(ch)
+        self.wake_up()
         self.lock.release()
         raise UnknownStateError("unknown packet: expected SYN not " + str(packet.control_bits))
 
@@ -177,13 +182,16 @@ class TcpStateMachine:
         self.state = self.STATE_ESTAB
         self.responseHandShake(ip, packet)
         self.acceptHandShake(ip, packet)
+        self.wake_up()
+      # loopback special case: recv own SYN!
       elif packet.is_syn():
         self.state = self.STATE_SYN_RCVD
-        self.responseHandShake(ip, packet)
         self.acceptHandShake(ip, packet)
+        self.wake_up()
       # who knows?
       else:
         stopcomm(ch)
+        self.wake_up()
         self.lock.release()
         raise UnknownStateError("unknown packet: expected SYN or SYNACK not " + str(packet.control_bits))
 
@@ -192,12 +200,17 @@ class TcpStateMachine:
       # skip the ack then...
       if packet.is_payload():
         self.state = self.STATE_ESTAB
+        self.wake_up()
         self.server.process_payload(ip, packet)
       # ok ready
       elif packet.is_ack():
         self.state = self.STATE_ESTAB
+        self.wake_up()
+      elif packet.is_syn():
+        pass #ignore
       else:
         stopcomm(ch)
+        self.wake_up()
         self.lock.release()
         raise UnknownStateError("unknown packet: expected ACK not " + str(packet.control_bits))
 
@@ -210,8 +223,8 @@ class TcpStateMachine:
       elif packet.is_payload():
         self.server.process_payload(ip, packet)
       # who knows?
-      elif packet.is_synack():
-	pass # ignore old synack
+      elif packet.is_synack() or packet.is_syn():
+	pass # ignore old handshake
       else:
         stopcomm(ch)
         self.lock.release()
@@ -260,13 +273,15 @@ class TcpStateMachine:
     """
 
     self.state = self.STATE_LISTEN 
-    # wait for a request
-    retries = DEFAULT_RETRIES    
-    while self.state == self.STATE_LISTEN and retries > 0:
-      retries -= 1
-      sleep(DEFAULT_TIMEOUT)
 
-    if retries == 0 and self.state == self.STATE_LISTEN:
+    # wait for a request, coming out early
+    retries = DEFAULT_RETRIES
+    while retries > 0 and self.state == self.STATE_LISTEN:
+      self.sleep_lock.acquire()
+      retries -= 1
+      self.goto_sleep(self.HANDSHAKE_TIMEOUT)
+
+    if self.state == self.STATE_LISTEN:
       raise TimeoutError("timed out listening")
 
     # make sure and return the syn address
@@ -324,17 +339,33 @@ class TcpStateMachine:
     handShakePack = TcpPacket(srcport, destport, start_num, 0, "SYN", WINDOW_SIZE, "syncing...").pack()
     self.state = self.STATE_SYN_SENT
 
+    # wait for a request, coming out early on yes
     retries = DEFAULT_RETRIES    
     while self.state == self.STATE_SYN_SENT and retries > 0:
+      self.sleep_lock.acquire()
       register_sendmess(destip, destport, handShakePack)
       retries -= 1
-      sleep(DEFAULT_TIMEOUT)
+      self.goto_sleep(self.HANDSHAKE_TIMEOUT)
  
- 
-    if retries == 0 and self.state == self.STATE_SYN_SENT:
+    if self.state == self.STATE_SYN_SENT:
       raise TimeoutError("timed out waiting to connect")
+  
+    # loopback, we need to wait for SYN-SYN-ACK
+    if self.state == self.STATE_SYN_RCVD:
+      tcpAck = TcpPacket(srcport, destport, 0, start_num, "ACK", 0, "acking syn ...").pack()
+      # wait for a request, coming out early on yes
+      retries = DEFAULT_RETRIES    
+      while self.state == self.STATE_SYN_RCVD and retries > 0:
+        self.sleep_lock.acquire()
+        register_sendmess(destip, destport, tcpAck)
+        retries -= 1
+        self.goto_sleep(self.HANDSHAKE_TIMEOUT)
+     
+      if self.state != self.STATE_ESTAB:
+        raise TimeoutError("timed out waiting to connect")
 
-
+    if self.state != self.STATE_ESTAB:
+      raise UnknownStateError("State must be STATE_ESTAB after connecting")
 
   # Handshake: Step 2
   # Method called by application to continue handshake
@@ -377,16 +408,17 @@ class TcpStateMachine:
       # wait for ack or data    
       retries = DEFAULT_RETRIES    
       while self.state == self.STATE_SYN_RCVD and retries > 0:
+        self.sleep_lock.acquire()
         register_sendmess(destip, destport, responseTcpPack.pack())
         retries -= 1
-        sleep(DEFAULT_TIMEOUT)
+        self.goto_sleep(self.HANDSHAKE_TIMEOUT)
 
-      if retries == 0 and self.state == self.STATE_SYN_RCVD:
+      if self.state == self.STATE_SYN_RCVD:
         raise TimeoutError("timed out waiting to accept")
 
     # was before accept() or is now
-    assert self.state == self.STATE_ESTAB
-
+    if self.state != self.STATE_ESTAB:
+      raise UnknownStateError("State must be STATE_ESTAB after accepting")
 
     
   # Pass on to the client
@@ -519,3 +551,13 @@ class TcpStateMachine:
     """
     tcpAck = TcpPacket(tcpPack.destport, tcpPack.srcport, 0, tcpPack.seq_num, "ACK", 0, "acking syn ...").pack()
     register_sendmess(ip, tcpPack.srcport, tcpAck)
+
+  def goto_sleep(self, time):
+    # wait for a request, coming out early
+    self.sleep_timer = settimer(time, self.wake_up, ())
+
+  def wake_up(self):
+    if self.sleep_timer:
+      canceltimer(self.sleep_timer)
+      self.sleep_timer = None
+      self.sleep_lock.release()

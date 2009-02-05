@@ -47,6 +47,8 @@ class TcpClient:
     self.last_seq_sent = None # End of window
 
     self.lock = getlock()
+    self.sleep_lock = getlock()
+    self.sleep_timer = None
 
   def send(self, data, destip, destport, \
                 srcip, srcport, retries, timeout):
@@ -81,8 +83,10 @@ class TcpClient:
  
       # while we haven't receieved a newer ack
       while self.last_ack_recv == last_ack:
+        self.sleep_lock.acquire()
         # give up
         if times_sent > retries:
+          self.sleep_lock.release()
           raise TimeoutError("tried %d times" % times_sent)
 
         self.lock.acquire()
@@ -121,7 +125,7 @@ class TcpClient:
         # increment tries
         times_sent += 1
         # take a deep breath
-        spin_sleep(timeout, self.sleep_cond, last_ack)
+        self.goto_sleep(timeout)
 
     return bytes_sent
 
@@ -170,6 +174,7 @@ class TcpClient:
 
       # all done up to this ack
       self.last_ack_recv = packet.ack_num
+      self.wake_up()
 
     else: # old ack 
       pass # ignore it
@@ -183,7 +188,11 @@ class TcpClient:
     self.last_seq_sent = mod_sub(start_num, 1, MAX_SEQ_NUM)
     self.send_window_size = send_window
 
-  # True continues conditional spin_sleep
-  # False ends it early.
-  def sleep_cond(self, last_ack):
-    return self.last_ack_recv == last_ack
+  def goto_sleep(self, timeout):
+    self.sleep_timer = settimer(timeout, self.wake_up, ())
+
+  def wake_up(self):
+    if self.sleep_timer:
+      canceltimer(self.sleep_timer)
+      self.sleep_timer = None
+      self.sleep_lock.release()

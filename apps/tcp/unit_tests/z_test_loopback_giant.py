@@ -18,7 +18,7 @@ if callfunc == 'initialize':
   if bytes == 0:
     print "Expected some bytes"
 
-
+  sleep(.5)
   mess = socket.recv(MAXLEN)
   if mess != MESSAGE:
     print "%s != " % mess
