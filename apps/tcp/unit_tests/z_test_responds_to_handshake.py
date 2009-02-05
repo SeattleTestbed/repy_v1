@@ -25,7 +25,8 @@ if callfunc == 'initialize':
   settimer(0, server, ())
 
   # shouldn't raise error
-  stub.assert_responds_to_syn(IP, PORT)
+  stub.connect(IP, PORT)
+  stub.assert_responded_to_syn()
   stub.disconnect()
   exitall()
 

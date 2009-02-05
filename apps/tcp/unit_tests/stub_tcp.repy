@@ -89,7 +89,7 @@ class StubConnection:
     <Purpose>
       Allows the local connection to receive messages.
       Waits RETRIES * TIMEOUT times for a connection request.
-      If it doesn't hear back, it raises an exception.
+      If it doesn't hear back, it will wait forever
       Otherwise it grabs the remote address (see callback on how).
 
     <Arguments>
@@ -97,7 +97,6 @@ class StubConnection:
 
     <Exceptions>
       NotBoundError if bind() is not yet called.
-      TimeoutError if no request.
     <Side Effects>
       Sets up a UDP callback.
 
@@ -111,13 +110,8 @@ class StubConnection:
     self.state = self.STATE_LISTEN
 
     # wait a little
-    retries = self.RETRIES
-    while self.state == self.STATE_LISTEN and retries > 0:
+    while self.state == self.STATE_LISTEN:
       sleep(self.TIMEOUT)
-      retries -= 1
-
-    if retries == 0:
-      raise TimeoutError("timed out listening")
 
     # see callback for how these are set
     # who requested?
@@ -133,14 +127,13 @@ class StubConnection:
       Called by application after a call to listen() receives
       a request by connect().  Continues the process of connecting
       with the remote host.
-      Blocks until the remote host responds or times out.
+      Blocks until the remote host responds.  Will wait forever.
    
     <Arguments>
       None
 
     <Exceptions>
-      TimeoutError if the remote host does not respond in default
-        timeout times retries seconds.           
+      None
 
     <Side Effects>
       None
@@ -149,15 +142,10 @@ class StubConnection:
       Nothing  
     """        
     # response with SYNACK
-    retries = self.RETRIES
-    while self.state == self.STATE_SYN_RCVD and retries > 0:
+    while self.state == self.STATE_SYN_RCVD:
       sendmess(self.remoteip, self.remoteport, \
         TcpPacket(self.localport, self.remoteport, self.seq_num, 0, "SYNACK", self.WINDOW, "synacking...").pack())
       sleep(self.TIMEOUT)
-      retries -= 1
-    
-    if retries == 0:
-      raise TimeoutError("timed out accepting")
 
   # Start faking the handshake
   def connect(self, remoteip, remoteport):
@@ -193,12 +181,10 @@ class StubConnection:
     self.conn = recvmess(self.localip, self.localport, self.callback)
 
     # wait a little
-    retries = self.RETRIES
-    while self.state == self.STATE_SENDING and retries > 0:
+    while self.state == self.STATE_SENDING:
       sendmess(remoteip, remoteport, \
         TcpPacket(self.localport, remoteport, self.SEQ_NUM, 0, "SYN", self.WINDOW, "syncing...").pack())
       sleep(self.TIMEOUT)
-      retries -= 1
 
     if self.state != self.STATE_ACKED:
       raise TimeoutError("timed out during connect()")
@@ -267,7 +253,6 @@ class StubConnection:
       buffer += self.packet_cache[seq_num].payload
       
     mess_len = len(message)
-    assert len(self.packet_cache) == mess_len/MSS
     
     if len(self.packet_cache) != mess_len/MSS:
       raise Exception(str(len(self.packet_cache)) + " != " + str(mess_len/MSS))
@@ -283,34 +268,14 @@ class StubConnection:
 
   # Make sure sends a syn
   def assert_sent_syn(self):
-    assert len(self.packet_cache) == 1 # only sent SYN
-    (seq_num, packet) = self.packet_cache.popitem() # get the SYN
+    packet = self.last_packet # get the SYN
     assert packet.control_bits == "SYN"
 
 
 #### Server Tests ###############
 
   # Make sure responds to syn
-  def assert_responds_to_syn(self, remoteip, remoteport):
-    if not self.localip or not self.localport:
-      raise NotBoundError("need to bind before connecting")
-
-    # Peer is:
-    self.remoteip = remoteip
-    self.remoteport = remoteport
-
-    seq_num = int(randomfloat() * (MAX_SEQ_NUM - 1))
-    self.conn = recvmess(self.localip, self.localport, self.callback)
-    self.state = self.STATE_ESTAB
-
-    sendmess(remoteip, remoteport, \
-      TcpPacket(self.localport, remoteport, seq_num, 0, "SYN", 1, "syncing...").pack())
-
-    retries = self.RETRIES
-    while len(self.packet_cache) == 0 and retries > 0:
-      sleep(self.TIMEOUT)
-      retries -= 1
-
+  def assert_responded_to_syn(self):
     packet = self.last_packet # get the SYN
     assert packet.control_bits == "SYNACK"
 
