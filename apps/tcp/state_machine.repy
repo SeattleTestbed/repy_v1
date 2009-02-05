@@ -72,6 +72,9 @@ MAX_ACK_NUM = 2 ** 32 # 16 bits
 class UnknownStateError(Exception):
   """This exception indicates our connection is in an unexpected state"""
 
+class AlreadyConnectedError(Exception):
+  """This exception indicates our connection is already initiated"""
+
 # Keeps track of our connection state.
 class TcpStateMachine:
   """
@@ -264,6 +267,7 @@ class TcpStateMachine:
     
     <Exceptions>
       TimeoutError if it does not receive a SYN.
+      AlreadyConnectedError if the state is not STATE_CLOSED
     
     <Side Effects>
       Acquires a lock to handle shared syn variables.
@@ -272,7 +276,12 @@ class TcpStateMachine:
       The ip and port of the remote party.
     """
 
+    self.lock.acquire()
+    if self.state != self.STATE_CLOSED:
+      self.lock.release()
+      raise AlreadyConnectedError("cannot listen because the connection is already in use")
     self.state = self.STATE_LISTEN 
+    self.lock.release()
 
     # wait for a request, coming out early
     retries = DEFAULT_RETRIES
@@ -286,10 +295,15 @@ class TcpStateMachine:
 
     # make sure and return the syn address
     self.lock.acquire()
-    assert self.synip != None
-    assert self.synport != None
+    if self.synip == None or self.synport == None:
+      raise UnknownStateError("Must have recvd SYN (but did not?)")
     remote_address = (self.synip, self.synport)
+
+    # Uninitialize them
+    self.synip = None
+    self.synport = None
     self.lock.release()
+
     return remote_address
 
 
@@ -320,7 +334,8 @@ class TcpStateMachine:
     
     <Exceptions>
       TimeoutError if the party does not respond.
-    
+      AlreadyConnectedError if the connection is used
+
     <Side Effects>
       Sends a UDP message.  
       Makes a new rand_seq_num() and sets up its client
@@ -330,6 +345,13 @@ class TcpStateMachine:
       Nothing.
     """
 
+    self.lock.acquire()
+    if self.state != self.STATE_CLOSED:
+      self.lock.release()
+      raise AlreadyConnectedError("cannot connect because the connection is already in use")
+    self.state = self.STATE_SYN_SENT
+    self.lock.release()
+
     # Agree to start at,
     start_num = self.rand_start_num()
     self.client.reset(start_num, None)
@@ -337,10 +359,10 @@ class TcpStateMachine:
 
     # init handshake
     handShakePack = TcpPacket(srcport, destport, start_num, 0, "SYN", WINDOW_SIZE, "syncing...").pack()
-    self.state = self.STATE_SYN_SENT
+
 
     # wait for a request, coming out early on yes
-    retries = DEFAULT_RETRIES    
+    retries = DEFAULT_RETRIES
     while self.state == self.STATE_SYN_SENT and retries > 0:
       self.sleep_lock.acquire()
       register_sendmess(destip, destport, handShakePack)
@@ -393,6 +415,7 @@ class TcpStateMachine:
           
     <Exceptions>
       TimeoutError if the requestor does not respond.
+      NotConnectedError if the listen() call wasn't called
     
     <Side Effects>
       Sends UDP message.
@@ -400,6 +423,9 @@ class TcpStateMachine:
     <Returns>
       Nothing.
     """
+
+    if self.state != self.STATE_SYN_RCVD and self.state != self.STATE_ESTAB:
+      raise NotConnectedError("cannot accept without a requested connection")
     
     # we haven't sent a syn yet
     if self.state == self.STATE_SYN_RCVD:
