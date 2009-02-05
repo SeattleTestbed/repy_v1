@@ -16,7 +16,7 @@ class TcpServer:
 
     def callback(ip, port, mess, ch):
       packet = unpack(mess)
-      serv.process_payload(packet, ip, port)
+      serv.process_payload(ip, packet)
 
     serv.recvmess(getmyip(), 12345, callback)
     sendmess(getmyip(), 12345, "hi")
@@ -57,18 +57,18 @@ class TcpServer:
   # Then, if payload is next, fills buffer with payload.
   # Else, if payload is in window, caches packet.
   # Otherwise, re-acks packet.
-  def process_payload(self, packet, ip, port):
+  def process_payload(self, ip, packet):
     """
     <Purpose>
       Called to handle packets such that packet.is_payload().
       Sends back ACK's, saves payloads, or ignores.
     
     <Arguments>
-      packet 
-          The packet to process
-
       ip
           The ip it came from.    
+
+      packet 
+          The packet to process
 
     <Exceptions>
       NotConnectedError if there is not a connection yet 
@@ -108,7 +108,7 @@ class TcpServer:
 
       # Ask for the next missing one
       self.last_ack_sent = seq_num
-      register_sendmess(ip, packet.srcport, TcpPacket(port, packet.srcport, 0, self.last_ack_sent, \
+      register_sendmess(ip, packet.srcport, TcpPacket(packet.destport, packet.srcport, 0, self.last_ack_sent, \
                  "ACK", WINDOW_SIZE, "ack...").pack())
 
     # Maybe we can cache it.  Is it inside our window?
@@ -123,7 +123,7 @@ class TcpServer:
 
     # Send back an ack again for the payload we really want.
     else: 
-      register_sendmess(ip, port, TcpPacket(port, packet.srcport, 0, self.last_ack_sent, "ACK", WINDOW_SIZE, \
+      register_sendmess(ip, packet.srcport, TcpPacket(packet.destport, packet.srcport, 0, self.last_ack_sent, "ACK", WINDOW_SIZE, \
                 "resending ack...").pack())
 
     self.lock.release()

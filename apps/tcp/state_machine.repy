@@ -127,14 +127,21 @@ class TcpStateMachine:
 
     
   # Callback for received packets
-  def next(self, ip, port, mess, ch):
+  def next(self, ip, mess, ch):
     """
     <Purpose>
       Handles all callbacks.  This function is the engine
       of a state machine.
     
     <Arguments>
-      Same as Repy's UDP callback.
+      ip
+          The ip of the sender
+     
+      mess
+          The packet
+ 
+      ch
+          A handle to the UDP listener.
     
     <Exceptions>
       Raises UnknownStateError if it cannot handle the type of
@@ -157,7 +164,7 @@ class TcpStateMachine:
     elif(self.state == self.STATE_LISTEN):
       if packet.is_syn():
         self.state = self.STATE_SYN_RCVD
-        self.acceptHandShake(packet, ip)
+        self.acceptHandShake(ip, packet)
       else:
         stopcomm(ch)
         self.lock.release()
@@ -168,12 +175,12 @@ class TcpStateMachine:
       # finish the handshake with an ACK...
       if packet.is_synack():
         self.state = self.STATE_ESTAB
-        self.responseHandShake(packet, ip, port)
-        self.acceptHandShake(packet, ip)
+        self.responseHandShake(ip, packet)
+        self.acceptHandShake(ip, packet)
       elif packet.is_syn():
         self.state = self.STATE_SYN_RCVD
-        self.responseHandShake(packet, ip, port)
-        self.acceptHandShake(packet, ip)
+        self.responseHandShake(ip, packet)
+        self.acceptHandShake(ip, packet)
       # who knows?
       else:
         stopcomm(ch)
@@ -185,7 +192,7 @@ class TcpStateMachine:
       # skip the ack then...
       if packet.is_payload():
         self.state = self.STATE_ESTAB
-        self.server.process_payload(packet, ip, port) 
+        self.server.process_payload(ip, packet)
       # ok ready
       elif packet.is_ack():
         self.state = self.STATE_ESTAB
@@ -201,7 +208,7 @@ class TcpStateMachine:
         self.client.process_ack(packet)
       # Send back an ack or reack.
       elif packet.is_payload():
-        self.server.process_payload(packet, ip, port)
+        self.server.process_payload(ip, packet)
       # who knows?
       elif packet.is_synack():
 	pass # ignore old synack
@@ -459,7 +466,7 @@ class TcpStateMachine:
 
   # Helps Handshake: Step 2
   # Method will be called when a HandShake request is recieved by passive comp.
-  def acceptHandShake(self, tcpPack, ip):
+  def acceptHandShake(self, ip, tcpPack):
     """
     <Purpose>
       
@@ -493,7 +500,7 @@ class TcpStateMachine:
 
   # Handshake: Step 3
   # Method will be called when a response handshake from passive is recieved.
-  def responseHandShake(self, tcpPack, ip, port):
+  def responseHandShake(self, ip, tcpPack):
     """
     <Purpose>
       

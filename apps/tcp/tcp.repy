@@ -30,12 +30,13 @@
     connection.recv(maxLen) - recv data from current peer
     connection.disconnect() - end connection with current peer
 
-    register_recvmess(ip, port, callback) - single point for setting up listener
-    register_sendmess(destip, destport, message, srcip = None, srcport = None) -
-    	single outlet for sending
-
   Private Methods:
     connection.callback(ip, port, mess, ch) - single inlet for receiving
+    connection.register_recvmess(ip, port, callback) - single point for setting up listener
+
+  Other Public Methods:
+    register_sendmess(destip, destport, message, srcip = None, srcport = None) -
+    	single outlet for sending
 
   Private Objects:
     TcpStateMachine - handles event calls, sending, recving, handshake.
@@ -194,7 +195,7 @@ class Connection:
     if not self.localip or not self.localport:
       raise NotBoundError("need to bind before listening")
 
-    self.conn = register_recvmess(self.localip, self.localport, self.callback)
+    self.conn = self.register_recvmess(self.localip, self.localport, self.callback)
     # block until syn request
     (self.remoteip, self.remoteport) = self.state_machine.listen() 
 
@@ -261,7 +262,7 @@ class Connection:
     self.remoteport = remoteport
 
     # listen for responses
-    self.conn = register_recvmess(self.localip, self.localport, self.callback)
+    self.conn = self.register_recvmess(self.localip, self.localport, self.callback)
 
     self.state_machine.connect(remoteip, remoteport, \
 		self.localip, self.localport) # block until syn recv
@@ -358,10 +359,7 @@ class Connection:
     stopcomm(self.conn)
     self.conn = None
 
-  ##############################################################
-  # Private
-  ##############################################################
-
+  # hook for controller to intercept event calls
   def callback(self, ip, port, mess, ch):
     """
     <Purpose>
@@ -370,6 +368,8 @@ class Connection:
       statement you can output all messages that come in.
     
       Passes call down to statemachine's callback.
+      Elimates UDP port which should not be used.
+
     <Arguments>
       Same as a UDP callback.
     
@@ -383,34 +383,33 @@ class Connection:
       Nothing
     """
     # print mess # DEBUG
-    self.state_machine.next(ip, port, mess, ch)
+    self.state_machine.next(ip, mess, ch)
 
+  # Hook for controller to handle recv
+  def register_recvmess(self, ip, port, callback):
+    """
+    <Purpose>
+      Provides a single point for setting up a listener.
+      Allows for easier debugging.  By putting a single print 
+      statement you can know whenever the code sets up a listener.
+
+    <Arguments>
+      Same as Repy's UDP recvmess.
+    
+    <Exceptions>
+      Same as Repy's UDP recvmess.
+    
+    <Side Effects>
+      Sets up UDP listener event.
+     
+    <Returns>
+      A handle to the listener event.
+    """
+    return recvmess(ip, port, self.callback)
 
 ##############################################################
 # Other Public and Private Methods
 ##############################################################
-
-# Hook for controller to handle recv
-def register_recvmess(ip, port, callback):
-  """
-  <Purpose>
-    Provides a single point for setting up a listener.
-    Allows for easier debugging.  By putting a single print 
-    statement you can know whenever the code sets up a listener.
-
-  <Arguments>
-    Same as Repy's UDP recvmess.
-    
-  <Exceptions>
-    Same as Repy's UDP recvmess.
-    
-  <Side Effects>
-    Sets up UDP listener event.
-     
-  <Returns>
-    A handle to the listener event.
-  """
-  return recvmess(ip, port, callback)
 
 
 # Hook for controller to handle send
