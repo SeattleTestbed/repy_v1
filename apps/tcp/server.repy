@@ -2,31 +2,44 @@
 class TcpServer:
   """
   <Purpose>
-    
+    A connection has two personalities:
+      an active-sender-client and
+      a passive-receiver-server.
+
+    This class is the passive-receiver-server.
     
   <Side Effects>
-    
+    Call Repy's getlock()
     
   <Example Use>
+    serv = TcpServer()
 
+    def callback(ip, port, mess, ch):
+      packet = unpack(mess)
+      serv.process_payload(packet, ip, port)
+
+    serv.recvmess(getmyip(), 12345, callback)
+    sendmess(getmyip(), 12345, "hi")
+    hi_message = serv.recv(2)
+    
   """
 
   def __init__(self):
     """
     <Purpose>
-      
+      Initialize variables.
     
     <Arguments>
-      
+      None.
     
     <Exceptions>
-      
+      None.
     
     <Side Effects>
-      
+      Call Repy's getlock().
      
     <Returns>
-      
+      New server object.
     """
     
     self.buffer = [] # Receiver buffer of payloads
@@ -47,19 +60,27 @@ class TcpServer:
   def process_payload(self, packet, ip, port):
     """
     <Purpose>
-      
+      Called to handle packets such that packet.is_payload().
+      Sends back ACK's, saves payloads, or ignores.
     
     <Arguments>
-      
-    
+      packet 
+          The packet to process
+
+      ip
+          The ip it came from.    
+
     <Exceptions>
-      
+      NotConnectedError if there is not a connection yet 
+        to recv a packet.
+      UnknownStateError if the packet is not a payload
     
     <Side Effects>
-      
-     
+      Adds to self.buffer.
+      Uses self.lock
+
     <Returns>
-      
+      Nothing.
     """
     
     if not packet.is_payload():

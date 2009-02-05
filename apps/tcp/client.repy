@@ -2,31 +2,41 @@
 class TcpClient:
   """
   <Purpose>
-    
+    A connection has two personalities: 
+      an active-sender-client and 
+      a passive-receiver-server.
+
+    This class is the active-sender-client.
     
   <Side Effects>
-    
+    Call getlock()
     
   <Example Use>
+    def callback(ip, port, mess, ch):
+      print mess
+
+    recvmess(getmyip(), 12345, callback)
+    client = TcpClient()
+    client.send(getmyip(), 12345, "hi")
 
   """
 
   def __init__(self):
     """
     <Purpose>
-      
+      Initializes varibles.
     
     <Arguments>
-      
+      None.
     
     <Exceptions>
-      
+      None.
     
     <Side Effects>
-      
+      Creates self.lock
      
     <Returns>
-      
+      New client object.
     """
     
     self.packet_cache = {} # holds currently sent, unacked packets
@@ -36,24 +46,27 @@ class TcpClient:
     self.last_ack_recv = None # Beginning of window 
     self.last_seq_sent = None # End of window
 
+    self.lock = getlock()
 
   def send(self, data, destip, destport, \
                 srcip, srcport, retries, timeout):
     """
     <Purpose>
-      
-    
+      Trickled down from connection via state machine.
+      Does sliding window algorithm.  Uses slow start.
+
     <Arguments>
-      
+      ...
     
     <Exceptions>
-      
+      TimeoutError if not enough ACK's come back.
     
     <Side Effects>
-      
+      Sends UDP messages.
+      Uses self.lock
      
     <Returns>
-      
+      The bytes sent.
     """
     bytes_sent = 0  # total bytes sent
 
@@ -71,7 +84,8 @@ class TcpClient:
         # give up
         if times_sent > retries:
           raise TimeoutError("tried %d times" % times_sent)
-        
+
+        self.lock.acquire()
         # Send or Re-send all those in cache
         # BUG: Should these be modulo sorted?
         # Say we're never sending the first
@@ -102,10 +116,10 @@ class TcpClient:
             self.last_seq_sent = mod_add(packet.seq_num, len(packet.payload) - 1, MAX_SEQ_NUM)
             # send it as well
             bytes_sent += register_sendmess(destip, destport, packet.pack(), srcip, srcport)
+        self.lock.release()
 
         # increment tries
         times_sent += 1
-
         # take a deep breath
         sleep(timeout)
 
@@ -119,26 +133,28 @@ class TcpClient:
   def process_ack(self, packet):
     """
     <Purpose>
-      
+      Handles ACK's from receiver.
     
     <Arguments>
-      
+      packet
+        the ACK
     
     <Exceptions>
-      
+      ...
     
     <Side Effects>
-      
+      Changes window size and seq nums and last ack recv
      
     <Returns>
-      
+      Nothing.
     """
     
     if not packet.is_ack():
       raise UnknownStateError("expected an ack")
     if self.last_seq_sent == None:
       raise NotConnectedError("no packets sent to ack")
-    
+
+    self.lock.acquire()    
     # if a newer ack that falls in current window     
     if mod_gt(packet.ack_num, self.last_ack_recv, \
               MAX_ACK_NUM, self.send_window_size):
@@ -158,8 +174,10 @@ class TcpClient:
     else: # old ack 
       pass # ignore it
 
+    self.lock.release()
 
 
+  # setup state
   def reset(self, start_num, send_window):
     self.last_ack_recv = start_num
     self.last_seq_sent = mod_sub(start_num, 1, MAX_SEQ_NUM)

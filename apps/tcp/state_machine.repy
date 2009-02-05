@@ -76,31 +76,36 @@ class UnknownStateError(Exception):
 class TcpStateMachine:
   """
   <Purpose>
-    
+    The state machine organizes the changes in relationship
+    between a pair of connected parties.
     
   <Side Effects>
-    
-    
-  <Example Use>
+    Calls Repy's getlock().
+    Uses a TcpServer and TcpClient.
 
+  <Example Use>
+    sm = TcpStateMachine
+    recvmess(getmyip(), 12345, sm.next)
   """
   
   def __init__(self):
     """
     <Purpose>
-      
+      Initialize the state machine's variables. Sets state
+      to be a closed connection.
     
     <Arguments>
-      
+      None
     
     <Exceptions>
-      
+      None
     
     <Side Effects>
-      
+      Creates a lock in self.lock.
+      Creates a server and a client.
      
     <Returns>
-      
+      The new state machine object.
     """
     (self.STATE_CLOSED, self.STATE_LISTEN, self.STATE_SYN_SENT, \
      self.STATE_SYN_RCVD, self.STATE_ESTAB, self.STATE_FIN_WAIT_1, \
@@ -111,7 +116,6 @@ class TcpStateMachine:
     self.server = TcpServer()
     self.client = TcpClient()
     self.state = self.STATE_CLOSED
-    self.conn = None # not yet
 
     # pass back to connection
     self.synip = None 
@@ -126,19 +130,23 @@ class TcpStateMachine:
   def next(self, ip, port, mess, ch):
     """
     <Purpose>
-      
+      Handles all callbacks.  This function is the engine
+      of a state machine.
     
     <Arguments>
-      
+      Same as Repy's UDP callback.
     
     <Exceptions>
-      
+      Raises UnknownStateError if it cannot handle the type of
+      packet coming in.
     
     <Side Effects>
-      
-     
+      Acquires the self.lock at the beginning and releases
+      at end.
+      Ends the UDP listener before raising an exception.
+
     <Returns>
-      
+      Nothing.
     """
     # two threads could come in, right?
     self.lock.acquire()       
@@ -221,19 +229,27 @@ class TcpStateMachine:
   def listen(self):
     """
     <Purpose>
-      
-    
+      Called by Connection.  Continues the listen procedure.
+      Sets the state to STATE_LISTEN.
+
+      Blocks and waits until it receives a SYN or it times out.
+      Knows if received a SYN by the next() function changing
+      state from STATE_LISTEN.
+
+      The next() function should set up the client/server with
+      the appropriate window sizes and sequence number from the
+      request.
     <Arguments>
-      
+      None.
     
     <Exceptions>
-      
+      TimeoutError if it does not receive a SYN.
     
     <Side Effects>
-      
+      Acquires a lock to handle shared syn variables.
      
     <Returns>
-      
+      The ip and port of the remote party.
     """
 
     self.state = self.STATE_LISTEN 
@@ -255,26 +271,41 @@ class TcpStateMachine:
     return remote_address
 
 
-
   # Handshake: Step 1
   # Send out a SYN
   # Block until response SYN or SYNACK
   def connect(self, destip, destport, srcip, srcport):
     """
     <Purpose>
+      Requests a connection.  Trickled down from Connection
+      class.
+  
+      Sets state to STATE_SYN_SENT.  Waits for a SYN or SYNACK.
+      Knows by a change in state through next() when a response comes.
       
-    
     <Arguments>
+      destip
+         The ip to send to.
       
+      destport
+         The port to send to.
+ 
+      srcip
+         Who am I?  What ip?
+
+      srcport
+         Who am I?  What port?
     
     <Exceptions>
-      
+      TimeoutError if the party does not respond.
     
     <Side Effects>
-      
+      Sends a UDP message.  
+      Makes a new rand_seq_num() and sets up its client
+      and server with the sequence number.
      
     <Returns>
-      
+      Nothing.
     """
 
     # Agree to start at,
@@ -302,20 +333,34 @@ class TcpStateMachine:
   # Method called by application to continue handshake
   def accept(self, destip, destport, srcip, srcport):
     """
-    <Purpose>
-      
+    <Purpose>    
+      Trickled down from Connection.accept().
+      Sends back a SYNACK to the requester.  Waits for
+      ACK or data. 
     
+      On return, guarentees the state to be STATE_ESTAB.
+
     <Arguments>
+      destip
+         The ip to send to.
       
-    
+      destport
+         The port to send to.
+ 
+      srcip
+         Who am I?  What ip?
+
+      srcport
+         Who am I?  What port?
+          
     <Exceptions>
-      
+      TimeoutError if the requestor does not respond.
     
     <Side Effects>
-      
+      Sends UDP message.
      
     <Returns>
-      
+      Nothing.
     """
     
     # we haven't sent a syn yet
@@ -342,19 +387,19 @@ class TcpStateMachine:
                 srcip, srcport, retries, timeout):
     """
     <Purpose>
-      
+      Pass on a send.
     
     <Arguments>
-      
+      Same as Connection.send()
     
     <Exceptions>
-      
+      TimeoutError if the send fails.
     
     <Side Effects>
-      
+      None
      
     <Returns>
-      
+      The bytes sent.
     """
     
     return self.client.send(data, destip, destport, \
@@ -364,19 +409,20 @@ class TcpStateMachine:
   def recv(self, maxlen):
     """
     <Purpose>
-      
+      Pass on recv.
     
     <Arguments>
-      
+      maxlen
+        maximum bytes to get.
     
     <Exceptions>
-      
+      None
     
     <Side Effects>
-      
+      Deletes data from buffer.
      
     <Returns>
-      
+      The first maxlen bytes in buffer.
     """
     
     return self.server.recv(maxlen)
