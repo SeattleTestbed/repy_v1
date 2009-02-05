@@ -74,14 +74,10 @@ class EvilConnection:
   
     # fake the handshake
     self.state = self.STATE_SENDING
-    retries = self.RETRIES       
-    while self.state == self.STATE_SENDING and retries > 0:
+    while self.state == self.STATE_SENDING:
       sendmess(victimip, victimport, \
         TcpPacket(self.localport, self.victimport, self.SEQ_NUM, 0, "SYN", self.WINDOW, "syncing...").pack())
       sleep(self.TIMEOUT)
-      retries -= 1    
-
-    assert self.state == self.STATE_ACKED   
 
   def disappear(self):
     stopcomm(self.conn)

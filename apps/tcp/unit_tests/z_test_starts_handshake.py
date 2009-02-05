@@ -23,6 +23,7 @@ if callfunc == 'initialize':
   try:
     socket.connect(IP, STUB_PORT)
   except TimeoutError:
+    sleep(.01)
     stub.assert_sent_syn()
   else:
     raise Exception("should have raised timeout")

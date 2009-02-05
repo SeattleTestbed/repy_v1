@@ -88,15 +88,16 @@ class StubConnection:
     """
     <Purpose>
       Allows the local connection to receive messages.
-      Waits RETRIES * TIMEOUT times for a connection request.
       If it doesn't hear back, it will wait forever
       Otherwise it grabs the remote address (see callback on how).
+      And sends it back for a call by the applicatio to stub.accept().
 
     <Arguments>
       None
 
     <Exceptions>
       NotBoundError if bind() is not yet called.
+
     <Side Effects>
       Sets up a UDP callback.
 
@@ -180,7 +181,7 @@ class StubConnection:
     self.state = self.STATE_SENDING
     self.conn = recvmess(self.localip, self.localport, self.callback)
 
-    # wait a little
+    # wait forever 
     while self.state == self.STATE_SENDING:
       sendmess(remoteip, remoteport, \
         TcpPacket(self.localport, remoteport, self.SEQ_NUM, 0, "SYN", self.WINDOW, "syncing...").pack())
@@ -194,7 +195,6 @@ class StubConnection:
       TcpPacket(self.localport, remoteport, self.SEQ_NUM, 0, "ACK", self.WINDOW, "acking synack...").pack())
 
   # Close the connection
-  # BUG: Need Tcp 4-way close
   def disconnect(self):
     if self.conn == None:
       raise NotConnectedError("cannot disconnect without connection")

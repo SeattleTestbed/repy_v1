@@ -67,7 +67,7 @@ class TimeoutError(Exception):
 
 DEFAULT_MAXDGRAMSIZE = 1050 # MSS
 DEFAULT_RETRIES = 4 # listen times for ack
-DEFAULT_TIMEOUT = .001 # 1 millisecond to wait
+DEFAULT_TIMEOUT = .1 # seconds to wait
 
 ##############################################################
 # Public Interface

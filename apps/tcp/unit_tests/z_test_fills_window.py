@@ -31,6 +31,7 @@ if callfunc == 'initialize':
   try:
     socket.send(MESS)                               
   except TimeoutError:
+    sleep(.01)
     stub.assert_sent_full_window(MESS)
   else:
     raise Exception("should have raised timeout")
