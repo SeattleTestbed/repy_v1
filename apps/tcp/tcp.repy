@@ -30,21 +30,17 @@
     connection.recv(maxLen) - recv data from current peer
     connection.disconnect() - end connection with current peer
 
+    register_recvmess(ip, port, callback) - single point for setting up listener
+    register_sendmess(destip, destport, message, srcip = None, srcport = None) -
+    	single outlet for sending
+
+  Private Methods:
+    connection.callback(ip, port, mess, ch) - single inlet for receiving
+
   Private Objects:
-    TcpStateMachine - handles event calls
-    TcpPacket - encapsilates packet structure
-    TcpClient - encapsilates sender
-    TcpServer - encapsilates receiver 
+    TcpStateMachine - handles event calls, sending, recving, handshake.
 """
 
-# modulo arithmetic for seq_num bounds
-include utilities.repy 
-# packet class
-include packet.repy
-# client class
-include client.repy
-# server class
-include server.repy
 # state machine class
 include state_machine.repy
 
@@ -71,9 +67,6 @@ class TimeoutError(Exception):
 DEFAULT_MAXDGRAMSIZE = 1050 # MSS
 DEFAULT_RETRIES = 4 # listen times for ack
 DEFAULT_TIMEOUT = .001 # 1 millisecond to wait
-
-# lock
-conn_lock = getlock()
 
 ##############################################################
 # Public Interface
@@ -144,6 +137,8 @@ class Connection:
 
     # Let's put all the protocol details in a state machine
     self.state_machine = TcpStateMachine()
+
+    self.lock = getlock()
 
   # Attach to an address
   def bind(self, localip, localport):
@@ -329,17 +324,14 @@ class Connection:
     if self.conn == None:
       raise NotConnectedError("cannot recv data without listening")
   
-    message = self.state_machine.server.buffer[0:maxLen]
+    message = self.state_machine.recv(maxLen)
     
     # If empty, wait a little
     if not message:
       sleep(self.timeout)
-      message = self.state_machine.server.buffer[0:maxLen]
-    
-    # remove from buffer
-    del self.state_machine.server.buffer[0:maxLen]
+      message = self.state_machine.recv(maxLen)
 
-    return ''.join(message)
+    return message
 
   # Close the connection
   # BUG: Need Tcp 4-way close
@@ -400,11 +392,47 @@ class Connection:
 
 # Hook for controller to handle recv
 def register_recvmess(ip, port, callback):
+  """
+  <Purpose>
+    Provides a single point for setting up a listener.
+    Allows for easier debugging.  By putting a single print 
+    statement you can know whenever the code sets up a listener.
+
+  <Arguments>
+    Same as Repy's UDP recvmess.
+    
+  <Exceptions>
+    Same as Repy's UDP recvmess.
+    
+  <Side Effects>
+    Sets up UDP listener event.
+     
+  <Returns>
+    A handle to the listener event.
+  """
   return recvmess(ip, port, callback)
 
 
 # Hook for controller to handle send
 def register_sendmess(destip, destport, message, srcip = None, srcport = None):
+  """
+  <Purpose>
+    Provides a single outlet for tracking sent messages.
+    Allows for easier debugging.  By putting a single print 
+    statement you can output all messages that go out.
+
+  <Arguments>
+    Same as Repy's UDP sendmess.
+    
+  <Exceptions>
+    Same as Repy's UDP sendmess.
+    
+  <Side Effects>
+    None
+     
+  <Returns>
+    The bytes sent.
+  """
   if srcip is None:
     return sendmess(destip, destport, message)
   else:  

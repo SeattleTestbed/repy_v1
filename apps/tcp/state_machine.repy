@@ -55,6 +55,14 @@
                       TCP Connection State Diagram
                                Figure 6.
 """
+
+include client.repy
+include server.repy
+include packet.repy 
+
+# modulo arithmetic for seq_num bounds
+include utilities.repy
+
 # constants
 MSS = 1050 # bytes maximum payload    
 WINDOW_SIZE = 5 * MSS
@@ -351,6 +359,27 @@ class TcpStateMachine:
     
     return self.client.send(data, destip, destport, \
                         srcip, srcport, retries, timeout)
+
+
+  def recv(self, maxlen):
+    """
+    <Purpose>
+      
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    
+    return self.server.recv(maxlen)
 
 
 

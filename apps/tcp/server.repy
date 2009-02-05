@@ -37,7 +37,8 @@ class TcpServer:
     self.last_ack_sent = None # Begining of window
     self.last_seq_recv = None # BUG: Do we need this? What for?
 
-
+    # lock on buffer control
+    self.lock = getlock()
 
   # Throws exception if not a payload or no connection.
   # Then, if payload is next, fills buffer with payload.
@@ -67,6 +68,8 @@ class TcpServer:
       raise NotConnectedError("no client yet")
     if not packet.payload: # no data?
       return None
+
+    self.lock.acquire()
 
     # Is it the payload we want?
     if self.last_ack_sent == packet.seq_num:
@@ -102,7 +105,24 @@ class TcpServer:
       register_sendmess(ip, port, TcpPacket(port, packet.srcport, 0, self.last_ack_sent, "ACK", WINDOW_SIZE, \
                 "resending ack...").pack())
 
+    self.lock.release()
+
+  # Setup initial state
   def reset(self, start_num):
+    self.lock.acquire()
     self.last_ack_sent = start_num
     self.last_seq_recv = mod_sub(start_num, 1, MAX_SEQ_NUM)
+    self.lock.release()
+
+  # Finish off trickled down call to recv
+  def recv(self, maxLen):
+    self.lock.acquire()
+    message = self.buffer[0:maxLen]
+    
+    # remove from buffer
+    del self.buffer[0:maxLen]
+
+    self.lock.release()
+
+    return ''.join(message)
 
