@@ -1,0 +1,60 @@
+--==[ About ]==--
+This code is an implementation of TCP over Repy's native UDP.
+See the project wiki:
+ https://seattle.cs.washington.edu/wiki/TopSecret
+
+--==[ Testing ]==--
+To run the test suite do:
+ $ make
+
+To run an individual test use `make run FN=<testname>`.  
+For example, to run a test "unit_tests/z_test_me.py":
+ $ make run FN=z_test_me.py
+
+To remove all the built files:
+ $ make clean
+
+--==[ Manifest ]==--
+The code has the following layout:
+ 
+ Makefile
+        Runs test suite.
+
+ tcp.repy
+        Holds main interface class called Connection.
+
+ *.repy
+        Classes that tcp.repy depends on.
+
+ test/ 
+ 	This folder holds Repy, Repypp, and files needed
+        for them to run.  Used for building and running 
+        TCP tests.  Does not contain any TCP specific code.
+ 
+        restrictions.default
+		All tests run through Repy with this restrictions
+                file.
+     
+ unit_tests/
+        This folder contains TCP specific test files.  The
+        files include test helpers and actual test files.
+        
+        build.sh
+		Pre-processes test files in folder through Repypp.
+		Used by Makefile.
+
+        [ze]_test*.py
+        	TCP tests.  Need to be built by running Makefile.
+
+        evil_test.repy
+		Holds a fake Connection class called EvilConnection.
+ 		Allows you to test whether a connection is vulnerable
+		(malformed packets, random state changes, window overflow,
+ 		etc.)
+
+        stub_test.repy
+                Holds a fake Connection class called StubConnection.
+     		Allows you to test internals of a connection (number of
+  		packets sent, sequence number handling, retries, etc.)
+
+
