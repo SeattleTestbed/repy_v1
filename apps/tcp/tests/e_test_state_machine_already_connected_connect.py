@@ -6,11 +6,10 @@ if callfunc == 'initialize':
   MESSAGE = "hi"
   MAXLEN = 4096
 
-  socket = Connection()
-  socket.bind(IP, PORT)
+  socket = TcpStateMachine()
 
 def server():
-  socket.listen()
+  (ip, port) = socket.listen()
 
 if callfunc == 'initialize':
   # fork thread for server
@@ -18,11 +17,10 @@ if callfunc == 'initialize':
   sleep(.01)
   # raise already connected error
   try:
-    socket.connect(IP, PORT)
+    socket.connect(IP, PORT, IP, PORT)
   except AlreadyConnectedError:
     raise # great passes test
   else:
     print "should have raised already connected"
  
-  socket.disconnect()
   exitall()

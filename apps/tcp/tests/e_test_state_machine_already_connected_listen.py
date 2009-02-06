@@ -3,15 +3,12 @@ include tcp.repy
 if callfunc == 'initialize':
   IP = getmyip()
   PORT = 12345
-  MESSAGE = "hi"
-  MAXLEN = 4096
 
-  socket = Connection()
-  socket.bind(IP, PORT)
+  socket = TcpStateMachine()
 
 def server():
   # raise already connected
-  socket.connect(IP, PORT)
+  socket.connect(IP, PORT, IP, PORT)
 
 if callfunc == 'initialize':
   # fork thread for server
@@ -25,5 +22,4 @@ if callfunc == 'initialize':
   else:
     print "should have raise already connected"
 
-  socket.disconnect()
   exitall()
