@@ -69,12 +69,6 @@ WINDOW_SIZE = 5 * MSS
 MAX_SEQ_NUM = 2 ** 32 # 16 bits
 MAX_ACK_NUM = 2 ** 32 # 16 bits
 
-class UnknownStateError(Exception):
-  """This exception indicates our connection is in an unexpected state"""
-
-class AlreadyConnectedError(Exception):
-  """This exception indicates our connection is already initiated"""
-
 # Keeps track of our connection state.
 class TcpStateMachine:
   """

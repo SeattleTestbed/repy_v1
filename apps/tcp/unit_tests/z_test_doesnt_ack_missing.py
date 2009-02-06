@@ -21,7 +21,9 @@ if callfunc == 'initialize':
   stub.bind(IP, STUB_PORT)
 
   stub.connect(IP, PORT)
-  # shouldn't raise AssertionError
+
+  # shouldn't raise
+  sleep(.1)
   stub.assert_does_not_ack_missing()
 
   stub.disconnect()

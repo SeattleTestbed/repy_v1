@@ -45,20 +45,7 @@
 # state machine class
 include state_machine.repy
 
-##############################################################
-# Public Exceptions
-##############################################################
-
-class NotConnectedError(Exception):
-  """This exception indicates the executed action cannot take place without 
-     starting a connection"""
-
-class NotBoundError(Exception):
-  """This exception indicates the executed action cannot take place without 
-     binding to a local address"""
-
-class TimeoutError(Exception):
-  """This exception indicates that the peer is not responded in enough time"""
+include errors.repy
 
 
 ##############################################################

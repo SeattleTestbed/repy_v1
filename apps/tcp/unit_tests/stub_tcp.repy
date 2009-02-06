@@ -344,4 +344,5 @@ class StubConnection:
     # wait a little to make sure
     sleep(self.TIMEOUT * self.RETRIES)
 
-    assert self.last_packet.ack_num == 2
+    if self.last_packet.ack_num != 2:
+      raise Exception(str(self.last_packet.ack_num) + " != 2")
