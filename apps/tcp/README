@@ -7,6 +7,10 @@ See the project wiki:
 To run the test suite do:
  $ make
 
+To run all the test of a given class use `make CN=<testname>`.  
+For example, to run class tests of "client":
+ $ make CN=client
+
 To run an individual test use `make run FN=<testname>`.  
 For example, to run a test "unit_tests/z_test_me.py":
  $ make run FN=z_test_me.py
@@ -26,19 +30,13 @@ The code has the following layout:
  *.repy
         Classes that tcp.repy depends on.
 
- test/ 
- 	This folder holds Repy, Repypp, and files needed
-        for them to run.  Used for building and running 
-        TCP tests.  Does not contain any TCP specific code.
- 
-        restrictions.default
-		All tests run through Repy with this restrictions
-                file.
-     
- unit_tests/
+ tests/ 
         This folder contains TCP specific test files.  The
         files include test helpers and actual test files.
         
+	*.txt
+		Input files to test sending large amounts of data.
+
         build.sh
 		Pre-processes test files in folder through Repypp.
 		Used by Makefile.
@@ -52,6 +50,13 @@ The code has the following layout:
 		(malformed packets, random state changes, window overflow,
  		etc.)
 
+	run_tests.py
+		Seattle's test runner slightly modified.
+
+        restrictions.default
+		All tests run through Repy with this restrictions
+                file.
+     
         stub_test.repy
                 Holds a fake Connection class called StubConnection.
      		Allows you to test internals of a connection (number of

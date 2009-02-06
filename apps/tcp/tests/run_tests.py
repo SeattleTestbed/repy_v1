@@ -77,7 +77,7 @@ import subprocess
 import os
 import sys
 
-import testportfiller
+# import testportfiller
 
 
 # what we print at the end...
@@ -340,7 +340,7 @@ failcount=0
 # Have the testportfiller fill in all of the messport/connport
 # tags with default values so that the tests can be successfully
 # run locally. - Brent
-testportfiller.main()
+# testportfiller.main()
 
 # for each test... run it!
 # if the -n flag is specified, only run node manager tests
