@@ -41,8 +41,11 @@ The code has the following layout:
 		Pre-processes test files in folder through Repypp.
 		Used by Makefile.
 
-        [ze]_test*.py
+        [ze]_test_<classname>*.py
         	TCP tests.  Need to be built by running Makefile.
+		Organized by classname.  So z_test_client*.py includes
+		all tests of the class Client() found in the file
+		client.repy.
 
         evil_test.repy
 		Holds a fake Connection class called EvilConnection.
