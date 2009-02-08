@@ -8,16 +8,12 @@
 #	make clean - delete built tests and test output
 TESTDIR=tmp_test_dir
 TESTS_SRC_DIR=tests
+FN=[zne]_test_*
 
 # Builds tests first. Then,
 # Run seattle's test script.
 test: build
 	cd ${TESTDIR} && python run_tests.py
-
-# Runs a single test
-# Takes FN as arg, ex. `make run FN=z_test_me.py`
-run: build
-	cd ${TESTDIR} && python repy.py restrictions.default ${FN}
 
 clean: 
 	rm -rf ${TESTDIR}
@@ -25,10 +21,16 @@ clean:
 
 #### Private ####
 # Builds all test files
-# Takes CN as arg, ex. `make run CN=controller` to only build a certain class
+# Takes FN as arg, ex. `make FN=*controller*` to build all files with glob.
 build:
-	cd ${TESTS_SRC_DIR} && ./build.sh ${TESTDIR} ${CN}
+	cd ${TESTS_SRC_DIR} && ./build.sh ${TESTDIR} "${FN}"
 	cp ${TESTS_SRC_DIR}/*.txt ${TESTDIR}
 	cp ${TESTS_SRC_DIR}/restrictions.* ${TESTDIR}
 	cp ${TESTS_SRC_DIR}/run_tests.py ${TESTDIR}
 	cp ../../*.py ${TESTDIR}
+
+##### Deprecated ###
+# Use make FN=<filename> instead
+run: build
+	cd ${TESTDIR} && python repy.py restrictions.default ${FN}
+
