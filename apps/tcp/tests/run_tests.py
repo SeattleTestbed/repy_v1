@@ -352,7 +352,8 @@ else:
   	  glob.glob("rz_*.py") + glob.glob("rb_*.py") + glob.glob("ru_*.py") + \
 	  glob.glob("re_*.py") + glob.glob("rl_*.py") +glob.glob("s_*.py") + \
 	  glob.glob("n_*.py") + glob.glob("z_*.py") + glob.glob("b_*.py") + \
-	  glob.glob("u_*.py") + glob.glob("e_*.py") + glob.glob("l_*.py"):
+	  glob.glob("u_*.py") + glob.glob("e_*.py") + glob.glob("l_*.py") + \
+	  glob.glob("e_*.repy") + glob.glob("z_*.repy"):
     run_test(testfile)
 
 #  do_oddballtests()
