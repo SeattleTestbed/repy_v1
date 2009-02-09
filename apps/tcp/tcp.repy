@@ -122,11 +122,16 @@ class Connection:
     self.localport = None
     self.remoteip = None
     self.remoteport = None
+    self.conn = None
 
     # Let's put all the protocol details in a state machine
     self.state_machine = TcpStateMachine()
 
-    self.lock = getlock()
+    # need locks for race conditions
+    self.lock = getlock()  # general
+    self.send_lock = getlock() # just send
+    self.recv_lock = getlock() # just recv
+
 
   # Attach to an address
   def bind(self, localip, localport):
@@ -152,9 +157,15 @@ class Connection:
     <Returns>
       Nothing
     """
+    self.lock.acquire()
+    if self.conn:
+      self.lock.release()
+      raise AlreadyConnectedError("cannot rebind an active connection")
+    
     # I am:
     self.localip = localip
     self.localport = localport
+    self.lock.release()
 
   # Setup a udp callback    
   def listen(self):
@@ -179,12 +190,15 @@ class Connection:
       Nothing
     """
 
+    self.lock.acquire()
     if not self.localip or not self.localport:
+      self.lock.release()
       raise NotBoundError("need to bind before listening")
 
     self.conn = self.register_recvmess(self.localip, self.localport, self.callback)
     # block until syn request
     (self.remoteip, self.remoteport) = self.state_machine.listen() 
+    self.lock.release()
 
   # continue handshake
   def accept(self):
@@ -209,10 +223,13 @@ class Connection:
     <Returns>
       Nothing
     """
+    self.lock.acquire()
     if self.conn == None:
+      self.lock.release()
       raise NotConnectedError("cannot accept without a request")
 
     self.state_machine.accept(self.remoteip, self.remoteport, self.localip, self.localport)
+    self.lock.release()
 
   # Request connection.
   def connect(self, remoteip, remoteport):
@@ -241,6 +258,7 @@ class Connection:
     <Returns>
       Nothing
     """
+    self.lock.acquire()
     if not self.localip or not self.localport:
       raise NotBoundError("need to bind before connecting")
 
@@ -253,6 +271,7 @@ class Connection:
 
     self.state_machine.connect(remoteip, remoteport, \
 		self.localip, self.localport) # block until syn recv
+    self.lock.release()
 
   # Sends via client the data in packets to the server. 
   # Throws exception on timeout.
@@ -278,13 +297,17 @@ class Connection:
       dropped packets.
     """
 
+    self.send_lock.acquire()
     if self.conn == None:
+      self.send_lock.release()
       raise NotConnectedError("cannot send data without a receiver")
    
     # send them
-    return self.state_machine.send(data, self.remoteip, self.remoteport, \
+    bytes = self.state_machine.send(data, self.remoteip, self.remoteport, \
 					self.localip, self.localport, \
 					self.retries, self.timeout)
+    self.send_lock.release()
+    return bytes
 
   # Throws an exception when no connection
   # Returns a buffer filled with data. 
@@ -308,8 +331,10 @@ class Connection:
     <Returns>
       The maxLen bytes.
     """
+    self.recv_lock.acquire()
 
     if self.conn == None:
+      self.recv_lock.release()
       raise NotConnectedError("cannot recv data without listening")
   
     message = self.state_machine.recv(maxLen)
@@ -319,6 +344,7 @@ class Connection:
       sleep(self.timeout)
       message = self.state_machine.recv(maxLen)
 
+    self.recv_lock.release()
     return message
 
   # Close the connection
@@ -341,10 +367,20 @@ class Connection:
       Nothing
     """
 
+    self.lock.acquire()
+    self.send_lock.acquire()
+    self.recv_lock.acquire()
     if self.conn == None:
+      self.recv_lock.release()
+      self.send_lock.release()
+      self.lock.release()
       raise NotConnectedError("cannot disconnect without connection")
     stopcomm(self.conn)
     self.conn = None
+    self.recv_lock.release()
+    self.send_lock.release()
+    self.lock.release()
+
 
   # hook for controller to intercept event calls
   def callback(self, ip, port, mess, ch):
@@ -370,9 +406,7 @@ class Connection:
       Nothing
     """
     # print "recving: " + mess + " at: " + str(ip) + ":" + str(port) # DEBUG
-    self.lock.acquire()
     self.state_machine.next(ip, mess, ch)
-    self.lock.release()
 
 
   # Hook for controller to handle recv

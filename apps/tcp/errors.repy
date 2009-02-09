@@ -18,3 +18,9 @@ class UnknownStateError(Exception):
 
 class AlreadyConnectedError(Exception):
   """This exception indicates our connection is already initiated"""   
+
+class NotEstablishedError(Exception):
+  """This exception indicates our connection is already established"""   
+
+class NotRequestedError(Exception):
+  """This exception indicates a connection has not been requested"""

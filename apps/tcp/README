@@ -9,11 +9,11 @@ To run the test suite do:
 
 To run a subset of the tests use `make FN=<glob_expression>`.  
 For example:
- $ # run only the test "z_test_me.py"
- $ make FN=z_test_me.py
+ $ # run only the test "z_test_me.repy"
+ $ make FN=z_test_me.repy
 Or:
- $ # run all tests of the class "connection"
- $ make FN=*connection*.py
+ $ # run all z tests of the class "connection"
+ $ make FN=z_test_connection*
 
 To remove all the built files:
  $ make clean
@@ -21,14 +21,11 @@ To remove all the built files:
 --==[ Manifest ]==--
 The code has the following layout:
  
+ *.repy
+        Classes.
+
  Makefile
         Runs test suite.
-
- tcp.repy
-        Holds main interface class called Connection.
-
- *.repy
-        Classes that tcp.repy depends on.
 
  tests/ 
         This folder contains TCP specific test files.  The
@@ -41,28 +38,22 @@ The code has the following layout:
 		Pre-processes test files in folder through Repypp.
 		Used by Makefile.
 
-        [ze]_test_<classname>*.py
+        [ez]_test_*.py
         	TCP tests.  Need to be built by running Makefile.
-		Organized by classname.  So z_test_client*.py includes
-		all tests of the class Client() found in the file
-		client.repy.
-
-        evil_tcp.repy
-		Holds a fake Connection class called EvilConnection.
- 		Allows you to test whether a connection is vulnerable
-		(malformed packets, random state changes, window overflow,
- 		etc.)
-
-	run_tests.py
-		Seattle's test runner slightly modified.
 
         restrictions.default
 		All tests run through Repy with this restrictions
                 file.
+
+	run_tests.py
+		Seattle's test runner slightly modified.
      
-        stub_tcp.repy
-                Holds a fake Connection class called StubConnection.
-     		Allows you to test internals of a connection (number of
-  		packets sent, sequence number handling, retries, etc.)
+--==[ Unit test files ]==--
+Unit test files may be in the format '''z_test_<classname>_<function_name>.repy'''.  These unit
+test files just test a single class function.  For example, a unit test file of Connection.bind would be in the file '''z_test_connection_bind.repy'''.  Each such unit 
+test file contains test functions. Each test function tests a condition (ex. if branch) of a class function.
 
-
+--==[ Functional test files ]==--
+A functional test file may exist for a class.  A functional test file tests how the different functions in a single class interact.  Name a functional test file like 
+'''z_test_<classname>.repy'''.  For example, a functional test file of Connection would be in the file '''z_test_connection.repy'''.  A functional test file contains test 
+functions.  Each test function calls multiple related class functions and makes sure they interact correctly.

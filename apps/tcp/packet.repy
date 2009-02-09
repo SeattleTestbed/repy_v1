@@ -188,12 +188,28 @@ class TcpPacket:
                                 self.window, self.payload)
 
 
-
-
+  def copy(self):
+    """
+    <Purpose>
+      Copy constructor
+    
+    <Arguments>
+      
+    
+    <Exceptions>
+      
+    
+    <Side Effects>
+      
+     
+    <Returns>
+      
+    """
+    return unpack(self.pack())
 
 
 ##############################################################
-# Other Private Methods
+# Private Methods
 ##############################################################
 
 # Unpack a tcp message into parts
