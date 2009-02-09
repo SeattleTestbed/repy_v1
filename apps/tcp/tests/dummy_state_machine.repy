@@ -23,6 +23,6 @@ class TcpStateMachine:
   def listen(*args): return (True, True)
   def connect(*args): pass
   def accept(*args): pass
-  def send(*args): pass
-  def recv(*args): pass
+  def send(*args): return 10
+  def recv(*args): return "hi"
   def close(*args): pass

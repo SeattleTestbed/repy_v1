@@ -1,0 +1,52 @@
+"""
+<Program Name>
+  z_test_connection_disconnect.repy
+
+<Started>
+  February 9, 2009
+
+<Author>
+  Richard Jordan
+
+<Purpose>
+  To test that Connection.disconnect() function works.
+
+  Passes quietly
+"""
+include tcp.repy
+
+if callfunc == "initialize":
+  IP = getmyip()
+  PORT = 12345
+
+def test_disconnect():
+  conn = Connection()
+  conn.conn = True
+  conn.disconnect()
+  assert not conn.conn
+
+def test_disconnect_not_connected():
+  conn = Connection()
+  try:
+    conn.disconnect()
+  except NotConnectedError:
+    pass
+  else:
+    raise Exception("should have raised error")
+
+####################
+# Test Helper Functions
+####################
+
+def main():
+  # setup
+  
+  # Run tests
+  test_disconnect()
+  test_disconnect_not_connected()
+
+  # teardown
+  exitall()
+
+if callfunc == 'initialize':
+  main()

@@ -330,9 +330,17 @@ class Connection:
     """
 
     self.send_lock.acquire()
+    if not self.localip or not self.localport:
+      self.send_lock.release()
+      raise NotBoundError("cannot send data without binding")
+
     if self.conn == None:
       self.send_lock.release()
       raise NotConnectedError("cannot send data without a receiver")
+
+    if not self.remoteip or not self.remoteport:
+      self.send_lock.release()
+      raise NotEstablishedError("cannot send data without accepting")
    
     # send them
     bytes = self.state_machine.send(data, self.remoteip, self.remoteport, \
@@ -365,9 +373,17 @@ class Connection:
     """
     self.recv_lock.acquire()
 
+    if not self.localip or not self.localport:
+      self.recv_lock.release()
+      raise NotBoundError("cannot recv data without binding, listening, and accepting")
+
     if self.conn == None:
       self.recv_lock.release()
-      raise NotConnectedError("cannot recv data without listening")
+      raise NotConnectedError("cannot recv data without listening and accepting")
+
+    if not self.remoteip or not self.remoteport:
+      self.recv_lock.release()
+      raise NotEstablishedError("cannot recv data without accepting")
   
     message = self.state_machine.recv(maxLen)
     
@@ -400,19 +416,16 @@ class Connection:
     """
 
     self.lock.acquire()
-    self.send_lock.acquire()
-    self.recv_lock.acquire()
     if self.conn == None:
-      self.recv_lock.release()
-      self.send_lock.release()
       self.lock.release()
       raise NotConnectedError("cannot disconnect without connection")
     stopcomm(self.conn)
     self.conn = None
-    self.recv_lock.release()
-    self.send_lock.release()
     self.lock.release()
 
+  ##############################################################
+  # Private Methods
+  ##############################################################
 
   # hook for controller to intercept event calls
   def callback(self, ip, port, mess, ch):
