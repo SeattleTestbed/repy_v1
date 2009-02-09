@@ -87,7 +87,8 @@ class TcpClient:
         # give up
         if times_sent > retries:
           self.sleep_lock.release()
-          raise TimeoutError("tried %d times" % times_sent)
+          raise Exception("tried %d times" % times_sent)
+#          raise TimeoutError("tried %d times" % times_sent)
 
         self.lock.acquire()
         # Send or Re-send all those in cache

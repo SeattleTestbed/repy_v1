@@ -437,7 +437,7 @@ class Connection:
     <Returns>
       Nothing
     """
-    print "recving: " + mess + " at: " + str(ip) + ":" + str(port) # DEBUG
+    #print "recving: " + mess + " at: " + str(ip) + ":" + str(port) # DEBUG
     self.state_machine.next(ip, mess, ch)
 
 
