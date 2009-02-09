@@ -194,7 +194,7 @@ def exec_repy_script(filename, restrictionsfile, arguments):
       
     repy_path =  "\"" + repy_constants.PATH_SEATTLE_INSTALL + "repy.py" + "\""
     cmd = "--logfile execlog.out " + arguments + " --cwd \""+ repy_constants.PATH_SEATTLE_INSTALL + "\" " + restrictionsfile + " \"" + repy_constants.PATH_SEATTLE_INSTALL + filename + "\""
-    print cmd
+    #print cmd
     childpid = windowsAPI.launchPythonScript(repy_path, cmd)
     
     # Wait for Child to finish execution
@@ -446,7 +446,6 @@ if len(sys.argv) > 1 and sys.argv[1] == '-q':
 else:
   logstream = sys.stdout
 
-print "1, Current Dir: ", os.getcwd()  
 # If boolean is true, then unit test output will be
 # captured and stored
 captureOutput = False
@@ -472,7 +471,6 @@ if (len(sys.argv) > 1 and sys.argv[1] == '-n') or (len(sys.argv) > 2 and sys.arg
   for testfile in glob.glob("nmtest*.py"):
     run_test(testfile)
 else:
-  print "Current Dir: ", os.getcwd()
   for testfile in glob.glob("rs_*.py") + glob.glob("rn_*.py") + \
   	  glob.glob("rz_*.py") + glob.glob("rb_*.py") + glob.glob("ru_*.py") + \
 	  glob.glob("re_*.py") + glob.glob("rl_*.py") +glob.glob("s_*.py") + \
@@ -482,12 +480,8 @@ else:
     
   do_oddballtests()
 
-print "Done running"
 print >> logstream, passcount,"tests passed,",failcount,"tests failed"
 
 # only print if there is something to print
 if endput:
   print endput
-
-#print "Quiting"
-#time.sleep(120)
