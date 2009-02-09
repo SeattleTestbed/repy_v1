@@ -1,0 +1,72 @@
+"""
+<Program Name>
+  z_test_connection_listen.repy
+
+<Started>
+  February 9, 2009
+
+<Author>
+  Richard Jordan
+
+<Purpose>
+  To test that Connection.listen() function works.
+
+  Passes quietly
+"""
+include tcp.repy
+include dummy_state_machine.repy
+
+if callfunc == "initialize":
+  IP = getmyip()
+  PORT = 12345
+
+def test_listen():
+  conn = Connection()
+  conn.localip = IP
+  conn.localport = PORT
+  (ip, port) = conn.listen()
+  assert conn.conn
+  stopcomm(conn.conn)
+  assert conn.remoteip
+  assert conn.remoteport
+  assert conn.remoteip == ip
+  assert conn.remoteport == port
+  
+def test_listen_not_bound():
+  conn = Connection()
+  try:
+    conn.listen()
+  except NotBoundError:
+    pass
+  else:
+    raise Exception("should raise not bound error")
+
+def test_listen_already_connected():
+  conn = Connection()
+  conn.localip = IP
+  conn.localport = PORT
+  conn.conn = True
+  try:
+    conn.listen()
+  except AlreadyConnectedError:
+    pass
+  else:
+    raise Exception("should raise already connected")
+
+####################
+# Test Helper Functions
+####################
+
+def main():
+  # setup
+  
+  # Run tests
+  test_listen()
+  test_listen_not_bound()
+  test_listen_already_connected()
+
+  # teardown
+  exitall()
+
+if callfunc == 'initialize':
+  main()

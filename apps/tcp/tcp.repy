@@ -149,7 +149,7 @@ class Connection:
              this port as a messport.
 
     <Exceptions>
-      None
+      AlreadyConnectedError if the connection is active.
 
     <Side Effects>
       None
@@ -182,12 +182,13 @@ class Connection:
       NotBoundError if bind() is not yet called.
       TimeoutError if no request comes in default
         timeout times retries seconds.
+      AlreadyConnectedError if the connection is active.
 
     <Side Effects>
       Sets up a UDP callback.
 
     <Returns>
-      Nothing
+      Tuple address(ip, port) of remote party.
     """
 
     self.lock.acquire()
@@ -195,10 +196,15 @@ class Connection:
       self.lock.release()
       raise NotBoundError("need to bind before listening")
 
+    if self.conn:
+      self.lock.release()
+      raise AlreadyConnectedError("cannot listen with an active connection")
+
     self.conn = self.register_recvmess(self.localip, self.localport, self.callback)
     # block until syn request
     (self.remoteip, self.remoteport) = self.state_machine.listen() 
     self.lock.release()
+    return (self.remoteip, self.remoteport)
 
   # continue handshake
   def accept(self):
