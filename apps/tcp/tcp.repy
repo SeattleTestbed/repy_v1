@@ -54,7 +54,7 @@ include errors.repy
 
 DEFAULT_MAXDGRAMSIZE = 1050 # MSS
 DEFAULT_RETRIES = 4 # listen times for ack
-DEFAULT_TIMEOUT = .1 # seconds to wait
+DEFAULT_TIMEOUT = .01 # seconds to wait
 
 ##############################################################
 # Public Interface
@@ -123,6 +123,10 @@ class Connection:
     self.remoteip = None
     self.remoteport = None
     self.conn = None
+
+    # temporary for listen - accept transition
+    self.requestip = None
+    self.requestport = None
 
     # Let's put all the protocol details in a state machine
     self.state_machine = TcpStateMachine()
@@ -202,9 +206,9 @@ class Connection:
 
     self.conn = self.register_recvmess(self.localip, self.localport, self.callback)
     # block until syn request
-    (self.remoteip, self.remoteport) = self.state_machine.listen() 
+    (self.requestip, self.requestport) = self.state_machine.listen() 
     self.lock.release()
-    return (self.remoteip, self.remoteport)
+    return (self.requestip, self.requestport)
 
   # continue handshake
   def accept(self):
@@ -230,11 +234,27 @@ class Connection:
       Nothing
     """
     self.lock.acquire()
+    if not self.localip or not self.localport:
+      self.lock.release()
+      raise NotBoundError("need to bind and listen before accepting")
+
     if self.conn == None:
       self.lock.release()
-      raise NotConnectedError("cannot accept without a request")
+      raise NotConnectedError("cannot accept without a connection")
 
-    self.state_machine.accept(self.remoteip, self.remoteport, self.localip, self.localport)
+    if self.remoteip and self.remoteport:
+      self.lock.release()
+      raise AlreadyConnectedError("cannot accept when already connected")
+
+    if not self.requestip or not self.requestport:
+      self.lock.release()
+      raise NotRequestedError("cannot accept without a request")
+
+    self.state_machine.accept(self.requestip, self.requestport, self.localip, self.localport)
+    self.remoteip = self.requestip
+    self.remoteport = self.requestport
+    self.requestip = None
+    self.requestport = None
     self.lock.release()
 
   # Request connection.
@@ -257,6 +277,7 @@ class Connection:
       NotBoundError if bind() is not yet called.
       TimeoutError if the remote host does not respond in default
         timeout times retries seconds.
+      AlreadyConnectedError if the connection is active.
 
     <Side Effects>
       Sets up a UDP callback.
@@ -266,7 +287,12 @@ class Connection:
     """
     self.lock.acquire()
     if not self.localip or not self.localport:
+      self.lock.release()
       raise NotBoundError("need to bind before connecting")
+
+    if self.conn:
+      self.lock.release()
+      raise AlreadyConnectedError("cannot connect on an active connection")
 
     # Peer is:
     self.remoteip = remoteip
@@ -411,7 +437,7 @@ class Connection:
     <Returns>
       Nothing
     """
-    # print "recving: " + mess + " at: " + str(ip) + ":" + str(port) # DEBUG
+    print "recving: " + mess + " at: " + str(ip) + ":" + str(port) # DEBUG
     self.state_machine.next(ip, mess, ch)
 
 

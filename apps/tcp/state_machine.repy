@@ -59,6 +59,7 @@
 include client.repy
 include server.repy
 include packet.repy 
+include errors.repy
 
 # modulo arithmetic for seq_num bounds
 include utilities.repy
@@ -124,7 +125,7 @@ class TcpStateMachine:
     self.sleep_timer = None
 
     # timeout for handshakes
-    self.HANDSHAKE_TIMEOUT = DEFAULT_RETRIES * DEFAULT_TIMEOUT
+    self.HANDSHAKE_TIMEOUT = DEFAULT_TIMEOUT * DEFAULT_RETRIES
     
   # Callback for received packets
   def next(self, ip, mess, ch):
@@ -238,7 +239,6 @@ class TcpStateMachine:
       raise UnknownStateError("undefined state")
     
     self.lock.release()
-
 
   # Part of handshake: Step 2
   # Block until a SYN comes.  Then, return.
@@ -360,12 +360,13 @@ class TcpStateMachine:
     while self.state == self.STATE_SYN_SENT and retries > 0:
       self.sleep_lock.acquire()
       register_sendmess(destip, destport, handShakePack)
-      retries -= 1
+      retries -= 1 
       self.goto_sleep(self.HANDSHAKE_TIMEOUT)
  
     if self.state == self.STATE_SYN_SENT:
-      raise TimeoutError("timed out waiting to connect")
-  
+      raise Exception("timed out waiting to connect") 
+#      raise TimeoutError("timed out waiting to connect") 
+   
     # loopback, we need to wait for SYN-SYN-ACK
     if self.state == self.STATE_SYN_RCVD:
       tcpAck = TcpPacket(srcport, destport, 0, start_num, "ACK", 0, "acking syn ...").pack()
