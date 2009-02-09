@@ -54,7 +54,7 @@ include errors.repy
 
 DEFAULT_MAXDGRAMSIZE = 1050 # MSS
 DEFAULT_RETRIES = 4 # listen times for ack
-DEFAULT_TIMEOUT = .01 # seconds to wait
+DEFAULT_TIMEOUT = .1 # seconds to wait
 
 ##############################################################
 # Public Interface
