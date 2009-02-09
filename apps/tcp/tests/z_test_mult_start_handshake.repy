@@ -24,6 +24,15 @@
 
 
 include tcp.repy
+include packet.repy
+
+
+def listenForSYN(remoteIP, remoteport, message, commhandle):
+  packet = unpack(message)
+  if(is_syn(packet)):
+    mycontext['numberOfSYNs'] += 1
+
+
 
 if callfunc == 'initialize':
   IP = '127.0.0.1' #  getmyip()
@@ -50,10 +59,4 @@ if callfunc == 'initialize':
   socket.disconnect()
   exitall()
 
-
-
-def listenForSYN(remoteIP, remoteport, message, commhandle):
-  packet = unpack(message)
-  if(is_syn(packet)):
-    mycontext['numberOfSYNs'] += 1
   

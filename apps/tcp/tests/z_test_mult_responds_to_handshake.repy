@@ -22,6 +22,17 @@
 
 include tcp.repy
 
+
+def listenForSYNAck(remoteIP, remoteport, message, commhandle):
+  packet = unpack(message)
+  if(is_synack(packet)):
+    mycontext['numberOfSYNAcks'] += 1
+  
+
+def server():
+  socket.listen()
+
+
 if callfunc == 'initialize':
   IP = '127.0.0.1' #  getmyip()
   PORT = 12345
@@ -36,21 +47,14 @@ if callfunc == 'initialize':
 
   recvmess(IP, PORT, listenForSYNAck)
 
-  socket.listen()
-
-  sendmess(IP, SECOND_PORT, packetSYN)
-
-  sleep(DEFAULT_TIMEOUT * DEFAULT_RETRIES + .01)
-
-  if (mycontext['numberOfSYNs'] < 2):
+  try:
+    # fork thread for server
+    settimer(0, server, ())
+    sendmess(IP, SECOND_PORT, packetSYN, IP, PORT)
+  except TimeoutError:
+    if (mycontext['numberOfSYNAcks'] < 2):
       raise Exception("SYNAck was not resent after a SYN was recieved.")
 
-  socket.disconnect()
   exitall()
 
 
-
-def listenForSYNAck(remoteIP, remoteport, message, commhandle):
-  packet = unpack(message)
-  if(is_synack(packet)):
-    mycontext['numberOfSYNAcks'] += 1

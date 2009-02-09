@@ -21,6 +21,17 @@
 
 include tcp.repy
 
+
+def listenForSYNAndACK(remoteIP, remoteport, message, commhandle):
+  packet = unpack(message)
+  if(is_synack(packet)):
+    packetSYNAck = TcpPacket(remoteIP, mycontext['PORT'], 1, 0, "SYNACK", WINDOW_SIZE, "synacking...").pack()
+    sendmess(remoteIP, mycontext['PORT'], packetSYNAck, IP, SECOND_PORT)
+  elif(is_ack(packet)):
+    mycontext['receivedACK'] = True
+
+
+
 if callfunc == 'initialize':
   IP = '127.0.0.1' #  getmyip()
   mycontext['PORT'] = 12345
@@ -29,26 +40,18 @@ if callfunc == 'initialize':
   mycontext['receivedACK'] = False
 
   socket = Connection()
-  socket.bind(IP, PORT)
+  socket.bind(IP, mycontext['PORT'])
 
-  recvmess(IP, SECOND_PORT, listenForSYN)
+  recvmess(IP, SECOND_PORT, listenForSYNAndACK)
 
   socket.connect(IP, SECOND_PORT)
 
   sleep(DEFAULT_TIMEOUT * 3)
 
-  if (!mycontext['receivedACK']):
+  if (mycontext['receivedACK'] != True):
       raise Exception("Ack was not sent after a SYNAck was recieved.")
 
   socket.disconnect()
   exitall()
 
 
-
-def listenForSYNAndACK(remoteIP, remoteport, message, commhandle):
-  packet = unpack(message)
-  if(is_synack(packet)):
-    packetSYNAck = TcpPacket(remoteIP, mycontext['PORT'], 1, 0, "SYNACK", WINDOW_SIZE, "synacking...").pack()
-    sendmess(remoteIP, mycontext['PORT'], packetSYNAck)
-  elif(is_ack(packet)):
-    mycontext['receivedACK'] = True
