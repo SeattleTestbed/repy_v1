@@ -243,6 +243,9 @@ def do_actual_test(testtype, restrictionfn, testname):
   # any out, no err...
   elif testtype == 'n':
     (testout, testerr) = exec_repy_script(testname, restrictionfn, "--status foo")
+    
+    capture_test_result(testname, testout, testerr, ".repy")
+    
     if (not mobileNoSubprocess) and testout != '' and testerr == '':
       return True
     elif mobileNoSubprocess and testout != '' and testout.find('Traceback') == -1:
@@ -254,6 +257,9 @@ def do_actual_test(testtype, restrictionfn, testname):
   # any err, no out...
   elif testtype == 'e':
     (testout, testerr) = exec_repy_script(testname, restrictionfn, '--status foo')
+    
+    capture_test_result(testname, testout, testerr, ".repy")
+    
     if (not mobileNoSubprocess) and testout == '' and testerr != '':
       return True
     elif mobileNoSubprocess and testout.find('Traceback') != -1:
@@ -265,6 +271,9 @@ def do_actual_test(testtype, restrictionfn, testname):
   # no err, no out...
   elif testtype == 'z':
     (testout, testerr) = exec_repy_script(testname, restrictionfn, '--status foo')
+    
+    capture_test_result(testname, testout, testerr, ".repy")
+    
     if testout == '' and testerr == '':
       return True
     else:
@@ -274,6 +283,9 @@ def do_actual_test(testtype, restrictionfn, testname):
   # any err, any out...
   elif testtype == 'b':
     (testout, testerr) = exec_repy_script(testname, restrictionfn, '--status foo')
+    
+    capture_test_result(testname, testout, testerr, ".repy")
+    
     if (not mobileNoSubprocess) and testout != '' and testerr != '':
       return True
     elif mobileNoSubprocess and testout.find('Traceback') != -1:
@@ -296,6 +308,8 @@ def do_actual_test(testtype, restrictionfn, testname):
       (testout, testerr) = exec_command('python repy.py --logfile experiment.log --status foo '+restrictionfn+" "+testname)
     else:
       (testout, testerr) = exec_repy_script(testname, restrictionfn, "--status foo")
+      
+    capture_test_result(testname, testout, testerr, ".repy")
 
     # first, check to make sure there was no output or error
     if mobileNoSubprocess or (testout == '' and testerr == ''):
@@ -404,7 +418,7 @@ def setup_test_capture():
     
   #set working directory to the test folder
   os.chdir(captureDir)	
-  files_to_remove = glob.glob("*")
+  files_to_remove = glob.glob("*.out") + glob.glob("*.err")
 
   #clean the test folder
   for f in files_to_remove: 
