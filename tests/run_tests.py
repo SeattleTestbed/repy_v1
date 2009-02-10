@@ -256,7 +256,7 @@ def do_actual_test(testtype, restrictionfn, testname):
     (testout, testerr) = exec_repy_script(testname, restrictionfn, '--status foo')
     if (not mobileNoSubprocess) and testout == '' and testerr != '':
       return True
-    elif mobileNoSubprocess and testout.find('Traceback') == -1:
+    elif mobileNoSubprocess and testout.find('Traceback') != -1:
       return True
     else:
       endput = endput+testname+"\nout:"+testout+"err:"+ testerr+"\n\n"
@@ -276,7 +276,7 @@ def do_actual_test(testtype, restrictionfn, testname):
     (testout, testerr) = exec_repy_script(testname, restrictionfn, '--status foo')
     if (not mobileNoSubprocess) and testout != '' and testerr != '':
       return True
-    elif mobileNoSubprocess and testout.find('Traceback') == -1:
+    elif mobileNoSubprocess and testout.find('Traceback') != -1:
       return True
     else:
       endput = endput+testname+"\nout:"+testout+"err:"+ testerr+"\n\n"
