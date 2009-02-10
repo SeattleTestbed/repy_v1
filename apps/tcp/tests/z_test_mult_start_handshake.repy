@@ -29,7 +29,7 @@ include packet.repy
 
 def listenForSYN(remoteIP, remoteport, message, commhandle):
   packet = unpack(message)
-  if(is_syn(packet)):
+  if(packet.is_syn()):
     mycontext['numberOfSYNs'] += 1
 
 
@@ -53,7 +53,7 @@ if callfunc == 'initialize':
     sleep(.01)
     if (mycontext['numberOfSYNs'] < DEFAULT_RETRIES):
       raise Exception("SYN should have been resent " + str(DEFAULT_RETRIES) + " times.")
-  else:
+  except:
     raise Exception("should have raised timeout. Multiple SYNs not sent.")
 
   socket.disconnect()

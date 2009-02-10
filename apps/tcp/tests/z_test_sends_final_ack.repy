@@ -24,10 +24,10 @@ include tcp.repy
 
 def listenForSYNAndACK(remoteIP, remoteport, message, commhandle):
   packet = unpack(message)
-  if(is_synack(packet)):
-    packetSYNAck = TcpPacket(remoteIP, mycontext['PORT'], 1, 0, "SYNACK", WINDOW_SIZE, "synacking...").pack()
-    sendmess(remoteIP, mycontext['PORT'], packetSYNAck, IP, SECOND_PORT)
-  elif(is_ack(packet)):
+  if(packet.is_syn()):
+    packetSYNAck = TcpPacket(mycontext['SECOND_PORT'], mycontext['PORT'], 1, 0, "SYNACK", WINDOW_SIZE, "synacking...").pack()
+    sendmess(remoteIP, mycontext['PORT'], packetSYNAck, IP, mycontext['SECOND_PORT'])
+  elif(packet.is_ack()):
     mycontext['receivedACK'] = True
 
 
@@ -35,16 +35,16 @@ def listenForSYNAndACK(remoteIP, remoteport, message, commhandle):
 if callfunc == 'initialize':
   IP = '127.0.0.1' #  getmyip()
   mycontext['PORT'] = 12345
-  SECOND_PORT = 12346
+  mycontext['SECOND_PORT'] = 12346
 
   mycontext['receivedACK'] = False
 
   socket = Connection()
   socket.bind(IP, mycontext['PORT'])
 
-  recvmess(IP, SECOND_PORT, listenForSYNAndACK)
+  recvmess(IP, mycontext['SECOND_PORT'], listenForSYNAndACK)
 
-  socket.connect(IP, SECOND_PORT)
+  socket.connect(IP, mycontext['SECOND_PORT'])
 
   sleep(DEFAULT_TIMEOUT * 3)
 
