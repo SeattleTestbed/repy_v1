@@ -364,8 +364,8 @@ class TcpStateMachine:
       self.goto_sleep(self.HANDSHAKE_TIMEOUT)
  
     if self.state == self.STATE_SYN_SENT:
-      raise Exception("timed out waiting to connect") 
-#      raise TimeoutError("timed out waiting to connect") 
+      raise TimeoutError("timed out waiting to connect") 
+#      raise Exception("timed out waiting to connect") 
    
     # loopback, we need to wait for SYN-SYN-ACK
     if self.state == self.STATE_SYN_RCVD:
