@@ -36,9 +36,20 @@ def test_mod_lt():
   assert mod_lt(9, 11, MAX, WINDOW)
   assert not mod_lt(9, 12, MAX, WINDOW)
 
+
+def test_range_error():
+  try:
+    # 3 >= 3 so RangeError exception
+    mod_range(5, 2, 3)
+  except RangeError:
+    pass
+  else:
+    raise Exception("should have raised range error")
+
 if callfunc == 'initialize':
   test_mod_range()
   test_mod_add()
   test_mod_sub()
   test_mod_gt()
   test_mod_lt()
+  test_range_error()

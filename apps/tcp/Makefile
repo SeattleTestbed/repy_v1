@@ -10,14 +10,23 @@ TESTDIR=tmp_test_dir
 TESTS_SRC_DIR=tests
 FN=[zne]_test_*
 
+UNITS=${TESTS_SRC_DIR}/units
+FUNCS=${TESTS_SRC_DIR}/functionals
+INGRS=${TESTS_SRC_DIR}/integrations
+
 # Builds tests first. Then,
 # Run seattle's test script.
 test: build
 	cd ${TESTDIR} && python run_tests.py
 
+units: cp_units build test
+funcs: cp_funcs build test
+ingrs: cp_ingrs build test
+
 clean: 
 	rm -rf ${TESTDIR}
 	for file in `ls *.repy`; do rm -f ${TESTS_SRC_DIR}/$${file}; done
+#	for file in `ls ${UNITS}/*`; do echo $${file}; rm -f ${TESTS_SRC_DIR}/$${file}; done
 
 #### Private ####
 # Builds all test files
@@ -28,6 +37,16 @@ build:
 	cp ${TESTS_SRC_DIR}/restrictions.* ${TESTDIR}
 	cp ${TESTS_SRC_DIR}/run_tests.py ${TESTDIR}
 	cp ../../*.py ${TESTDIR}
+
+cp_units:
+	cp ${UNITS}/* ${TESTS_SRC_DIR}
+
+cp_funcs:
+	cp ${FUNCS}/* ${TESTS_SRC_DIR}
+
+cp_ingrs:
+	cp ${INGRS}/* ${TESTS_SRC_DIR}
+
 
 ##### Deprecated ###
 # Use make FN=<filename> instead
