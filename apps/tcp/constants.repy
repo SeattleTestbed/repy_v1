@@ -1,0 +1,14 @@
+DEFAULT_MAXDGRAMSIZE = 1050 # MSS
+DEFAULT_RETRIES = 4 # listen times for ack
+DEFAULT_TIMEOUT = 1 # seconds to wait
+HANDSHAKE_TIMEOUT = DEFAULT_RETRIES * DEFAULT_TIMEOUT # for handshakes
+
+MSS = 1050 # bytes maximum payload                
+WINDOW_SIZE = 5 * MSS
+MAX_SEQ_NUM = 2 ** 32 # 16 bits
+MAX_ACK_NUM = 2 ** 32 # 16 bits
+
+
+# State machine outputs
+(OP_CREATE_TCB, OP_DELETE_TCB, OP_SND_SYNACK, \
+ OP_SND_SYN, OP_SND_ACK, OP_X, OP_SND_FIN) = range(0, 7)

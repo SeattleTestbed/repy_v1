@@ -1,0 +1,45 @@
+"""
+<Program Name>
+  z_test_state_machine_close.repy
+
+<Started>
+  February 8, 2009
+
+<Author>
+  Richard Jordan
+
+<Purpose>
+  To test that TcpStateMachine's close() function works.
+
+  Passes quietly
+"""
+include state_machine.repy
+
+def test_any_close_closed():
+  try_close(mycontext['sm'].STATE_CLOSED)
+  try_close(mycontext['sm'].STATE_LISTEN)
+  try_close(mycontext['sm'].STATE_SYN_SENT)
+  try_close(mycontext['sm'].STATE_SYN_RCVD)
+  try_close(mycontext['sm'].STATE_ESTAB)
+
+
+####################
+# Test Helper Functions
+####################
+
+# Sets state to given state
+# And makes sure state after is closed.
+def try_close(state):
+  mycontext['sm'].state = state
+  mycontext['sm'].close()
+  assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSED
+  
+if callfunc == 'initialize':
+  # setup
+  mycontext['sm'] = TcpStateMachine()
+  
+  # Run tests
+  test_any_close_closed()
+
+  # teardown
+  exitall()

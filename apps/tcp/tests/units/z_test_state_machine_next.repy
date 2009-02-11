@@ -1,0 +1,128 @@
+"""
+<Program Name>
+  z_test_state_machine_next.repy
+
+<Started>
+  February 8, 2009
+
+<Author>
+  Richard Jordan
+
+<Purpose>
+  To test that TcpStateMachine's next function changes states
+  correctly.
+
+  Passes quietly
+"""
+include state_machine.repy
+include test_packet_sender.repy
+
+########################
+#  Closed
+########################
+def test_closed_next_any():
+  mycontext['sm'].state = mycontext['sm'].STATE_CLOSED
+  mycontext['tps'].send("SYN")
+  mycontext['tps'].send("SYNACK")
+  mycontext['tps'].send("ACK")
+  mycontext['tps'].send("PSH")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSED
+
+########################
+#  Listen
+########################
+def test_listen_next_syn():
+  mycontext['sm'].state = mycontext['sm'].STATE_LISTEN
+  mycontext['tps'].send("SYN")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_SYN_RCVD
+
+def test_listen_next_else():
+  mycontext['sm'].state = mycontext['sm'].STATE_LISTEN
+  mycontext['tps'].send("SYNACK")
+  mycontext['tps'].send("ACK")
+  mycontext['tps'].send("PSH")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_LISTEN
+
+########################
+# SYN_SENT
+########################
+# loopback
+def test_syn_sent_next_syn():
+  mycontext['sm'].state = mycontext['sm'].STATE_SYN_SENT
+  mycontext['tps'].send("SYN")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_SYN_RCVD
+
+def test_syn_sent_next_synack():
+  mycontext['sm'].state = mycontext['sm'].STATE_SYN_SENT
+  mycontext['tps'].send("SYNACK")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_ESTAB
+
+def test_syn_sent_next_else():
+  mycontext['sm'].state = mycontext['sm'].STATE_SYN_SENT
+  mycontext['tps'].send("ACK")
+  mycontext['tps'].send("PSH")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_SYN_SENT
+
+########################
+# SYN_RECV
+########################
+def test_syn_rcvd_next_ack():
+  mycontext['sm'].state = mycontext['sm'].STATE_SYN_RCVD
+  mycontext['tps'].send("ACK")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_ESTAB
+
+def test_syn_rcvd_next_psh():
+  mycontext['sm'].state = mycontext['sm'].STATE_SYN_RCVD
+  mycontext['tps'].send("PSH")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_ESTAB
+
+def test_syn_rcvd_next_else():
+  mycontext['sm'].state = mycontext['sm'].STATE_SYN_RCVD
+  mycontext['tps'].send("SYN")
+  mycontext['tps'].send("SYNACK")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_SYN_RCVD
+
+#################
+# ESTAB
+#################
+def test_estab_next_any():
+  mycontext['sm'].state = mycontext['sm'].STATE_ESTAB
+  mycontext['tps'].send("SYN")
+  mycontext['tps'].send("SYNACK")
+  mycontext['tps'].send("ACK")
+  mycontext['tps'].send("PSH")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_ESTAB
+
+####################
+# Test Helper Functions
+####################
+  
+# Deliver UDP messages to state machine
+def callback(ip, port, mess, ch):
+  packet = unpack(mess)
+  mycontext['sm'].next(packet)
+
+if callfunc == 'initialize':
+  IP = '127.0.0.1' #  getmyip()
+  PORT = 12346
+
+  # setup
+  ch = recvmess(IP, PORT, callback)
+  mycontext['sm'] = TcpStateMachine()
+  mycontext['tps'] = TestPacketSender(IP, PORT)
+  
+  # Run tests
+  test_closed_next_any()
+  test_listen_next_syn()
+  test_listen_next_else()
+  test_syn_sent_next_syn()
+  test_syn_sent_next_synack()
+  test_syn_sent_next_else()
+  test_syn_rcvd_next_ack()
+  test_syn_rcvd_next_psh()
+  test_syn_rcvd_next_else()
+  test_estab_next_any()
+
+  # teardown
+  stopcomm(ch)
+  exitall()

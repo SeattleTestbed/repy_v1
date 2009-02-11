@@ -20,9 +20,28 @@ class TcpStateMachine:
   
   def __init__(*args): pass
   def next(*args): pass
-  def listen(*args): return (True, True)
+  def listen(*args): return None
   def connect(*args): pass
   def accept(*args): pass
   def send(*args): return 10
   def recv(*args): return "hi"
   def close(*args): pass
+
+class TcpClient:
+  """
+  <Purpose>
+    Do nothing.  Used to be able to tests Connection() which
+    uses a server but ignore server bugs.  We
+    will know the Connection object is the bug source.
+    
+  <Example Use>
+    include server.repy
+    include dummies.repy # overwrite definition
+    serv = TcpServer()
+    serv.<any_function>(<any_args>) # ignore
+    # ...
+  """
+  
+  def __init__(*args): pass
+  def send_synack(*args): pass
+

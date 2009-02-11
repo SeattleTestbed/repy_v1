@@ -12,7 +12,7 @@
 
   Passes quietly
 """
-include tcp.repy
+include connection.repy
 include dummy_state_machine.repy
 
 if callfunc == "initialize":

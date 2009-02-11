@@ -1,0 +1,127 @@
+"""
+<Program Name>
+  z_test_state_machine.repy
+
+<Started>
+  February 8, 2009
+
+<Author>
+  Richard Jordan
+
+<Purpose>
+  To test that all of TcpStateMachine's functions work
+  together.
+
+  Passes quietly
+"""
+include state_machine.repy
+include test_packet_sender.repy
+
+########################
+#  Neither Tests
+########################
+def test_closed_to_closed():
+  mycontext['sm'].close()
+  assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSED
+  mycontext['tps'].send("SYN")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSED
+
+########################
+#  Passive Tests
+########################
+
+def test_closed_to_listen():
+  mycontext['sm'].close()
+  assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSED
+  mycontext['sm'].listen()
+  assert mycontext['sm'].state == mycontext['sm'].STATE_LISTEN
+
+def test_listen_to_syn_rcvd():
+  mycontext['sm'].close()
+  mycontext['sm'].listen()
+  assert mycontext['sm'].state == mycontext['sm'].STATE_LISTEN
+  mycontext['tps'].send("SYN")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_SYN_RCVD
+
+########################
+# Active Tests
+########################
+def test_closed_to_syn_sent():
+  mycontext['sm'].close()
+  assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSED
+  mycontext['sm'].connect()
+  assert mycontext['sm'].state == mycontext['sm'].STATE_SYN_SENT
+
+# loopback
+def test_syn_sent_to_syn_rcvd():
+  mycontext['sm'].close()
+  mycontext['sm'].connect()
+  assert mycontext['sm'].state == mycontext['sm'].STATE_SYN_SENT
+  mycontext['tps'].send("SYN")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_SYN_RCVD
+
+def test_syn_sent_to_estab():
+  mycontext['sm'].close()
+  mycontext['sm'].connect()
+  assert mycontext['sm'].state == mycontext['sm'].STATE_SYN_SENT
+  mycontext['tps'].send("SYNACK")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_ESTAB
+
+########################
+#  Both Tests
+########################
+def test_syn_rcvd_to_estab():
+  # passive
+  mycontext['sm'].state = mycontext['sm'].STATE_SYN_RCVD
+  mycontext['tps'].send("ACK")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_ESTAB
+
+def test_estab_to_closed():
+  mycontext['sm'].state = mycontext['sm'].STATE_ESTAB
+  mycontext['sm'].close()
+  assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSED
+
+def test_estab_to_estab():
+  mycontext['sm'].state = mycontext['sm'].STATE_ESTAB
+  mycontext['tps'].send("ACK")
+  mycontext['tps'].send("PSH")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_ESTAB
+
+
+####################
+# Test Helper Functions
+####################
+  
+# Deliver UDP messages to state machine
+def callback(ip, port, mess, ch):
+  packet = unpack(mess)
+  mycontext['sm'].next(packet)
+
+if callfunc == 'initialize':
+  IP = '127.0.0.1' #  getmyip()
+  PORT = 12346
+
+  # setup
+  ch = recvmess(IP, PORT, callback)
+  mycontext['sm'] = TcpStateMachine()
+  mycontext['tps'] = TestPacketSender(IP, PORT)
+  
+  # Run tests
+ 
+  # neither good
+  test_closed_to_closed()
+  # passive good
+  test_closed_to_listen()
+  test_listen_to_syn_rcvd()
+  # active good
+  test_closed_to_syn_sent()
+  test_syn_sent_to_syn_rcvd()
+  test_syn_sent_to_estab()
+  # both good
+  test_syn_rcvd_to_estab()
+  test_estab_to_estab()
+  test_estab_to_closed()
+
+  # teardown
+  stopcomm(ch)
+  exitall()

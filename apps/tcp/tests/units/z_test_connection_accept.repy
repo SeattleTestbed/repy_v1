@@ -13,7 +13,7 @@
 
   Passes quietly
 """
-include tcp.repy
+include connection.repy
 include dummy_state_machine.repy
 
 if callfunc == "initialize":
@@ -34,6 +34,7 @@ def test_accept():
   assert conn.localport == PORT
   assert conn.remoteip == IP
   assert conn.remoteport == PORT
+  assert conn.client
   assert not conn.requestip
   assert not conn.requestport
   assert conn.conn == True

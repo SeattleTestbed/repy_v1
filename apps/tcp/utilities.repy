@@ -162,3 +162,24 @@ def mod_lt(value1, value2, max, window):
   
   separation = len(mod_range(value1, value2, max))
   return separation and separation <= window
+
+def mod_rand(max):
+  """
+    <Purpose>
+
+
+    <Arguments>
+
+
+    <Exceptions>
+
+
+    <Side Effects>
+
+
+    <Returns>
+
+  """
+
+  return int(randomfloat() * (max - 1))
+

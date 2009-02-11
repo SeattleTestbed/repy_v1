@@ -1,3 +1,9 @@
+include constants.repy
+include errors.repy
+include packet.repy
+include sleep_lock.repy
+include utilities.repy
+
 # Holds sending structure
 class TcpClient:
   """
@@ -43,12 +49,11 @@ class TcpClient:
 
     # Sliding window accounting
     self.send_window_size = None # size of window
-    self.last_ack_recv = None # Beginning of window 
-    self.last_seq_sent = None # End of window
+    self.last_ack_recv = mod_rand(MAX_SEQ_NUM) # Beginning of window 
+    self.last_seq_sent = mod_sub(self.last_ack_recv, 1, MAX_SEQ_NUM) # End
 
     self.lock = getlock()
-    self.sleep_lock = getlock()
-    self.sleep_timer = None
+    self.sleep_lock = SleepLock()
 
   def send(self, data, destip, destport, \
                 srcip, srcport, retries, timeout):
@@ -182,18 +187,18 @@ class TcpClient:
 
     self.lock.release()
 
+  def send_synack(self, destip, destport, srcport):
+    self.lock.acquire()
+    responseTcpPack = TcpPacket(srcport, destport, 0, self.last_ack_sent, "SYNACK", self.recv_window_size, "synacking...")
 
-  # setup state
-  def reset(self, start_num, send_window):
-    self.last_ack_recv = start_num
-    self.last_seq_sent = mod_sub(start_num, 1, MAX_SEQ_NUM)
-    self.send_window_size = send_window
+    # wait for ack or data
+    retries = DEFAULT_RETRIES
+    while retries > 0 and not self.synack_acked:
+      self.sleep_lock.acquire()
+      register_sendmess(destip, destport, responseTcpPack.pack())
+      retries -= 1
+      self.sleep_lock.sleep(DEFAULT_TIMEOUT)
+    self.lock.release()        
 
-  def goto_sleep(self, timeout):
-    self.sleep_timer = settimer(timeout, self.wake_up, ())
-
-  def wake_up(self):
-    if self.sleep_timer:
-      canceltimer(self.sleep_timer)
-      self.sleep_timer = None
-      self.sleep_lock.release()
+    if not synack_acked: # retries == 0
+      raise TimeoutError("timed out waiting to accept")
