@@ -15,39 +15,53 @@
 
 def map_func(key, value):
     toRet = []
-    print "Key: ", key
-    print "Value: ", value
     for word in value.split():
-        print word
         output = (word, 1)
         toRet.append(output)
     return toRet
 #end include mapper.repy
 
+#begin include reducer.repy
+# MapReduce for python/repy!
+#
 
+def reduce_func(key, values):
+    toRet = []
+    sum = 0
+    for value in values:
+        sum += int(value)
 
+    return {key: sum}
+#end include reducer.repy
 
 
 def get_data(ip, port, sockobj, thiscommhandle, listencommhandle):
     """ Listens for connections on a well-defined port, imports data files """
     
-     # parse and save map.py, reduce.py, data file
-    filenames = array('mapper.py', 'reducer.py', 'map_data.dat')
-    for i in range(3):
-        # get length of following data
-        data_len = int(sockobj.recv(4))
-        
-        # parse actual data, write to file
-        buf = str(sockobj.recv(data_len))
-        py_file = open(filenames[i], "w")
-        py_file.write(buf)
-        py_file.close()
+    # get a list of all of our neighbors!
+    ipport_len = int(sockobj.recv(2))
+    mycontext['primary'] = sockobj.recv(ipport_len)
+
+    mycontext['num_peers'] = int(sockobj.recv(4))
+    node_id = 1
+    for i in range(mycontext['num_peers']):
+        ipport_len = int(sockobj.recv(3))
+        mycontext['node' + str(node_id)] = sockobj.recv(ipport_len)
+        node_id += 1
+
+    # parse and save data file:
+    # get length of following data
+    data_len = int(sockobj.recv(6))
+    
+    # parse actual data, write to file
+    buf = sockobj.recv(data_len)
+    dataobj = open("mapdata.dat", "w")
+    dataobj.write(buf)
+    dataobj.close()
         
     # destroy the listen socket as we're done initializing
     mycontext['state'] = 'Initialized'
     stopcomm(listencommhandle)
-
-
 
 
     
@@ -67,10 +81,56 @@ def do_map():
     map_result.sort()
     return map_result
     
+
     
-# the user must define their own partition function.
+# the user must define their own partition function (hash_func)
 def partition(map_result):
-    pass
+    key_value = {}
+
+    # generate a key-value dict
+    # ! could use simple dict([]) here, but duplicate keys get overwritten
+    for kv_pair in map_result:
+        if kv_pair[0] in key_value:
+            key_value[kv_pair[0]].append(kv_pair[1])
+        else:
+            key_value[kv_pair[0]] = [kv_pair[1]]
+
+    print kv_pair
+
+    # try to partition objects bashed on their hash
+    partition_hash = {}
+    for key, values in key_value.iteritems():
+        hash = hash_func(key)
+        
+        # the following is always key in index 0, values following
+        # this is so we don't lose track of the key if the hash_func is not
+        # totally unique/reversible
+        values.insert(0,key)
+        if hash in partition_hash:
+            parition_hash[hash].append(values)
+        else:
+            partition_hash[hash] = [values]
+
+    # we should have a grouping of elements by hash now
+    print partition_hash
+
+    # attempt to partition elements based on the number of replicas
+    replica_hash = []
+    cur_replica = 1
+    hash_list = partition_hash.keys()
+
+    step_size = len(hash_list) / mycontext['num_peers']
+    step_max = step_size * mycontext['num_peers']
+    for hash in hash_list:
+        new_kv_dict = {}
+        for kvs_pairs in partition_hash[hash]:
+            kv = dict([[kvs_pairs[0], kvs_pairs[1:]]])
+            new_kv_dict.update(kv)
+
+        replica_hash[cur_replica] = new_kv_dict
+        cur_replica = (cur_replica + 1) % mycontext['num_peers'] + 1
+
+    # send data to replicas
     
     
 def do_reduce():
@@ -81,14 +141,17 @@ def do_reduce():
         line_parts = line.partition('\t')
         # I assume that results are returned in the form "<key>\t<value>"
         # reduce.reducer takes key, value as two separate arguments
-        reduce_result.append(reducer.reduce(line_parts[0], line_parts[2]))
+        reduce_result.append(reduce_func(line_parts[0], line_parts[2]))
                           
     return reduce_result.sort()
+
+
 
 # TODO...
 def report_results(map_results):
     pass
     
+
     
 if callfunc == 'initialize':
     mycontext['num_mappers'] = 1
@@ -97,20 +160,19 @@ if callfunc == 'initialize':
     
     if len(callargs) > 1:
         raise Exception("too many args")
-    
     elif len(callargs) == 1:
         port = int(callargs[0])
         ip = getmyip()
-    
     else:
         port = 12345
         ip = '127.0.0.1'
     
-    #listencommhandle = waitforconn(ip, port, get_data)
+    print "waiting for connection on ", ip, ":",  port
+    listencommhandle = waitforconn(ip, port, get_data)
     
     # block until we've been initialized with data/methods
-    #while mycontext['state'] == 'Ready':
-        #sleep(1)
+    while mycontext['state'] == 'Ready':
+        sleep(.1)
     
     # start mapping, synchronous call
     map_result = do_map()
@@ -120,26 +182,38 @@ if callfunc == 'initialize':
 #    data.close()
 
     # send map results to all reducers, split as necessary
-#===============================================================================
 #    partition(map_result)
-#    
-#    # block until 
-#    while mycontext['state'] == 'ReducerWaiting':
-#        sleep(1)
-#        
-#    # start reducing, synchronous call (wait for all data to come in, then start)
-#    reduce_result = do_reduce()
-#    
-#    report_results(reduce_result)
-#===============================================================================
+    
+    # block until 
+    while mycontext['state'] == 'ReducerWaiting':
+        sleep(1)
+        
+    # start reducing, synchronous call (wait for all data to come in, 
+    # then start)
+    reduce_result = do_reduce()
 
-class TestMapReduceReplica(unittest.TestCase):
+    print reduce_result
+
+    report_results(reduce_result)
+
+
+"""class TestMapReduceReplica(unittest.TestCase):
     
     def setUp(self):
-        pass
+        filedata = \
+""key1\thello there, my name is bob.
+key2\thello to you too, my name is alice.
+key3\tvery pleased to make your acquaintence, alice.
+key3\tsame to you, bob.
+""
+        fileobj = file.open("map_data.dat", "w")
+        fileobj.write(filedata)
+        fileobj.close()
+        print "set up file input"
 
     def testMapper(self):
-        pass
+        result = do_map()
+        
 
     def testReducer(self):
         pass
@@ -151,4 +225,4 @@ class TestMapReduceReplica(unittest.TestCase):
 if __name__ == '__main__':
     import unittest
 
-    unittest.main()
+    unittest.main()"""

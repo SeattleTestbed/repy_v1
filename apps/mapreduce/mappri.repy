@@ -7,20 +7,40 @@
 
 # include parallelize
 
-# !! currently only works for a single reducer !!
-# i'll worry about splitting the file up at a later time
-def initalize_replicas(data_file):
-    for ip, port in mycontext['replica_list']:
+# !! currently only works for a single mapper !!
+# i'll worry about splitting the data file up at a later time
+def initalize_replicas(data):
+    
+    # generate strings:
+    # send primary location
+    prim_str = pad_int_to_str(len(mycontext['my_addr']),2)
+    prim_str += mycontext['my_addr']
+
+    # generate replica list to send
+    replica_str = pad_int_to_str(len(mycontext['replica_list']), 4)
+    replica_str += mycontext['replica_str']
+
+    # generate data string to send - size limited to 1e6-1 bytes
+    data = pad_int_to_str(len(data),6) + data
+    
+    # send data to each replica
+    for ip, port in mycontext['replica_list'].iteritems():
         socketobj = openconn(ip, port)
-        data = data_file.read()
+        socketobj.send(prim_str)
+        socketobj.send(replica_str)
         socketobj.send(data)
 
 
+def pad_int_to_str(i, len):
+    if i / (10**len) > 0:
+        raise Exception("integer overflow; consider revising protocol") 
+    return ('%0' + str(len) + "d") % i
+                           
 
 
 def get_results(ip, port, sockobj, thiscommhandle, listencommhandle):
     
-    data_len = int(sockobj.recv(4))
+    data_len = int(sockobj.recv(6))
 
     # parse actual data, write to file
     buf = str(sockobj.recv(data_len))
@@ -29,38 +49,37 @@ def get_results(ip, port, sockobj, thiscommhandle, listencommhandle):
     result_file.close()
 
 
-
-
 def print_usage():
-    print "Primary map-reduce node"
-    print "Usage: mappri.repy [options] <datafile> <replica-ip>:<replica-port>..."
-    print "    -n                  Do not parse the data file with \t splitting key and value"
-    print "    <datafile>          The data file to use in the map-reduce pipeline"
-    print "    <replica-ip>:<port> A list of the replica addresses to use for the job"    
+    print """Usage: mappri.repy [options] <datafile> <replica-ip>:<replica-port>...
+    -n               Do not parse the data file with \\t splitting key and value
+    <datafile>       The data file to use in the map-reduce pipeline
+    <replica>:<port> A list of the replica addresses to use for the job
+"""
+    exit()
 
 
-
-
-if callfunc == 'initalize':
+if callfunc == 'initialize':
     mycontext['replica_list'] = {}
 
     if len(callargs) == 0: 
+        print "* No arguments provided."
         print_usage()
-        raise Exception("need to define replica list")
-
+    
     argpointer = 0
-    port = 12345
+    port = 12346
     try:
-        port = int(arg[0])
+        port = int(callargs[0])
         ip = getmyip()
-        argpointer++
+        argpointer += 1
         
         if len(callargs) == 1:
+            print "* No arguments provided"
             print_usage()
-            raise Exception("need to define replica list")
 
     except ValueError:
         ip = '127.0.0.1'
+
+    mycontext['my_addr'] = ip + ":" + str(port)
 
     if callargs[argpointer] == '-n':
         # do something special here, it's a no-op atm
@@ -68,14 +87,30 @@ if callfunc == 'initalize':
 
     try:
         data_file = open(callargs[argpointer], "r")
+        data = data_file.read()
+        data_file.close()
+        argpointer += 1
     except IOError:
-        raise Exception("Error reading file (does it exist?)")
+        print "* Error reading file (does it exist?)"
+        print_usage()
 
-    for arg in :
-        address = arg.split(':')
-        mycontext['replica_list'][address[0]] = address[1]
+    replica_list = callargs[argpointer:]
+    if len(replica_list) == 0:
+        print "* List of replicas not found."
+        print_usage()
 
-    initalize_replicas(data_file)
+    mycontext['replica_str'] = ""
+    for replica in replica_list:
+        address = replica.partition(':')
+        if not address[2]:
+            print "* Port not found!"
+            print_usage()
+        mycontext['replica_list'][address[0]] = int(address[2])
+        addr = address[0] + ":" + address[2]
+        addr_len = pad_int_to_str(len(addr), 3)
+        mycontext['replica_str'] += addr_len + addr
+
+    initalize_replicas(data)
     
 
     # once the job has started, we need to listen for reporting back 
