@@ -27,7 +27,7 @@ class TcpClient:
 
   """
 
-  def __init__(self):
+  def __init__(self, conn):
     """
     <Purpose>
       Initializes varibles.
@@ -44,7 +44,7 @@ class TcpClient:
     <Returns>
       New client object.
     """
-    
+    self.conn = conn    
     self.packet_cache = {} # holds currently sent, unacked packets
 
     # Sliding window accounting
@@ -105,7 +105,7 @@ class TcpClient:
         for seq_num in seqs:
           if len(self.packet_cache[seq_num].payload) <= free_window:
             free_window -= len(self.packet_cache[seq_num].payload)
-            bytes_sent += register_sendmess(destip, destport, \
+            bytes_sent += self.conn.register_sendmess(destip, destport, \
                 self.packet_cache[seq_num].pack(), srcip, srcport)
           else: # can't send anymore
             free_window = 0
@@ -125,7 +125,7 @@ class TcpClient:
             self.packet_cache[packet.seq_num] = packet
             self.last_seq_sent = mod_add(packet.seq_num, len(packet.payload) - 1, MAX_SEQ_NUM)
             # send it as well
-            bytes_sent += register_sendmess(destip, destport, packet.pack(), srcip, srcport)
+            bytes_sent += self.conn.register_sendmess(destip, destport, packet.pack(), srcip, srcport)
         self.lock.release()
 
         # increment tries
@@ -140,7 +140,7 @@ class TcpClient:
   # Throws an error if the last seq number is undefined
   # or if the packet is not an ack.
   # Accounts to stop resending the acked packet.
-  def process_ack(self, packet):
+  def process(self, packet):
     """
     <Purpose>
       Handles ACK's from receiver.
@@ -186,19 +186,3 @@ class TcpClient:
       pass # ignore it
 
     self.lock.release()
-
-  def send_synack(self, destip, destport, srcport):
-    self.lock.acquire()
-    responseTcpPack = TcpPacket(srcport, destport, 0, self.last_ack_sent, "SYNACK", self.recv_window_size, "synacking...")
-
-    # wait for ack or data
-    retries = DEFAULT_RETRIES
-    while retries > 0 and not self.synack_acked:
-      self.sleep_lock.acquire()
-      register_sendmess(destip, destport, responseTcpPack.pack())
-      retries -= 1
-      self.sleep_lock.sleep(DEFAULT_TIMEOUT)
-    self.lock.release()        
-
-    if not synack_acked: # retries == 0
-      raise TimeoutError("timed out waiting to accept")

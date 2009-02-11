@@ -1,6 +1,6 @@
 """ 
 <Program Name>
-  z_test_server_process_payload.repy
+  z_test_server_process.repy
 
 <Started>
   February 9, 2009
@@ -9,13 +9,19 @@
   Richard Jordan
 
 <Purpose>
-  To test that Server.process_payload() function works.
+  To test that Server.process() function works.
 
   Passes quietly
 """
 include constants.repy
 include server.repy
 include test_packet_factory.repy
+
+class Connection:
+  def register_sendmess(self, destip, destport, message, srcip = None, srcport = None):
+    pack = unpack(message)
+    mycontext['packets'][pack.ack_num] = pack
+
 
 if callfunc == 'initialize':
   IP = 'whatever'
@@ -24,9 +30,9 @@ if callfunc == 'initialize':
 def test_pp_syn():
   mycontext['packets'].clear()
   SEQ_NUM = 1
-  serv = TcpServer()
+  serv = TcpServer(mycontext['conn'])
   pack = mycontext['tpf'].syn(SEQ_NUM)
-  serv.process_payload(IP, pack)
+  serv.process(IP, pack)
   assert not serv.buffer
   assert not serv.packet_cache
   assert not mycontext['packets']
@@ -37,11 +43,11 @@ def test_pp_syn():
 def test_pp_syn_alreadyconnected():
   mycontext['packets'].clear()
   SEQ_NUM = 1
-  serv = TcpServer()
+  serv = TcpServer(mycontext['conn'])
   serv.last_ack_sent = SEQ_NUM
   pack = mycontext['tpf'].syn(SEQ_NUM)
   try:
-    serv.process_payload(IP, pack)
+    serv.process(IP, pack)
   except AlreadyConnectedError:
     pass
   else:
@@ -51,10 +57,10 @@ def test_pp_psh_notconnected():
   mycontext['packets'].clear()
   SEQ_NUM = 1
   SS = 2
-  serv = TcpServer()
+  serv = TcpServer(mycontext['conn'])
   pack = mycontext['tpf'].psh(SEQ_NUM, SS)
   try:
-    serv.process_payload(IP, pack)
+    serv.process(IP, pack)
   except NotConnectedError:
     pass
   else:
@@ -66,11 +72,11 @@ def test_pp_next_seq():
   SEQ_NUM = 0
   SS = 2
   WINDOW = 10
-  serv = TcpServer()
+  serv = TcpServer(mycontext['conn'])
   serv.last_ack_sent = SEQ_NUM
   serv.recv_window_size = WINDOW
   pack = mycontext['tpf'].psh(SEQ_NUM, SS)
-  serv.process_payload(IP, pack)
+  serv.process(IP, pack)
   assert serv.buffer == list(pack.payload)
   assert not serv.packet_cache
   assert (SEQ_NUM + SS) in mycontext['packets'].keys()
@@ -83,10 +89,10 @@ def test_pp_next_seq_edge_mod():
   mycontext['packets'].clear()
   SEQ_NUM = MAX_SEQ_NUM - 1
   MSS = 2
-  serv = TcpServer()
+  serv = TcpServer(mycontext['conn'])
   serv.last_ack_sent = SEQ_NUM
   pack = mycontext['tpf'].psh(SEQ_NUM, MSS)
-  serv.process_payload(IP, pack)
+  serv.process(IP, pack)
   assert serv.buffer == list(pack.payload)
   assert not serv.packet_cache
   assert (SEQ_NUM + MSS)%MAX_SEQ_NUM in mycontext['packets'].keys()
@@ -97,10 +103,10 @@ def test_pp_before_window():
   mycontext['packets'].clear()
   SEQ_NUM = 1
   MSS = 2
-  serv = TcpServer()
+  serv = TcpServer(mycontext['conn'])
   serv.last_ack_sent = SEQ_NUM
   pack = mycontext['tpf'].psh(SEQ_NUM-1, MSS)
-  serv.process_payload(IP, pack)
+  serv.process(IP, pack)
   assert not serv.buffer
   assert not serv.packet_cache
   assert SEQ_NUM in mycontext['packets'].keys()
@@ -112,11 +118,11 @@ def test_pp_in_window():
   SEQ_NUM = 0
   WINDOW =10
   SS = 2
-  serv = TcpServer()
+  serv = TcpServer(mycontext['conn'])
   serv.last_ack_sent = SEQ_NUM
   serv.recv_window_size = WINDOW
   pack = mycontext['tpf'].psh(SEQ_NUM + WINDOW-1, SS)
-  serv.process_payload(IP, pack)
+  serv.process(IP, pack)
   assert not serv.buffer
   assert serv.packet_cache
   assert serv.packet_cache[SEQ_NUM + WINDOW-1]
@@ -129,11 +135,11 @@ def test_pp_at_window():
   mycontext['packets'].clear()
   SEQ_NUM = 0
   SS = 10
-  serv = TcpServer()
+  serv = TcpServer(mycontext['conn'])
   serv.last_ack_sent = SEQ_NUM
   serv.recv_window_size = SS
   pack = mycontext['tpf'].psh(SEQ_NUM + SS, SS)
-  serv.process_payload(IP, pack)
+  serv.process(IP, pack)
   assert not serv.buffer
   assert not serv.packet_cache
   assert SEQ_NUM in mycontext['packets'].keys()
@@ -145,13 +151,13 @@ def test_pp_cumulative():
   SEQ_NUM = 0
   WINDOW = 10
   SS = 2
-  serv = TcpServer()
+  serv = TcpServer(mycontext['conn'])
   serv.last_ack_sent = SEQ_NUM
   serv.recv_window_size = WINDOW
   winpack = mycontext['tpf'].psh(SEQ_NUM + SS, SS)
-  serv.process_payload(IP, winpack)
+  serv.process(IP, winpack)
   nexpack = mycontext['tpf'].psh(SEQ_NUM, SS)
-  serv.process_payload(IP, nexpack)
+  serv.process(IP, nexpack)
   assert serv.buffer == list(nexpack.payload + winpack.payload)
   assert not serv.packet_cache
   assert (SEQ_NUM + SS + SS) in mycontext['packets'].keys()
@@ -162,12 +168,9 @@ def test_pp_cumulative():
 # Test Helper Functions
 ####################
 
-def register_sendmess(destip, destport, message, srcip = None, srcport = None):
-  pack = unpack(message)
-  mycontext['packets'][pack.ack_num] = pack
-
 def main():
   # setup
+  mycontext['conn'] = Connection()
   mycontext['tpf'] = TestPacketFactory(PORT)
   mycontext['packets'] = {}
 

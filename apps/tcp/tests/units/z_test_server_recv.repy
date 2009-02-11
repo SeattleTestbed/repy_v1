@@ -24,7 +24,7 @@ if callfunc == "initialize":
   WINDOW = 10
 
 def test_recv_exact():
-  serv = TcpServer()
+  serv = TcpServer(None)
   serv.recv_window_size = 0
   serv.buffer = list(MESS)
   mess = serv.recv(EXACT)
@@ -33,7 +33,7 @@ def test_recv_exact():
   assert serv.recv_window_size == WINDOW
 
 def test_recv_small():
-  serv = TcpServer()
+  serv = TcpServer(None)
   serv.recv_window_size = 0
   serv.buffer = list(MESS)
   mess = serv.recv(SMALL)
@@ -42,7 +42,7 @@ def test_recv_small():
   assert serv.recv_window_size == WINDOW - SMALL
 
 def test_recv_large():
-  serv = TcpServer()
+  serv = TcpServer(None)
   serv.recv_window_size = 0
   serv.buffer = list(MESS)
   mess = serv.recv(LARGE)

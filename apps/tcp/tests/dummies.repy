@@ -43,5 +43,25 @@ class TcpClient:
   """
   
   def __init__(*args): pass
-  def send_synack(*args): pass
+  def send(*args): pass
+  def process(*args): pass
 
+class TcpServer:
+  """
+  <Purpose>
+    Do nothing.  Used to be able to tests Connection() which
+    uses a server but ignore server bugs.  We
+    will know the Connection object is the bug source.
+    
+  <Example Use>
+    include server.repy
+    include dummies.repy # overwrite definition
+    serv = TcpServer()
+    serv.<any_function>(<any_args>) # ignore
+    # ...
+  """
+  
+  def __init__(*args): pass
+  def recv(*args): pass
+  def process(*args): pass
+  def listen(*args): return (IP, PORT)

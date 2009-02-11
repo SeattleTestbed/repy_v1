@@ -44,7 +44,7 @@ class TcpServer:
     
   """
 
-  def __init__(self):
+  def __init__(self, conn):
     """
     <Purpose>
       Initialize variables.
@@ -61,7 +61,7 @@ class TcpServer:
     <Returns>
       New server object.
     """
-    
+    self.conn = conn    
     self.buffer = [] # Receiver buffer of payloads
     self.packet_cache = {} # holds received, out-of-order packets
 
@@ -81,7 +81,7 @@ class TcpServer:
   # Then, if payload is next, fills buffer with payload.
   # Else, if payload is in window, caches packet.
   # Otherwise, re-acks packet.
-  def process_payload(self, ip, packet):
+  def process(self, ip, packet):
     """
     <Purpose>
       Called to handle packets such that packet.is_payload().
@@ -149,7 +149,7 @@ class TcpServer:
 
       # Ask for the next missing one
       self.last_ack_sent = seq_num
-      register_sendmess(ip, packet.srcport, TcpPacket(packet.destport, packet.srcport, 0, self.last_ack_sent, \
+      self.conn.register_sendmess(ip, packet.srcport, TcpPacket(packet.destport, packet.srcport, 0, self.last_ack_sent, \
                  "ACK", self.recv_window_size, "ack...").pack())
 
     # Maybe we can cache it.  Is it inside our window?
@@ -164,7 +164,7 @@ class TcpServer:
 
     # Send back an ack again for the payload we really want.
     else: 
-      register_sendmess(ip, packet.srcport, TcpPacket(packet.destport, packet.srcport, 0, self.last_ack_sent, "ACK", self.recv_window_size, \
+      self.conn.register_sendmess(ip, packet.srcport, TcpPacket(packet.destport, packet.srcport, 0, self.last_ack_sent, "ACK", self.recv_window_size, \
                 "resending ack...").pack())
 
     self.lock.release()
@@ -184,10 +184,10 @@ class TcpServer:
 
 
   # wait for SYN, process_payload gets SYN and sets us up
-  def listen(self):
+  def listen(self, timeout):
     self.lock.acquire()
     self.sleep_lock.acquire()
-    self.sleep_lock.sleep(HANDSHAKE_TIMEOUT)
+    self.sleep_lock.sleep(timeout)
     self.lock.release()
 
     # block until released

@@ -202,11 +202,11 @@ class Connection:
     self.conn = self.register_recvmess(self.localip, self.localport, self.callback)
     self.state_machine.listen() # do any state accounting
 
-    self.server = TcpServer()
+    self.server = TcpServer(self)
     self.release_all_locks()
 
     # block until syn request or timeout
-    (self.requestip, self.requestport) = self.server.listen()
+    (self.requestip, self.requestport) = self.server.listen(self.timeout * self.retries)
 
     # fill in what we have
     self.acquire_all_locks()
@@ -264,12 +264,13 @@ class Connection:
     self.state_machine.accept()
 
     # setup out client
-    self.client = TcpClient()
+    self.client = TcpClient(self)
 
     self.release_all_locks()
 
     # actually complete it, blocks for final ACK
-    self.client.send_synack(self.requestip, self.requestport)
+
+    self.client.send(self.requestip, self.requestport)
 
     self.acquire_all_locks()
     self.remoteip = self.requestip
@@ -484,7 +485,7 @@ class Connection:
     packet = unpack(mess)
     advice = self.state_machine.next(packet)
     if advice == OP_SND_SYNACK:
-      self.server.process_payload(ip, packet)
+      self.server.process(ip, packet)
  
   # Hook for controller to handle recv
   def register_recvmess(self, ip, port, callback):
@@ -509,33 +510,28 @@ class Connection:
     # print "listening on: " + str(ip) + ":" + str(port) # DEBUG
     return recvmess(ip, port, self.callback)
 
-##############################################################
-# Other Public and Private Methods
-##############################################################
+  # Hook for controller to handle send
+  def register_sendmess(self, destip, destport, message, srcip = None, srcport = None):
+    """
+    <Purpose>
+      Provides a single outlet for tracking sent messages.
+      Allows for easier debugging.  By putting a single output
+      statement you can output all messages that go out.
 
-
-# Hook for controller to handle send
-def register_sendmess(destip, destport, message, srcip = None, srcport = None):
-  """
-  <Purpose>
-    Provides a single outlet for tracking sent messages.
-    Allows for easier debugging.  By putting a single output
-    statement you can output all messages that go out.
-
-  <Arguments>
-    Same as Repy's UDP sendmess.
+    <Arguments>
+      Same as Repy's UDP sendmess.
     
-  <Exceptions>
-    Same as Repy's UDP sendmess.
+    <Exceptions>
+      Same as Repy's UDP sendmess.
     
-  <Side Effects>
-    None
+    <Side Effects>
+      None
      
-  <Returns>
-    The bytes sent.
-  """
-  # print "sending: " + message # DEBUG
-  if srcip is None:
-    return sendmess(destip, destport, message)
-  else:  
-    return sendmess(destip, destport, message, srcip, srcport)
+    <Returns>
+      The bytes sent.
+    """
+    # print "sending: " + message # DEBUG
+    if srcip is None:
+      return sendmess(destip, destport, message)
+    else:  
+      return sendmess(destip, destport, message, srcip, srcport)

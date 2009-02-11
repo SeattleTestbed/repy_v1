@@ -14,7 +14,7 @@
   Passes quietly
 """
 include connection.repy
-include dummy_state_machine.repy
+include dummies.repy
 include test_packet_sender.repy
 
 if callfunc == "initialize":
@@ -26,8 +26,6 @@ def test_listen():
   conn.state_machine.next = mynext
   conn.localip = IP
   conn.localport = PORT
-  packet = TcpPacket(PORT, PORT, 0, 0, "SYN", 0, "test")
-  settimer(0.01, conn.callback, (IP, PORT, packet.pack(), None))
   (ip, port) = conn.listen()
   assert conn.conn
   stopcomm(conn.conn)
@@ -39,17 +37,6 @@ def test_listen():
   assert not conn.remoteport
   assert conn.requestip == ip
   assert conn.requestport == port
-
-def test_listen_timeout():
-  conn = Connection()
-  conn.localip = IP
-  conn.localport = PORT
-  try:
-    conn.listen()
-  except TimeoutError:
-    pass
-  else:
-    raise Exception("should raise time out error")
 
 def test_listen_not_bound():
   conn = Connection()
@@ -87,7 +74,6 @@ def main():
   
   # Run tests
   test_listen()
-  test_listen_timeout()
   test_listen_not_bound()
   test_listen_already_connected()
 
