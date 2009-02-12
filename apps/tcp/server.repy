@@ -77,98 +77,6 @@ class TcpServer:
     self.requestip = None
     self.requestport = None
 
-  # Throws exception if not a payload or no connection.
-  # Then, if payload is next, fills buffer with payload.
-  # Else, if payload is in window, caches packet.
-  # Otherwise, re-acks packet.
-  def process(self, ip, packet):
-    """
-    <Purpose>
-      Called to handle packets such that packet.is_payload().
-      Sends back ACK's, saves payloads, or ignores.
-    
-    <Arguments>
-      ip
-          The ip it came from.    
-
-      packet 
-          The packet to process
-
-    <Exceptions>
-      NotConnectedError if there is not a connection yet 
-        to recv a packet.
-      UnknownStateError if the packet is not a payload
-    
-    <Side Effects>
-      Adds to self.buffer.
-      Uses self.lock
-
-    <Returns>
-      Nothing.
-    """
-    self.lock.acquire()
-
-    # a SYN request
-    if packet.is_syn() and not self.last_ack_sent is None:
-      self.lock.release()
-      raise AlreadyConnectedError("cannot handle connection request")
-    elif packet.is_syn():
-      self.requestip = ip
-      self.requestport = packet.srcport
-      self.last_ack_sent = packet.seq_num
-      self.sleep_lock.wakeup()
-      self.lock.release()
-      return None
-
-    if not packet.is_payload():
-      self.lock.release()
-      raise UnknownStateError("expected a payload")
-
-    if self.last_ack_sent is None:
-      self.lock.release()
-      raise NotConnectedError("no client yet")
-
-    if not packet.payload: # no data?
-      self.lock.release()
-      return None
-
-    # Is it the payload we want?
-    if self.last_ack_sent == packet.seq_num:
-      #  -- Cumulative Acking
-      # See how many we have in our window. 
-      # We can skip all these acks.
-      seq_num = packet.seq_num
-      self.packet_cache[packet.seq_num] = packet
-      while seq_num in self.packet_cache.keys():
-        packet = self.packet_cache[seq_num]
-        self.buffer += packet.payload
-        self.recv_window_size -= len(packet.payload)
-        new_seq_num = mod_add(packet.seq_num, len(packet.payload), MAX_SEQ_NUM)
-        del self.packet_cache[seq_num]
-        seq_num = new_seq_num
-
-      # Ask for the next missing one
-      self.last_ack_sent = seq_num
-      self.conn.register_sendmess(ip, packet.srcport, TcpPacket(packet.destport, packet.srcport, 0, self.last_ack_sent, \
-                 "ACK", self.recv_window_size, "ack...").pack())
-
-    # Maybe we can cache it.  Is it inside our window?
-    elif packet.seq_num in mod_range(self.last_ack_sent, self.last_ack_sent \
-                                        + self.recv_window_size, MAX_ACK_NUM):
-      # don't have it yet?
-      if not packet.seq_num in self.packet_cache.keys():
-        # save it quietly
-        self.packet_cache[packet.seq_num] = packet
-      else: # ignore the already cached seq
-        pass
-
-    # Send back an ack again for the payload we really want.
-    else: 
-      self.conn.register_sendmess(ip, packet.srcport, TcpPacket(packet.destport, packet.srcport, 0, self.last_ack_sent, "ACK", self.recv_window_size, \
-                "resending ack...").pack())
-
-    self.lock.release()
-
   # Finish off trickled down call to recv
   def recv(self, maxLen):
     self.lock.acquire()
@@ -182,6 +90,46 @@ class TcpServer:
 
     return ''.join(message)
 
+  def process(self, ip, packet):
+    """
+    <Purpose>
+      Called to handle packets.
+      Sends back ACK's, saves payloads, or ignores.
+      Set up handshakes also.
+
+    <Arguments>
+      ip
+          The ip it came from.    
+
+      packet 
+          The packet to process.  Packet type is either:
+	    * SYN - stop listening
+ 	    * SYNACK - send back ack
+            * PSH - payload to feed into buffer, cache, or ignore
+
+    <Exceptions>
+      raise AlreadyConnectedError("cannot handle connection request")
+      raise NotConnectedError("no client yet")
+    
+    <Side Effects>
+      Adds to self.buffer.
+      Uses self.lock
+
+    <Returns>
+      Nothing.
+    """
+    self.lock.acquire()
+
+    if packet.is_syn():
+      self.process_syn(ip, packet)
+    elif packet.is_synack():
+      self.process_synack(ip, packet)
+    elif packet.is_payload():
+      self.process_payload(ip, packet)
+    else:
+      raise UnknownStateError("should be one of SYN, SYNACK, PSH")
+
+    self.lock.release()
 
   # wait for SYN, process_payload gets SYN and sets us up
   def listen(self, timeout):
@@ -222,3 +170,113 @@ class TcpServer:
     self.lock.release()
     return ack
 
+
+  #############
+  # Private
+  ################
+
+  def process_syn(self, ip, packet):
+    # a SYN request
+    if not self.last_ack_sent is None:
+      raise AlreadyConnectedError("cannot handle connection request")
+    elif self.last_ack_sent is None:
+      self.requestip = ip
+      self.requestport = packet.srcport
+      self.last_ack_sent = packet.seq_num
+      self.sleep_lock.wakeup()
+    else: pass
+
+  def process_synack(self, ip, packet):
+    """
+    <Purpose>
+      Send back ACK or re-ACK.  Or if the SYN doesn't match raise an exception.
+    """
+    # New SYACK
+    if self.last_ack_sent is None:
+      self.last_ack_sent = packet.seq_num
+      self.conn.register_sendmess(ip, packet.srcport, TcpPacket(packet.destport, packet.srcport, 0, self.last_ack_sent, \
+                 "ACK", self.recv_window_size, "ack of synack...").pack())
+
+    # Old one
+    elif not self.last_ack_sent is None and self.last_ack_sent == packet.seq_num:
+      self.conn.register_sendmess(ip, packet.srcport, TcpPacket(packet.destport, packet.srcport, 0, self.last_ack_sent, \
+                 "ACK", self.recv_window_size, "ack of synack...").pack())
+
+    # whoa, you can't change the SYN seq_num now?  You already sent a different one before.
+    elif not self.last_ack_sent is None and self.last_ack_sent != packet.seq_num:
+      raise AlreadyConnectedError("cannot change syn sequence now -- already set")
+    
+    else: # no other cases
+      pass
+
+
+  def process_payload(self, ip, packet):
+    """
+    <Purpose>
+      Called to handle packets such that packet.is_payload().
+      Sends back ACK's, saves payloads, or ignores.
+
+      Throws exception if not a payload or no connection.
+      Then, if payload is next, fills buffer with payload.
+      Else, if payload is in window, caches packet.
+      Otherwise, re-acks packet.
+    
+    <Arguments>
+      ip
+          The ip it came from.    
+
+      packet 
+          The packet to process
+
+    <Exceptions>
+      NotConnectedError if there is not a connection yet 
+        to recv a packet.
+      UnknownStateError if the packet is not a payload
+    
+    <Side Effects>
+      Adds to self.buffer.
+      Uses self.lock
+
+    <Returns>
+      Nothing.
+    """
+    if self.last_ack_sent is None:
+      raise NotConnectedError("no client yet")
+
+    if not packet.payload: # no data?
+      return None
+
+    # Is it the payload we want?
+    if self.last_ack_sent == packet.seq_num:
+      #  -- Cumulative Acking
+      # See how many we have in our window. 
+      # We can skip all these acks.
+      seq_num = packet.seq_num
+      self.packet_cache[packet.seq_num] = packet
+      while seq_num in self.packet_cache.keys():
+        packet = self.packet_cache[seq_num]
+        self.buffer += packet.payload
+        self.recv_window_size -= len(packet.payload)
+        new_seq_num = mod_add(packet.seq_num, len(packet.payload), MAX_SEQ_NUM)
+        del self.packet_cache[seq_num]
+        seq_num = new_seq_num
+
+      # Ask for the next missing one
+      self.last_ack_sent = seq_num
+      self.conn.register_sendmess(ip, packet.srcport, TcpPacket(packet.destport, packet.srcport, 0, self.last_ack_sent, \
+                 "ACK", self.recv_window_size, "ack...").pack())
+
+    # Maybe we can cache it.  Is it inside our window?
+    elif packet.seq_num in mod_range(self.last_ack_sent, self.last_ack_sent \
+                                        + self.recv_window_size, MAX_ACK_NUM):
+      # don't have it yet?
+      if not packet.seq_num in self.packet_cache.keys():
+        # save it quietly
+        self.packet_cache[packet.seq_num] = packet
+      else: # ignore the already cached seq
+        pass
+
+    # Send back an ack again for the payload we really want.
+    else: 
+      self.conn.register_sendmess(ip, packet.srcport, TcpPacket(packet.destport, packet.srcport, 0, self.last_ack_sent, "ACK", self.recv_window_size, \
+                "resending ack...").pack())

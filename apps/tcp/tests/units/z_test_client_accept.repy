@@ -1,6 +1,6 @@
 """ 
 <Program Name>
-  z_test_client_send.repy
+  z_test_client_accept.repy
 
 <Started>
   February 9, 2009
@@ -24,7 +24,7 @@ if callfunc == 'initialize':
   TIMEOUT = .01
   RETRIES = 4  
 
-def test_send_synacks():
+def test_accept():
   mycontext['packets'].clear()
   ACK_NUM = 1
   WINDOW= 10
@@ -33,7 +33,7 @@ def test_send_synacks():
   SEQ_NUM = cli.last_ack_recv
   cli.recv_window_size= WINDOW
   try:
-    cli.send_synack(ACK_NUM, DEST_IP, DEST_PORT, SRC_IP, SRC_PORT,RETRIES, TIMEOUT)
+    cli.accept(ACK_NUM, DEST_IP, DEST_PORT, SRC_IP, SRC_PORT,RETRIES, TIMEOUT)
   except TimeoutError:
     pass
   else:
@@ -72,7 +72,7 @@ def main():
   mycontext['conn'] = Connection()
 
   # Run tests
-  test_send_synacks()
+  test_accept()
 
   # teardown
   exitall()

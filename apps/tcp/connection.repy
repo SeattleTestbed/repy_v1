@@ -263,22 +263,22 @@ class Connection:
     # change states
     self.state_machine.accept()
 
-    # setup out client
-    self.client = TcpClient(self)
-    self.client.set_recv_window(self.server.get_recv_window())
-    self.release_all_locks()
-
-    # actually complete it, blocks for final ACK
-    self.client.send_synack(self.server.get_ack_num(), self.requestip, self.requestport, \
-				self.localip, self.localport, \
-					self.retries, self.timeout)
-
-    self.acquire_all_locks()
+    # change to estab
     self.remoteip = self.requestip
     self.remoteport = self.requestport
     self.requestip = None
     self.requestport = None
+
+    # setup out client
+    self.client = TcpClient(self)
+    self.client.set_recv_window(self.server.get_recv_window())
+    ack_num = self.server.get_ack_num()
     self.release_all_locks()
+
+    # actually complete it, blocks for final ACK
+    self.client.accept(ack_num, self.requestip, self.requestport, \
+				self.localip, self.localport, \
+					self.retries, self.timeout)
 
   # Request connection.
   def connect(self, remoteip, remoteport):
@@ -323,10 +323,12 @@ class Connection:
 
     # listen for responses
     self.conn = self.register_recvmess(self.localip, self.localport, self.callback)
-
-    self.state_machine.connect(remoteip, remoteport, \
-		self.localip, self.localport) # block until syn recv
+    self.client = TcpClient(self)
     self.release_all_locks()
+
+    self.client.connect(remoteip, remoteport, \
+		self.localip, self.localport, \
+                self.retries, self.timeout) # block until syn or synack recv
 
   # Sends via client the data in packets to the server. 
   # Throws exception on timeout.
@@ -385,7 +387,9 @@ class Connection:
              The maximum bytes you want to receive.
 
     <Exceptions>
-      NotConnectedError if the connection is not established.
+      raise NotBoundError("cannot recv data without binding, listening, and accepting")
+      raise NotConnectedError("cannot recv data without listening and accepting")
+      raise NotEstablishedError("cannot recv data without accepting")
 
     <Side Effects>
       Will wait 1 timeout period if the buffer is empty.
@@ -408,13 +412,14 @@ class Connection:
       self.recv_lock.release()
       raise NotEstablishedError("cannot recv data without accepting")
   
-    message = self.state_machine.recv(maxLen)
+    message = self.server.recv(maxLen)
     
     # If empty, wait a little
     if not message:
       sleep(self.timeout)
-      message = self.state_machine.recv(maxLen)
+      message = self.server.recv(maxLen)
 
+    self.client.set_recv_window(self.server.get_recv_window())
     self.recv_lock.release()
     return message
 
@@ -482,11 +487,57 @@ class Connection:
     <Returns>
       Nothing
     """
+    self.recv_lock.acquire()
     # print "recving: " + mess + " at: " + str(ip) + ":" + str(port) # DEBUG
     packet = unpack(mess)
+
+    # ignore bad ips and ports
+    if (self.remoteip and self.remoteport) and \
+	ip != self.remoteip or packet.srcport != self.remoteport:
+      self.recv_lock.release()
+      return None
+
+    # routed correctly
+    if self.localport != packet.destport:
+      self.recv_lock.release()
+      raise Exception("controller error?")
+    
+
+    # Let the state machine tell us what to do.
     advice = self.state_machine.next(packet)
-    if advice == OP_SND_SYNACK:
+
+    # init
+    if advice == OP_RCV_REMOTE_SYN: 
       self.server.process(ip, packet)
+
+    # mock synack
+    elif advice == OP_RCV_LOOPBACK_SYN: 
+      packet.ack_num = packet.seq_num 
+      packet.control_bits = "SYNACK"    
+      # Is valid SYN sequence?
+      if self.client.process(ip, packet): # stop send syn
+        self.server.process(ip, packet) # send back final ack
+   
+    # real syanck
+    elif advice == OP_RCV_SYNACK: 
+      self.client.process(ip, packet) # stop send syn
+      # Is valid SYN sequence?
+      if self.client.process(ip, packet): # stop send syn
+        self.server.process(ip, packet) # send back final ack
+
+    # ack estab
+    elif advice == OP_RCV_ACK:  
+      self.client.process(ip, packet) # send payloads?
+
+    # payload estab
+    elif advice == OP_RCV_PAYLOAD:  
+      self.server.process(ip, packet) # send ack?
+      self.client.set_recv_window(self.server.get_recv_window())
+
+    # ignore
+    else:
+      pass 
+    self.recv_lock.release()
  
   # Hook for controller to handle recv
   def register_recvmess(self, ip, port, callback):

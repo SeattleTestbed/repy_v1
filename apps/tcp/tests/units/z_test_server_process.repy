@@ -47,6 +47,50 @@ def test_pp_syn_alreadyconnected():
   serv.last_ack_sent = SEQ_NUM
   pack = mycontext['tpf'].syn(SEQ_NUM)
   try:
+    serv.process(IP, pack) 
+  except AlreadyConnectedError:
+    pass
+  else:
+    raise Exception("should have raised error")
+
+def test_pp_synack_new():
+  mycontext['packets'].clear()
+  SEQ_NUM = 1
+  serv = TcpServer(mycontext['conn'])
+  ACK_NUM = 5
+  pack = mycontext['tpf'].synack(SEQ_NUM, ACK_NUM)
+  serv.process(IP, pack)
+  assert SEQ_NUM in mycontext['packets'].keys()
+  assert mycontext['packets'][SEQ_NUM].seq_num == 0
+  assert not serv.buffer
+  assert not serv.packet_cache
+  assert serv.last_ack_sent == SEQ_NUM
+
+def test_pp_synack_old():
+  mycontext['packets'].clear()
+  SEQ_NUM = 1
+  serv = TcpServer(mycontext['conn'])
+  serv.last_ack_sent = SEQ_NUM
+  ACK_NUM = 5
+  pack = mycontext['tpf'].synack(SEQ_NUM, ACK_NUM)
+  serv.process(IP, pack)
+  assert SEQ_NUM in mycontext['packets'].keys()
+  assert mycontext['packets'][SEQ_NUM].seq_num == 0
+  assert not serv.buffer
+  assert not serv.packet_cache
+  assert serv.last_ack_sent == SEQ_NUM
+
+# SYN num already established
+# send an invalid one now -- exploit
+def test_pp_synack_already_connected():
+  mycontext['packets'].clear()
+  SEQ_NUM = 1
+  BAD_SEQ_NUM = 2
+  serv = TcpServer(mycontext['conn'])
+  serv.last_ack_sent = SEQ_NUM
+  ACK_NUM = 5
+  pack = mycontext['tpf'].synack(BAD_SEQ_NUM, ACK_NUM)
+  try:
     serv.process(IP, pack)
   except AlreadyConnectedError:
     pass
@@ -177,6 +221,9 @@ def main():
   # Run tests
   test_pp_syn()
   test_pp_syn_alreadyconnected()
+  test_pp_synack_new()
+  test_pp_synack_old()
+  test_pp_synack_already_connected()
   test_pp_next_seq()
   test_pp_next_seq_edge_mod()
   test_pp_before_window()

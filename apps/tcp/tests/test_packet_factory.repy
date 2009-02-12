@@ -21,6 +21,13 @@ class TestPacketFactory:
     pack.control_bits = "SYN"
     return pack
 
+  def synack(self, seq_num, ack_num):
+    pack = self.packet.copy()
+    pack.seq_num = seq_num
+    pack.ack_num = ack_num
+    pack.control_bits = "SYNACK"
+    return pack
+
   def psh(self, seq_num, size):
     pack = self.packet.copy()
     pack.seq_num = seq_num

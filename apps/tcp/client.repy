@@ -193,7 +193,7 @@ class TcpClient:
 
   # Used for SYNACK to send it, stops with Timeout or
   # the window_size is set by ACK
-  def send_synack(self, ack_num, destip, destport, \
+  def accept(self, ack_num, destip, destport, \
                 srcip, srcport, retries, timeout):
     if not self.send_window_size is None:
       raise UnknownStateError("whoa shouldn't have a send_win yet")

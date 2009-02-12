@@ -129,19 +129,14 @@ class TcpStateMachine:
       at end.
 
     <Returns>
-      A tuple with advice on who should handle the message
-      and what to do.  The tuple is in the format:
-        (client_advice, server_advice) - both should handle
-        (client_advice, None) - packet only for the client
-        (None, server_advice) - packet only for the server
-        (None, None) - packet to ignore
-      
-      The actually advice is a String which tells which 
-      function or how the handler(s) should act.  The 
-      valid outputs are:
+      An opcode specifying the exact transition
+      made.  Can be:
+      (OP_RCV_REMOTE_SYN, OP_RCV_LOOPBACK_SYN,
+       OP_RCV_SYNACK, OP_RCV_ACKSYN, OP_RCV_ACK,
+       OP_RCV_PAYLOAD, OP_RCV_NONE)
 
     """
-    advice = (None, None) # return to client-server
+    advice = OP_RCV_NONE
     self.lock.acquire()       
 
     if(self.state == self.STATE_CLOSED): 
@@ -150,41 +145,44 @@ class TcpStateMachine:
     elif(self.state == self.STATE_LISTEN):
       if packet.is_syn():
         self.state = self.STATE_SYN_RCVD
-        advice = OP_SND_SYNACK
+        advice = OP_RCV_REMOTE_SYN
 
     elif(self.state == self.STATE_SYN_SENT): 
       # finish the handshake with an ACK...
       if packet.is_synack():
         self.state = self.STATE_ESTAB
-        advice = ("send ack of syn", None)
+        advice = OP_RCV_SYNACK
       # loopback special case: recv own SYN!
       elif packet.is_syn():
         self.state = self.STATE_SYN_RCVD
-	advice = ("recv syn", None)
-      # who knows?
+        advice = OP_RCV_LOOPBACK_SYN
       else:
-	pass
+	pass # ignore
 
     elif(self.state == self.STATE_SYN_RCVD):
       # skip the ack then...
       if packet.is_payload():
         self.state = self.STATE_ESTAB
-        advice = (None, "recv psh")
+        advice = OP_RCV_PAYLOADSYN
       # ok ready
       elif packet.is_ack():
         self.state = self.STATE_ESTAB
-	advice = ("recv ack of syn", "recv ack of syn")
+	advice = OP_RCV_ACKSYN
       else:
 	pass
 
     elif(self.state == self.STATE_ESTAB):
       # count packet or ignore old ack
       if packet.is_ack():
-        advice = ("recv ack", None)
+        advice = OP_RCV_ACK
       # Send back an ack or reack.
       elif packet.is_payload():
-        advice = (None, "recv psh")
-      # ignore old handshake?
+        advice = OP_RCV_PAYLOAD
+      # old handshake?
+      elif packet.is_syn():
+        advice = OP_OLD_SYN
+      elif packet.is_synack():
+        advice = OP_OLD_SYNACK
       else:
         pass
     elif(self.state == self.STATE_FIN_WAIT_1): pass

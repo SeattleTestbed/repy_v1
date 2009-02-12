@@ -22,6 +22,8 @@ if callfunc == "initialize":
 
 def test_recv():
   conn = Connection()
+  conn.client = TcpClient(conn)
+  conn.server = TcpServer(conn)
   conn.conn = True
   conn.localip = IP
   conn.localport = PORT

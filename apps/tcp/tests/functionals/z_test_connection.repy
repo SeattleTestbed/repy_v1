@@ -14,7 +14,7 @@
   Passes quietly
 """
 include connection.repy
-include dummy_state_machine.repy
+include dummies.repy
 
 if callfunc == "initialize":
   IP = getmyip()
