@@ -26,19 +26,24 @@ def test_pp_synack_new():
   cli = TcpClient(None)
   assert cli.last_seq_sent
   ACK_NUM = cli.last_seq_sent
+  WINDOW = 10
   assert not cli.last_ack_recv
-  pack = mycontext['tpf'].synack(SEQ_NUM, ACK_NUM)
+  assert not cli.send_window_size
+  pack = mycontext['tpf'].synack(SEQ_NUM, ACK_NUM, WINDOW)
   assert cli.process(pack)
+  assert cli.send_window_size == WINDOW
   assert cli.last_ack_recv == ACK_NUM
   assert cli.last_seq_sent == ACK_NUM
 
 def test_pp_synack_old():
   SEQ_NUM = 1
+  WINDOW = 10
   cli = TcpClient(None)
   ACK_NUM = cli.last_seq_sent
   cli.last_ack_recv = ACK_NUM
-  pack = mycontext['tpf'].synack(SEQ_NUM, ACK_NUM)
+  pack = mycontext['tpf'].synack(SEQ_NUM, ACK_NUM, WINDOW)
   assert cli.process(pack)
+  assert cli.send_window_size == WINDOW
   assert cli.last_ack_recv == ACK_NUM
   assert cli.last_seq_sent == ACK_NUM
 
@@ -49,6 +54,7 @@ def test_pp_synack_bad():
   BAD_ACK_NUM = ACK_NUM + 1
   pack = mycontext['tpf'].synack(SEQ_NUM, BAD_ACK_NUM)
   assert not cli.process(pack)
+  assert not cli.send_window_size
   assert not cli.last_ack_recv
   assert cli.last_seq_sent == ACK_NUM
 
@@ -56,15 +62,39 @@ def test_pp_ack():
   ACK_NUM = 1
   SEQ_NUM = 5
   NEXT_ACK = SEQ_NUM + 1
+  cli = TcpClient(None)
+  cli.last_seq_sent = SEQ_NUM
+  cli.last_ack_recv = ACK_NUM
+  pack = mycontext['tpf'].ack(NEXT_ACK)
+  cli.process(pack)
+  assert cli.last_ack_recv == NEXT_ACK
+  assert cli.last_seq_sent == SEQ_NUM
+
+def test_pp_ack_new_window():
+  ACK_NUM = 1
+  SEQ_NUM = 5
+  NEXT_ACK = SEQ_NUM + 1
   WINDOW = 10
+  NEW_WINDOW = 10
   cli = TcpClient(None)
   cli.last_seq_sent = SEQ_NUM
   cli.last_ack_recv = ACK_NUM
   cli.send_window_size = WINDOW
-  pack = mycontext['tpf'].ack(NEXT_ACK, WINDOW)
+  pack = mycontext['tpf'].ack(NEXT_ACK, NEW_WINDOW)
+  cli.process(pack)
+  assert cli.send_window_size == NEW_WINDOW
+
+def test_pp_ack_of_syn():
+  ACK_NUM = 1
+  SEQ_NUM = 5
+  NEXT_ACK = SEQ_NUM + 1
+  cli = TcpClient(None)
+  cli.last_seq_sent = SEQ_NUM
+  pack = mycontext['tpf'].ack(SEQ_NUM)
   cli.process(pack)
   assert cli.last_ack_recv == NEXT_ACK
   assert cli.last_seq_sent == SEQ_NUM
+
 
 ####################
 # Test Helper Functions
@@ -79,6 +109,9 @@ def main():
   test_pp_synack_old()
   test_pp_synack_bad()
   test_pp_ack()
+  test_pp_ack_new_window()
+
+ # test_pp_ack_of_syn()
 
   # teardown
   exitall()

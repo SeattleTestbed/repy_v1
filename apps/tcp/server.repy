@@ -260,7 +260,7 @@ class TcpServer:
         packet = self.packet_cache[seq_num]
         self.buffer += packet.payload
         self.recv_window_size -= len(packet.payload)
-        new_seq_num = mod_add(packet.seq_num, len(packet.payload), MAX_SEQ_NUM)
+        new_seq_num = mod_add(packet.seq_num, len(packet.payload))
         del self.packet_cache[seq_num]
         seq_num = new_seq_num
 
@@ -270,8 +270,7 @@ class TcpServer:
                  "ACK", self.recv_window_size, "ack...").pack())
 
     # Maybe we can cache it.  Is it inside our window?
-    elif packet.seq_num in mod_range(self.last_ack_sent, self.last_ack_sent \
-                                        + self.recv_window_size, MAX_ACK_NUM):
+    elif mod_sep(self.last_ack_sent, packet.seq_num) < self.recv_window_size:
       # don't have it yet?
       if not packet.seq_num in self.packet_cache.keys():
         # save it quietly

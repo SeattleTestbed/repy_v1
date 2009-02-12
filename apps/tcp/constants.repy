@@ -4,9 +4,6 @@ DEFAULT_TIMEOUT = 1 # seconds to wait
 
 MSS = 1050 # bytes maximum payload                
 WINDOW_SIZE = 5 * MSS
-MAX_SEQ_NUM = 2 ** 32 # 16 bits
-MAX_ACK_NUM = 2 ** 32 # 16 bits
-
 
 # State machine outputs
 (OP_RCV_REMOTE_SYN, OP_RCV_LOOPBACK_SYN, \

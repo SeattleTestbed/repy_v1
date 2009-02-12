@@ -1,185 +1,45 @@
+MAX_SEQ_NUM = 2 ** 32 # 16 bits
+
 # Modulo helpers
 # BUG: Watch out for edge cases.
 #      Are they right?
 class RangeError(Exception):
-  """This exception indicates the start of the range is out of range"""
+  """This exception indicates a value is out of range"""
 
-# Pre : Start must be <= max
-# Post: Returns range from start to end
-#       not including end.
-def mod_range(start, end, max):
+def mod_sep(start, end, max = MAX_SEQ_NUM):
+  if start >= max or end >= max:
+    raise RangeError("start and end must be strictly less than max")
+
+  if start == end:
+    return 0
+  elif start < end:
+    return end - start
+  else: # end < start
+    return (max - start) + end
+
+def mod_between(start, mid, end, max = MAX_SEQ_NUM):
   """
   <Purpose>
-    
-    
-  <Arguments>
-    
-    
-  <Exceptions>
-    
-    
-  <Side Effects>
-    
-     
-  <Returns>
-    
+    Find if the mid is between the start and end.  True examples:
+      0 <= 1 <= 3 (MAX=10) mid in middle or
+      9 < 1 < 2 (MAX=10) # end in middle or 
+      7 < 9 < 2 (MAX=10) # start in middle
+  <Exception>
+    raise RangeError("start, middle, and end must be strictly less than max")
   """
-  
-  if start >= max:
-    raise RangeError("start of range cannot be greater " + \
-                      "than or equal to maximum")
-  # wrap around
-  if end > max:
-    return range(start, max) + range(0, end % max)
-  else: # end <= max
-    return range(start, end)
 
+  if start >= max or mid >= max or end >= max:
+    raise RangeError("start, middle, and end must be strictly less than max")
+  return (start <= mid and  mid <= end) \
+	or (mid <= end and end <= start) \
+     	or (end <= start and start <= mid)
 
-
-
-def mod_add(value1, value2, max):
-  """
-  <Purpose>
-      
-    
-  <Arguments>
-  
-    
-  <Exceptions>
-      
-  
-  <Side Effects>
-  
-     
-  <Returns>
-  
-  """
-  
+def mod_add(value1, value2, max = MAX_SEQ_NUM):
   return (value1 + value2) % max
 
-
-
-def mod_sub(value1, value2, max):
-  """
-  <Purpose>
-    
-  
-  <Arguments>
-    
-  
-  <Exceptions>
-    
-  
-  <Side Effects>
-    
-  
-  <Returns>
-    
-  """
-  
+def mod_sub(value1, value2, max = MAX_SEQ_NUM):
   return (value1 - value2) % max
 
-
-
-# Return true if, within window, value1 is > value2 
-# modulo max.
-# Returns false if the values are not within the window or
-# value1 <= value2.
-def mod_gt(value1, value2, max, window):
-  """
-  <Purpose>
-    
-  
-  <Arguments>
-    
-  
-  <Exceptions>
-    
-  
-  <Side Effects>
-    
-  
-  <Returns>
-    
-  """
-  
-  separation = len(mod_range(value2, value1, max))
-  return separation and separation <= window
-
-
-
-
-# Return true if, within window, value1 is >= value2 
-# modulo max.
-# Returns false if the values are not within the window or
-# value1 < value2.
-def mod_gte(value1, value2, max, window):
-  """
-  <Purpose>
-    
-  
-  <Arguments>
-    
-  
-  <Exceptions>
-    
-  
-  <Side Effects>
-    
-  
-  <Returns>
-    
-  """
-  
-  if value1 == value2:
-    return True
-  separation = len(mod_range(value2, value1, max))
-  return separation and separation <= window
-
-
-         
-# Return true if, within window, value1 is < value2 
-# modulo max.
-# Returns false if the values are not within the window or
-# value1 > value2.
-def mod_lt(value1, value2, max, window):
-  """
-  <Purpose>
-    
-    
-  <Arguments>
-    
-    
-  <Exceptions>
-    
-    
-  <Side Effects>
-    
-     
-  <Returns>
-    
-  """
-  
-  separation = len(mod_range(value1, value2, max))
-  return separation and separation <= window
-
-def mod_rand(max):
-  """
-    <Purpose>
-
-
-    <Arguments>
-
-
-    <Exceptions>
-
-
-    <Side Effects>
-
-
-    <Returns>
-
-  """
-
+def mod_rand(max = MAX_SEQ_NUM):
   return int(randomfloat() * (max - 1))
 

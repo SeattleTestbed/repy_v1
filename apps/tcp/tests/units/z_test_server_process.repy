@@ -175,6 +175,23 @@ def test_pp_in_window():
   assert serv.recv_window_size == WINDOW
 
 # outside
+def test_pp_outside_window():
+  mycontext['packets'].clear()
+  SEQ_NUM = 0
+  WIN = 10
+  SS = 20
+  serv = TcpServer(mycontext['conn'])
+  serv.last_ack_sent = SEQ_NUM
+  serv.recv_window_size = WIN
+  pack = mycontext['tpf'].psh(SEQ_NUM + SS , SS)
+  serv.process(IP, pack)
+  assert not serv.buffer
+  assert not serv.packet_cache
+  assert SEQ_NUM in mycontext['packets'].keys()
+  assert mycontext['packets'][SEQ_NUM].is_ack()
+  assert serv.last_ack_sent == SEQ_NUM
+
+# outside
 def test_pp_at_window():
   mycontext['packets'].clear()
   SEQ_NUM = 0
@@ -228,6 +245,7 @@ def main():
   test_pp_next_seq_edge_mod()
   test_pp_before_window()
   test_pp_in_window()
+  test_pp_outside_window()
   test_pp_at_window()
   test_pp_cumulative()
 

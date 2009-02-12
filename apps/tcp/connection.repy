@@ -324,6 +324,7 @@ class Connection:
     # listen for responses
     self.conn = self.register_recvmess(self.localip, self.localport, self.callback)
     self.client = TcpClient(self)
+    self.server = TcpServer(self)
     self.release_all_locks()
 
     self.client.connect(remoteip, remoteport, \
@@ -449,6 +450,12 @@ class Connection:
       raise NotConnectedError("cannot disconnect without connection")
     stopcomm(self.conn)
     self.conn = None
+    self.client = None
+    self.server = None
+    self.remoteip = None
+    self.remoteport = None
+    self.requestip = None
+    self.requestport = None
     self.release_all_locks()
 
   ##############################################################
