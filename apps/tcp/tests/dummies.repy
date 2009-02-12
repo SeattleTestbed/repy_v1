@@ -45,6 +45,8 @@ class TcpClient:
   def __init__(*args): pass
   def send(*args): pass
   def process(*args): pass
+  def set_recv_window(*args): pass
+  def send_synack(*args): pass
 
 class TcpServer:
   """
@@ -65,3 +67,5 @@ class TcpServer:
   def recv(*args): pass
   def process(*args): pass
   def listen(*args): return (IP, PORT)
+  def get_recv_window(*args): pass
+  def get_ack_num(*args): pass

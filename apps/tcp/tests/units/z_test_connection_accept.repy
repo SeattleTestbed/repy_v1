@@ -26,6 +26,7 @@ def test_accept():
   conn.localport = PORT
   conn.requestip = IP
   conn.requestport = PORT
+  conn.server = TcpServer(None)
   conn.conn = True
   conn.accept() 
   # should put request address into remote addr

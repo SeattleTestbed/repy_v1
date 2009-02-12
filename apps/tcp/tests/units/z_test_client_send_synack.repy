@@ -1,0 +1,81 @@
+""" 
+<Program Name>
+  z_test_client_send.repy
+
+<Started>
+  February 9, 2009
+
+<Author>
+  Richard Jordan
+
+<Purpose>
+  To test that the function works.
+
+  Passes quietly
+"""
+include constants.repy
+include client.repy
+
+if callfunc == 'initialize':
+  DEST_IP = 'whatever'
+  DEST_PORT = 12345
+  SRC_IP = 'whateversrc'
+  SRC_PORT = 12346
+  TIMEOUT = .01
+  RETRIES = 4  
+
+def test_send_synacks():
+  mycontext['packets'].clear()
+  ACK_NUM = 1
+  WINDOW= 10
+  mycontext['conn'].register_sendmess = synack_register
+  cli = TcpClient(mycontext['conn'])
+  SEQ_NUM = cli.last_ack_recv
+  cli.recv_window_size= WINDOW
+  try:
+    cli.send_synack(ACK_NUM, DEST_IP, DEST_PORT, SRC_IP, SRC_PORT,RETRIES, TIMEOUT)
+  except TimeoutError:
+    pass
+  else:
+    raise Exception("should raise timeout")
+
+  assert SEQ_NUM in mycontext['packets'].keys()
+  assert mycontext['packets'][SEQ_NUM].is_synack()
+  assert cli.last_ack_recv == SEQ_NUM
+  assert cli.last_seq_sent == mod_sub(SEQ_NUM, 1, MAX_SEQ_NUM)
+  assert mycontext['packet_count'] == RETRIES + 1
+  assert mycontext['packets'][SEQ_NUM].srcport == SRC_PORT
+  assert mycontext['packets'][SEQ_NUM].destport == DEST_PORT
+  assert mycontext['packets'][SEQ_NUM].window == WINDOW
+  assert mycontext['packets'][SEQ_NUM].ack_num == ACK_NUM
+  assert mycontext['packets'][SEQ_NUM].seq_num == SEQ_NUM
+
+
+####################
+# Test Helper Functions
+####################
+class Connection:
+  def register_sendmess(self, destip, destport, message, srcip = None, srcport = None):
+    pass
+
+def synack_register(destip, destport, message, srcip = None, srcport = None):
+    mycontext['packet_count'] +=1
+    pack = unpack(message)
+    mycontext['packets'][pack.seq_num] = pack
+    return len(pack.payload)
+
+
+def main():
+  # setup
+  mycontext['packet_count'] = 0
+  mycontext['packets'] = {}
+  mycontext['conn'] = Connection()
+
+  # Run tests
+  test_send_synacks()
+
+  # teardown
+  exitall()
+
+if callfunc == 'initialize':
+  main()

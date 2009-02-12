@@ -265,12 +265,13 @@ class Connection:
 
     # setup out client
     self.client = TcpClient(self)
-
+    self.client.set_recv_window(self.server.get_recv_window())
     self.release_all_locks()
 
     # actually complete it, blocks for final ACK
-
-    self.client.send(self.requestip, self.requestport)
+    self.client.send_synack(self.server.get_ack_num(), self.requestip, self.requestport, \
+				self.localip, self.localport, \
+					self.retries, self.timeout)
 
     self.acquire_all_locks()
     self.remoteip = self.requestip

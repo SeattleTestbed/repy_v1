@@ -47,6 +47,9 @@ class TcpClient:
     self.conn = conn    
     self.packet_cache = {} # holds currently sent, unacked packets
 
+    # kept track of + updated by Server
+    self.recv_window_size = None # size of window
+
     # Sliding window accounting
     self.send_window_size = None # size of window
     self.last_ack_recv = mod_rand(MAX_SEQ_NUM) # Beginning of window 
@@ -92,8 +95,8 @@ class TcpClient:
         # give up
         if times_sent > retries:
           self.sleep_lock.release()
-          raise Exception("tried %d times" % times_sent)
-#          raise TimeoutError("tried %d times" % times_sent)
+#          raise Exception("tried %d times" % times_sent)
+          raise TimeoutError("tried %d times" % times_sent)
 
         self.lock.acquire()
         # Send or Re-send all those in cache
@@ -131,7 +134,7 @@ class TcpClient:
         # increment tries
         times_sent += 1
         # take a deep breath
-        self.goto_sleep(timeout)
+        self.sleep_lock.sleep(timeout)
 
     return bytes_sent
 
@@ -165,6 +168,7 @@ class TcpClient:
       raise NotConnectedError("no packets sent to ack")
 
     self.lock.acquire()    
+    self.send_window_size = packet.window 
     # if a newer ack that falls in current window     
     if mod_gt(packet.ack_num, self.last_ack_recv, \
               MAX_ACK_NUM, self.send_window_size):
@@ -180,9 +184,42 @@ class TcpClient:
 
       # all done up to this ack
       self.last_ack_recv = packet.ack_num
-      self.wake_up()
+      self.sleep_lock.wakeup()
 
     else: # old ack 
       pass # ignore it
 
+    self.lock.release()
+
+  # Used for SYNACK to send it, stops with Timeout or
+  # the window_size is set by ACK
+  def send_synack(self, ack_num, destip, destport, \
+                srcip, srcport, retries, timeout):
+    if not self.send_window_size is None:
+      raise UnknownStateError("whoa shouldn't have a send_win yet")
+   
+    synack = TcpPacket(srcport, destport, self.last_ack_recv, ack_num, "SYNACK", self.recv_window_size, "synacking...")
+    times_sent = 0
+    bytes_sent = 0
+    while self.send_window_size is None:
+      self.sleep_lock.acquire()
+      # give up
+      if times_sent > retries:
+        self.sleep_lock.release()
+        raise TimeoutError("tried %d times" % times_sent)
+
+      self.lock.acquire()
+      bytes_sent += self.conn.register_sendmess(destip, destport, \
+                	synack.pack(), srcip, srcport)
+
+      self.lock.release()
+      times_sent += 1
+      self.sleep_lock.sleep(timeout)
+
+    return bytes_sent
+ 
+  # atomic setter for Server to specify recv window
+  def set_recv_window(self, size):
+    self.lock.acquire()
+    self.recv_window_size = size
     self.lock.release()

@@ -206,3 +206,19 @@ class TcpServer:
     self.lock.release()
 
     return addr
+
+  # atomic getter for window to pass to Client
+  def get_recv_window(self):
+    self.lock.acquire()
+    win = self.recv_window_size
+    self.lock.release()
+    return win
+
+  # for SYNACK
+  # atomic getter for window to pass to Client
+  def get_ack_num(self):
+    self.lock.acquire()
+    ack = self.last_ack_sent
+    self.lock.release()
+    return ack
+
