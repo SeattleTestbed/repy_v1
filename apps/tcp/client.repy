@@ -268,26 +268,35 @@ class TcpClient:
     if not packet.is_ack():
       raise UnknownStateError("expected an ack")
 
+    # ack of synack
+    if self.last_ack_recv is None \
+	 and self.last_seq_sent == packet.ack_num: # good ack of syn
+      self.last_ack_recv = packet.ack_num # == last_seq_sent
+    elif self.last_ack_recv is None: # bad ack of syn
+      return None 
+    else:  # no other cases
+      pass
+
     next_ack = mod_add(self.last_seq_sent, 1)
 
     # if a newer ack that falls in sent
     if mod_between(self.last_ack_recv, packet.ack_num, next_ack):
-
+      last_seq = mod_sub(packet.ack_num, 1)
       # -- Cumulative ACK Processing
       for seq_num in self.packet_cache.keys():  
         # Delete all packets below this recvd ack_num.
         # We never received their acks but the sender must have
         # received the payloads of all seq_num before this ack by
         # the definition of our protocol.
-        if mod_between(self.last_ack_recv, seq_num, packet.ack_num):
+        if mod_between(self.last_ack_recv, seq_num, last_seq):
           del self.packet_cache[seq_num]
 
       # all done up to this ack
       self.last_ack_recv = packet.ack_num
       self.sleep_lock.wakeup()
+      # reset window
+      self.send_window_size = packet.window 
 
     else: # old ack 
       pass # ignore it
 
-    # reset window
-    self.send_window_size = packet.window 

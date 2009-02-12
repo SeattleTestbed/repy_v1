@@ -85,16 +85,65 @@ def test_pp_ack_new_window():
   assert cli.send_window_size == NEW_WINDOW
 
 def test_pp_ack_of_syn():
-  ACK_NUM = 1
   SEQ_NUM = 5
-  NEXT_ACK = SEQ_NUM + 1
+  WIN = 10
   cli = TcpClient(None)
   cli.last_seq_sent = SEQ_NUM
-  pack = mycontext['tpf'].ack(SEQ_NUM)
+  assert not cli.last_ack_recv
+  assert not cli.send_window_size
+  pack = mycontext['tpf'].ack(SEQ_NUM, WIN)
+  cli.process(pack)
+  assert cli.last_ack_recv == SEQ_NUM
+  assert cli.last_seq_sent == SEQ_NUM
+  assert cli.send_window_size == WIN
+
+def test_pp_bad_ack_of_syn():
+  SEQ_NUM = 5
+  BAD_ACK_NUM = 2
+  WIN = 10
+  cli = TcpClient(None)
+  cli.last_seq_sent = SEQ_NUM
+  assert not cli.last_ack_recv
+  assert not cli.send_window_size
+  pack = mycontext['tpf'].ack(BAD_ACK_NUM, WIN)
+  cli.process(pack)
+  assert not cli.last_ack_recv
+  assert cli.last_seq_sent == SEQ_NUM
+  assert not cli.send_window_size
+
+def test_pp_ack_mod():
+  ACK_NUM = MAX_SEQ_NUM - 2
+  SEQ_NUM = 2
+  NEXT_ACK = 1
+  cli = TcpClient(None)
+  cli.last_seq_sent = SEQ_NUM
+  cli.last_ack_recv = ACK_NUM
+  pack = mycontext['tpf'].ack(NEXT_ACK)
   cli.process(pack)
   assert cli.last_ack_recv == NEXT_ACK
   assert cli.last_seq_sent == SEQ_NUM
 
+def test_pp_ack_cumulative_mod():
+  ACK_NUM = MAX_SEQ_NUM - 2
+  SEQ_NUM = 2
+  NEXT_ACK = 1
+  cli = TcpClient(None)
+  cli.last_seq_sent = SEQ_NUM
+  cli.last_ack_recv = ACK_NUM
+  cli.packet_cache[MAX_SEQ_NUM-2] = True
+  cli.packet_cache[MAX_SEQ_NUM-1] = True
+  cli.packet_cache[0] = True
+  cli.packet_cache[1] = True
+  cli.packet_cache[2] = True
+  pack = mycontext['tpf'].ack(NEXT_ACK)
+  cli.process(pack)
+  assert cli.last_ack_recv == NEXT_ACK
+  assert cli.last_seq_sent == SEQ_NUM
+  assert not (MAX_SEQ_NUM-2) in cli.packet_cache.keys()
+  assert not (MAX_SEQ_NUM-1) in cli.packet_cache.keys()
+  assert not 0 in cli.packet_cache.keys()
+  assert cli.packet_cache[1]
+  assert cli.packet_cache[2]
 
 ####################
 # Test Helper Functions
@@ -110,8 +159,10 @@ def main():
   test_pp_synack_bad()
   test_pp_ack()
   test_pp_ack_new_window()
-
- # test_pp_ack_of_syn()
+  test_pp_ack_of_syn()
+  test_pp_bad_ack_of_syn()
+  test_pp_ack_mod()
+  test_pp_ack_cumulative_mod()
 
   # teardown
   exitall()
