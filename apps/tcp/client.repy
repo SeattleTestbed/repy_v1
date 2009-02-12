@@ -52,8 +52,8 @@ class TcpClient:
 
     # Sliding window accounting
     self.send_window_size = None # size of window
-    self.last_ack_recv = mod_rand(MAX_SEQ_NUM) # Beginning of window 
-    self.last_seq_sent = mod_sub(self.last_ack_recv, 1, MAX_SEQ_NUM) # End
+    self.last_ack_recv = None # recv back by SYNACK, Beginning of window 
+    self.last_seq_sent = mod_rand(MAX_SEQ_NUM)  # End of window
 
     self.lock = getlock()
     self.sleep_lock = SleepLock()
@@ -139,14 +139,115 @@ class TcpClient:
     return bytes_sent
 
 
+  # Used for SYNACK to send it, stops with Timeout or
+  # the window_size is set by ACK
+  def accept(self, ack_num, destip, destport, \
+                srcip, srcport, retries, timeout):
+    if not self.send_window_size is None or not self.last_ack_recv is None:
+      raise UnknownStateError("whoa shouldn't have variables yet")
+   
+    synack = TcpPacket(srcport, destport, self.last_seq_sent, ack_num, "SYNACK", self.recv_window_size, "synacking...")
+    times_sent = 0
+    bytes_sent = 0
+    while self.send_window_size is None:
+      self.sleep_lock.acquire()
+      # give up
+      if times_sent > retries:
+        self.sleep_lock.release()
+        raise TimeoutError("tried %d times" % times_sent)
 
-  # Throws an error if the last seq number is undefined
-  # or if the packet is not an ack.
-  # Accounts to stop resending the acked packet.
+      self.lock.acquire()
+      bytes_sent += self.conn.register_sendmess(destip, destport, \
+                	synack.pack(), srcip, srcport)
+
+      self.lock.release()
+      times_sent += 1
+      self.sleep_lock.sleep(timeout)
+
+    return bytes_sent
+
   def process(self, packet):
     """
     <Purpose>
+      Handles ACK's (and therefore SYNACK's)
+      Sets up variables and stops sleeping. 
+   
+    <Arguments>
+      packet
+        the ACK or SYNACK
+    
+    <Exceptions>
+      raise NotConnectedError("no packets sent to ack")
+    
+    <Side Effects>
+      Changes window size and seq nums and last ack recv
+     
+    <Returns>
+      True if the packet is a SYNACK and valid.
+    """
+    self.lock.acquire()
+
+    if self.last_seq_sent == None:
+      self.lock.release()
+      raise NotConnectedError("no packets sent to ack")
+    elif packet.is_synack():
+      return self.process_synack(packet)
+    elif packet.is_ack():
+      self.process_ack(packet)
+    else:
+      pass
+
+    self.lock.release()
+
+  ##########
+  # Getters
+  ##########
+ 
+  # atomic setter for Server to specify recv window
+  def set_recv_window(self, size):
+    self.lock.acquire()
+    self.recv_window_size = size
+    self.lock.release()
+
+  ##########
+  # Private
+  ##########
+  def process_synack(self, packet):
+    """
+    <Purpose>
+      Accounts a synack.
+      Verifies if valid ACK num of SYN sent.
+
+    <Returns>
+      True if the SYNACK is valid, false otherwise.
+    """
+    is_valid = False
+    if self.last_ack_recv is None and packet.ack_num == self.last_seq_sent:  # new synack
+      self.last_ack_recv = self.last_seq_sent
+      is_valid = True 
+
+    elif not self.last_ack_recv is None and packet.ack_num == self.last_seq_sent:  # old synack
+      if self.last_ack_recv != self.last_seq_sent: # never will happen
+	raise UnknownStateError("cannot be true that old synack is not current ack")
+      is_valid = True 
+
+    elif packet.ack_num != self.last_seq_sent:  # bad synack
+      pass
+    else: # no other cases
+      pass
+
+    # reset window
+    self.send_window_size = packet.window 
+    return is_valid
+
+  def process_ack(self, packet):
+    """
+    <Purpose>
       Handles ACK's from receiver.
+
+      Throws an error if the last seq number is undefined
+      or if the packet is not an ack.
+      Accounts to stop resending the acked packet.
     
     <Arguments>
       packet
@@ -161,14 +262,9 @@ class TcpClient:
     <Returns>
       Nothing.
     """
-    
     if not packet.is_ack():
       raise UnknownStateError("expected an ack")
-    if self.last_seq_sent == None:
-      raise NotConnectedError("no packets sent to ack")
 
-    self.lock.acquire()    
-    self.send_window_size = packet.window 
     # if a newer ack that falls in current window     
     if mod_gt(packet.ack_num, self.last_ack_recv, \
               MAX_ACK_NUM, self.send_window_size):
@@ -189,37 +285,3 @@ class TcpClient:
     else: # old ack 
       pass # ignore it
 
-    self.lock.release()
-
-  # Used for SYNACK to send it, stops with Timeout or
-  # the window_size is set by ACK
-  def accept(self, ack_num, destip, destport, \
-                srcip, srcport, retries, timeout):
-    if not self.send_window_size is None:
-      raise UnknownStateError("whoa shouldn't have a send_win yet")
-   
-    synack = TcpPacket(srcport, destport, self.last_ack_recv, ack_num, "SYNACK", self.recv_window_size, "synacking...")
-    times_sent = 0
-    bytes_sent = 0
-    while self.send_window_size is None:
-      self.sleep_lock.acquire()
-      # give up
-      if times_sent > retries:
-        self.sleep_lock.release()
-        raise TimeoutError("tried %d times" % times_sent)
-
-      self.lock.acquire()
-      bytes_sent += self.conn.register_sendmess(destip, destport, \
-                	synack.pack(), srcip, srcport)
-
-      self.lock.release()
-      times_sent += 1
-      self.sleep_lock.sleep(timeout)
-
-    return bytes_sent
- 
-  # atomic setter for Server to specify recv window
-  def set_recv_window(self, size):
-    self.lock.acquire()
-    self.recv_window_size = size
-    self.lock.release()

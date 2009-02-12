@@ -35,7 +35,7 @@ clean:
 # Builds all test files
 # Takes FN as arg, ex. `make FN=*controller*` to build all files with glob.
 build:
-	cd ${TESTS_SRC_DIR} && ./build.sh ${TESTDIR} "${FN}"
+	cd ${TESTS_SRC_DIR} && ./build.sh ${TESTDIR} "*${FN}*"
 	cp ${TESTS_SRC_DIR}/*.txt ${TESTDIR}
 	cp ${TESTS_SRC_DIR}/restrictions.* ${TESTDIR}
 	cp ${TESTS_SRC_DIR}/run_tests.py ${TESTDIR}

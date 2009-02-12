@@ -8,8 +8,11 @@
 <Usage>
   Public Methods:
     Server() - get new server
-    connection.recv(maxLen) - delete and return data from buffer
-    connection.process_payload(packet) - do what's needed on receipt of payload
+    server.listen(timeout) - listen for SYN
+    server.recv(maxLen) - delete and return data from buffer
+    server.process(packet) - do what's needed on receipt of payload
+    server.get_ack_num() - return ack num
+    server.get_recv_window() - return window
 """
 include constants.repy
 include errors.repy

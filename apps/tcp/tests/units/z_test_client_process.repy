@@ -1,0 +1,87 @@
+""" 
+<Program Name>
+  z_test_client_process.repy
+
+<Started>
+  February 12, 2009
+
+<Author>
+  Richard Jordan
+
+<Purpose>
+  To test that Client.process() function works.
+
+  Passes quietly
+"""
+include constants.repy
+include client.repy
+include test_packet_factory.repy
+
+if callfunc == 'initialize':
+  IP = 'whatever'
+  PORT = 12345
+
+def test_pp_synack_new():
+  SEQ_NUM = 1
+  cli = TcpClient(None)
+  assert cli.last_seq_sent
+  ACK_NUM = cli.last_seq_sent
+  assert not cli.last_ack_recv
+  pack = mycontext['tpf'].synack(SEQ_NUM, ACK_NUM)
+  assert cli.process(pack)
+  assert cli.last_ack_recv == ACK_NUM
+  assert cli.last_seq_sent == ACK_NUM
+
+def test_pp_synack_old():
+  SEQ_NUM = 1
+  cli = TcpClient(None)
+  ACK_NUM = cli.last_seq_sent
+  cli.last_ack_recv = ACK_NUM
+  pack = mycontext['tpf'].synack(SEQ_NUM, ACK_NUM)
+  assert cli.process(pack)
+  assert cli.last_ack_recv == ACK_NUM
+  assert cli.last_seq_sent == ACK_NUM
+
+def test_pp_synack_bad():
+  SEQ_NUM = 1
+  cli = TcpClient(None)
+  ACK_NUM = cli.last_seq_sent
+  BAD_ACK_NUM = ACK_NUM + 1
+  pack = mycontext['tpf'].synack(SEQ_NUM, BAD_ACK_NUM)
+  assert not cli.process(pack)
+  assert not cli.last_ack_recv
+  assert cli.last_seq_sent == ACK_NUM
+
+def test_pp_ack():
+  ACK_NUM = 1
+  SEQ_NUM = 5
+  NEXT_ACK = SEQ_NUM + 1
+  WINDOW = 10
+  cli = TcpClient(None)
+  cli.last_seq_sent = SEQ_NUM
+  cli.last_ack_recv = ACK_NUM
+  cli.send_window_size = WINDOW
+  pack = mycontext['tpf'].ack(NEXT_ACK, WINDOW)
+  cli.process(pack)
+  assert cli.last_ack_recv == NEXT_ACK
+  assert cli.last_seq_sent == SEQ_NUM
+
+####################
+# Test Helper Functions
+####################
+
+def main():
+  # setup
+  mycontext['tpf'] = TestPacketFactory(PORT)
+
+  # Run tests
+  test_pp_synack_new()
+  test_pp_synack_old()
+  test_pp_synack_bad()
+  test_pp_ack()
+
+  # teardown
+  exitall()
+
+if callfunc == 'initialize':
+  main()

@@ -30,7 +30,7 @@ def test_accept():
   WINDOW= 10
   mycontext['conn'].register_sendmess = synack_register
   cli = TcpClient(mycontext['conn'])
-  SEQ_NUM = cli.last_ack_recv
+  SEQ_NUM = cli.last_seq_sent
   cli.recv_window_size= WINDOW
   try:
     cli.accept(ACK_NUM, DEST_IP, DEST_PORT, SRC_IP, SRC_PORT,RETRIES, TIMEOUT)
@@ -41,8 +41,8 @@ def test_accept():
 
   assert SEQ_NUM in mycontext['packets'].keys()
   assert mycontext['packets'][SEQ_NUM].is_synack()
-  assert cli.last_ack_recv == SEQ_NUM
-  assert cli.last_seq_sent == mod_sub(SEQ_NUM, 1, MAX_SEQ_NUM)
+  assert cli.last_ack_recv is None
+  assert cli.last_seq_sent == SEQ_NUM
   assert mycontext['packet_count'] == RETRIES + 1
   assert mycontext['packets'][SEQ_NUM].srcport == SRC_PORT
   assert mycontext['packets'][SEQ_NUM].destport == DEST_PORT
