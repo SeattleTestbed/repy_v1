@@ -103,6 +103,20 @@ def test_pp_ack_of_syn():
   assert cli.last_seq_sent == SEQ_NUM
   assert cli.send_window_size == WIN
 
+def test_pp_old_ack_of_syn():
+  SEQ_NUM = 5
+  ACK_NUM = SEQ_NUM + 1
+  WIN = 10
+  cli = TcpClient(None)
+  cli.last_seq_sent = SEQ_NUM
+  cli.last_ack_recv = ACK_NUM
+  cli.send_window_size = WIN
+  pack = mycontext['tpf'].ack(ACK_NUM, WIN)
+  cli.process(pack)
+  assert cli.last_ack_recv == ACK_NUM
+  assert cli.last_seq_sent == SEQ_NUM
+  assert cli.send_window_size == WIN
+
 def test_pp_bad_ack_of_syn():
   SEQ_NUM = 5
   BAD_ACK_NUM = 2
@@ -185,9 +199,11 @@ def main():
   test_pp_ack_new_window()
   test_pp_ack_of_syn()
   test_pp_bad_ack_of_syn()
+  test_pp_payloadack()
+#  test_pp_old_ack_of_syn_after_payack()
+  test_pp_old_ack_of_syn()
   test_pp_ack_mod()
   test_pp_ack_cumulative_mod()
-  test_pp_payloadack()
 
   # teardown
   exitall()

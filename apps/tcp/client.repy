@@ -62,18 +62,24 @@ class TcpClient:
                 srcip, srcport, retries, timeout):
     """
     <Purpose>
-      Trickled down from connection via state machine.
+      Actually sends data!  The most complex piece and
+      whole point of all this stupid code.
+
       Does sliding window algorithm.  Uses slow start.
 
     <Arguments>
-      ...
+      data - string of data
+      (destip, destport) - address to send to
+      (srcip, srcport) - who am i?
+      retries - send this many times after initial try
+      timeout - wait time for an ACK, then retry
     
     <Exceptions>
       TimeoutError if not enough ACK's come back.
     
     <Side Effects>
       Sends UDP messages.
-      Uses self.lock
+      Uses self.lock, sleep_lock
      
     <Returns>
       The bytes sent.
@@ -95,7 +101,6 @@ class TcpClient:
         # give up
         if times_sent > retries:
           self.sleep_lock.release()
-#          raise Exception("tried %d times" % times_sent)
           raise TimeoutError("tried %d times" % times_sent)
 
         self.lock.acquire()
@@ -120,10 +125,10 @@ class TcpClient:
             if free_window < MSS: # yes
               payload_size = self.send_window_size
             else: # no just send MSS of the window
-              payload_size = MSS 
+              payload_size = MSS
             # make the packet
             next_seq_num = mod_add(self.last_seq_sent, 1)
-            packet = TcpPacket(srcport, destport, next_seq_num, 0, "PSH", WINDOW_SIZE, ''.join(data[0:payload_size]))
+            packet = TcpPacket(srcport, destport, next_seq_num, 0, "PSH", self.recv_window_size, ''.join(data[0:payload_size]))
             del data[0:payload_size]
             self.packet_cache[packet.seq_num] = packet
             self.last_seq_sent = mod_add(packet.seq_num, len(packet.payload) - 1)
@@ -361,21 +366,23 @@ class TcpClient:
       raise UnknownStateError("expected an ack")
 
     # one past the last seq
-    next_ack = mod_add(self.last_seq_sent, 1)
+    lateist_ack = mod_add(self.last_seq_sent, 1)
 
     # ack of synack
     if self.last_ack_recv is None \
-	 and next_ack == packet.ack_num: # good ack of syn
+	 and lateist_ack == packet.ack_num: # good ack of syn
       self.last_ack_recv = packet.ack_num # == last_seq_sent
       self.sleep_lock.wakeup()
       self.send_window_size = packet.window 
+      return None
     elif self.last_ack_recv is None: # bad ack of syn
       return None 
-    else:  # no other cases
+    else:  # keep going
       pass
 
+    earliest_ack = mod_add(self.last_ack_recv, 1)
     # if a newer ack that falls in sent
-    if mod_between(self.last_ack_recv, packet.ack_num, next_ack):
+    if mod_between(earliest_ack, packet.ack_num, lateist_ack):
       last_seq = mod_sub(packet.ack_num, 1)
       # -- Cumulative ACK Processing
       for seq_num in self.packet_cache.keys():  
@@ -385,7 +392,6 @@ class TcpClient:
         # the definition of our protocol.
         if mod_between(self.last_ack_recv, seq_num, last_seq):
           del self.packet_cache[seq_num]
-
       # all done up to this ack
       self.last_ack_recv = packet.ack_num
       self.sleep_lock.wakeup()

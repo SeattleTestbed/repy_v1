@@ -277,7 +277,7 @@ class Connection:
     self.release_all_locks()
 
     # actually complete it, blocks for final ACK
-    self.client.accept(ack_num, self.requestip, self.requestport, \
+    self.client.accept(ack_num, self.remoteip, self.remoteport, \
 				self.localip, self.localport, \
 					self.retries, self.timeout)
 
@@ -503,7 +503,7 @@ class Connection:
 
     # ignore bad ips and ports
     if (self.remoteip and self.remoteport) and \
-	ip != self.remoteip or packet.srcport != self.remoteport:
+	(ip != self.remoteip or packet.srcport != self.remoteport):
       self.recv_lock.release()
       return None
 

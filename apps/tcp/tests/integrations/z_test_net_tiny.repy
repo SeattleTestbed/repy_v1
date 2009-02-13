@@ -3,22 +3,31 @@ include tcp.repy
 if callfunc == 'initialize':
   IP = getmyip()
   PORT = 12345
+  PORT_TWO = 12346
   MESSAGE = "hi"
   MAXLEN = 4096
+
+def server():
+  socket = Connection()
+  socket.bind(IP, PORT_TWO)
+  
+  socket.listen()
+  socket.accept()
+  mess = socket.recv(MAXLEN)
+  if mess != MESSAGE:
+    print "%s != %s" % (mess, MESSAGE)
+  socket.disconnect()
+
+if callfunc == 'initialize':
+  settimer(0, server, ())
 
   socket = Connection()
   socket.bind(IP, PORT)
 
-if callfunc == 'initialize':
-
-  socket.connect(IP, PORT)
+  socket.connect(IP, PORT_TWO)
   bytes = socket.send(MESSAGE)
   if bytes == 0:
     print "Expected some bytes"
-
-  mess = socket.recv(MAXLEN)
-  if mess != MESSAGE:
-    print "%s != %s" % (mess, MESSAGE)
 
   socket.disconnect()
   exitall()

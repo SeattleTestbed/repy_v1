@@ -25,7 +25,7 @@ include tcp.repy
 def listenForSYNAndACK(remoteIP, remoteport, message, commhandle):
   packet = unpack(message)
   if(packet.is_syn()):
-    packetSYNAck = TcpPacket(mycontext['SECOND_PORT'], mycontext['PORT'], 1, 0, "SYNACK", WINDOW_SIZE, "synacking...").pack()
+    packetSYNAck = TcpPacket(mycontext['SECOND_PORT'], mycontext['PORT'], 1, mod_add(packet.seq_num, 1), "SYNACK", WINDOW_SIZE, "synacking...").pack()
     sendmess(remoteIP, mycontext['PORT'], packetSYNAck, IP, mycontext['SECOND_PORT'])
   elif(packet.is_ack()):
     mycontext['receivedACK'] = True
