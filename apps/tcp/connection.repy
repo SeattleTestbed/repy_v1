@@ -48,6 +48,7 @@ include errors.repy
 include packet.repy
 include server.repy
 include state_machine.repy
+include utilities.repy
 ##############################################################
 # Public Interface
 ##############################################################
@@ -325,6 +326,8 @@ class Connection:
     self.conn = self.register_recvmess(self.localip, self.localport, self.callback)
     self.client = TcpClient(self)
     self.server = TcpServer(self)
+
+    self.state_machine.connect() # do any state accounting
     self.release_all_locks()
 
     self.client.connect(remoteip, remoteport, \
@@ -369,7 +372,7 @@ class Connection:
       raise NotEstablishedError("cannot send data without accepting")
    
     # send them
-    bytes = self.state_machine.send(data, self.remoteip, self.remoteport, \
+    bytes = self.client.send(data, self.remoteip, self.remoteport, \
 					self.localip, self.localport, \
 					self.retries, self.timeout)
     self.send_lock.release()
@@ -512,29 +515,34 @@ class Connection:
 
     # Let the state machine tell us what to do.
     advice = self.state_machine.next(packet)
-
     # init
     if advice == OP_RCV_REMOTE_SYN: 
       self.server.process(ip, packet)
 
     # mock synack
     elif advice == OP_RCV_LOOPBACK_SYN: 
-      packet.ack_num = packet.seq_num 
+      packet.ack_num = mod_add(packet.seq_num, 1)
       packet.control_bits = "SYNACK"    
       # Is valid SYN sequence?
-      if self.client.process(ip, packet): # stop send syn
+      if self.client.process(packet): # stop send syn
         self.server.process(ip, packet) # send back final ack
    
     # real syanck
     elif advice == OP_RCV_SYNACK: 
-      self.client.process(ip, packet) # stop send syn
+      self.client.process(packet) # stop send syn
       # Is valid SYN sequence?
-      if self.client.process(ip, packet): # stop send syn
+      if self.client.process(packet): # stop send syn
         self.server.process(ip, packet) # send back final ack
 
-    # ack estab
+    # payload and final ack
+    elif advice == OP_RCV_PAYLOADACK:  
+      self.server.process(ip, packet) # send ack?
+      self.client.set_recv_window(self.server.get_recv_window())
+      self.client.process(packet)      
+
+    # ack estab, maybe final
     elif advice == OP_RCV_ACK:  
-      self.client.process(ip, packet) # send payloads?
+      self.client.process(packet) # send payloads?
 
     # payload estab
     elif advice == OP_RCV_PAYLOAD:  
@@ -545,7 +553,7 @@ class Connection:
     else:
       pass 
     self.recv_lock.release()
- 
+
   # Hook for controller to handle recv
   def register_recvmess(self, ip, port, callback):
     """

@@ -43,7 +43,7 @@ class TcpClient:
   """
   
   def __init__(*args): pass
-  def send(*args): pass
+  def send(*args): return 1
   def process(*args): pass
   def accept(*args): pass
   def connect(*args): pass

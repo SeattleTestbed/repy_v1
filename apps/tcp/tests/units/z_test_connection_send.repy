@@ -28,6 +28,7 @@ def test_send():
   conn.localport = PORT
   conn.remoteip = IP
   conn.remoteport = PORT
+  conn.client = TcpClient(conn)
   bytes = conn.send(MESS)
   assert bytes
 

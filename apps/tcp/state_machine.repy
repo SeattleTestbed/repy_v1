@@ -161,11 +161,11 @@ class TcpStateMachine:
 
     elif(self.state == self.STATE_SYN_RCVD):
       # skip the ack then...
-#      if packet.is_payload():
-#        self.state = self.STATE_ESTAB
-#        advice = OP_RCV_PAYLOADSYN
+      if packet.is_payload():
+        self.state = self.STATE_ESTAB
+        advice = OP_RCV_PAYLOADACK
       # ok ready
-      if packet.is_ack():
+      elif packet.is_ack():
         self.state = self.STATE_ESTAB
 	advice = OP_RCV_ACK
       else:
@@ -180,7 +180,7 @@ class TcpStateMachine:
         advice = OP_RCV_PAYLOAD
       # old handshake? # BUG: how about old SYN's
       elif packet.is_synack():
-        advice = OP_SYNACK
+        advice = OP_RCV_SYNACK
       else:
         pass
     elif(self.state == self.STATE_FIN_WAIT_1): pass

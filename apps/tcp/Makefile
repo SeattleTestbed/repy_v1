@@ -51,6 +51,6 @@ cp_ingrs:
 
 ##### Deprecated ###
 # Use make FN=<filename> instead
-run: build
+run: cp_units cp_funcs cp_ingrs build
 	cd ${TESTDIR} && python repy.py restrictions.default ${FN}
 

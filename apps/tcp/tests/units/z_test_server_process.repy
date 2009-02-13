@@ -36,7 +36,7 @@ def test_pp_syn():
   assert not serv.buffer
   assert not serv.packet_cache
   assert not mycontext['packets']
-  assert serv.last_ack_sent == SEQ_NUM
+  assert serv.last_ack_sent == SEQ_NUM + 1
   assert serv.requestip == IP
   assert serv.requestport == PORT
 
@@ -56,29 +56,31 @@ def test_pp_syn_alreadyconnected():
 def test_pp_synack_new():
   mycontext['packets'].clear()
   SEQ_NUM = 1
+  ACKSEQ_NUM = 2
   serv = TcpServer(mycontext['conn'])
   ACK_NUM = 5
   pack = mycontext['tpf'].synack(SEQ_NUM, ACK_NUM)
   serv.process(IP, pack)
-  assert SEQ_NUM in mycontext['packets'].keys()
-  assert mycontext['packets'][SEQ_NUM].seq_num == 0
+  assert ACKSEQ_NUM in mycontext['packets'].keys()
+  assert mycontext['packets'][ACKSEQ_NUM].seq_num == 0
   assert not serv.buffer
   assert not serv.packet_cache
-  assert serv.last_ack_sent == SEQ_NUM
+  assert serv.last_ack_sent == ACKSEQ_NUM
 
 def test_pp_synack_old():
   mycontext['packets'].clear()
   SEQ_NUM = 1
+  ACKSEQ_NUM = 2
   serv = TcpServer(mycontext['conn'])
-  serv.last_ack_sent = SEQ_NUM
+  serv.last_ack_sent = ACKSEQ_NUM
   ACK_NUM = 5
   pack = mycontext['tpf'].synack(SEQ_NUM, ACK_NUM)
   serv.process(IP, pack)
-  assert SEQ_NUM in mycontext['packets'].keys()
-  assert mycontext['packets'][SEQ_NUM].seq_num == 0
+  assert ACKSEQ_NUM in mycontext['packets'].keys()
+  assert mycontext['packets'][ACKSEQ_NUM].seq_num == 0
   assert not serv.buffer
   assert not serv.packet_cache
-  assert serv.last_ack_sent == SEQ_NUM
+  assert serv.last_ack_sent == ACKSEQ_NUM
 
 # SYN num already established
 # send an invalid one now -- exploit

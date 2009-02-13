@@ -185,7 +185,7 @@ class TcpServer:
     elif self.last_ack_sent is None:
       self.requestip = ip
       self.requestport = packet.srcport
-      self.last_ack_sent = packet.seq_num
+      self.last_ack_sent = mod_add(packet.seq_num, 1)
       self.sleep_lock.wakeup()
     else: pass
 
@@ -196,14 +196,14 @@ class TcpServer:
     """
     # New SYACK
     if self.last_ack_sent is None:
-      self.last_ack_sent = packet.seq_num
+      self.last_ack_sent = mod_add(packet.seq_num, 1)
       self.conn.register_sendmess(ip, packet.srcport, TcpPacket(packet.destport, packet.srcport, 0, self.last_ack_sent, \
                  "ACK", self.recv_window_size, "ack of synack...").pack())
 
-    # Old one
-    elif not self.last_ack_sent is None and self.last_ack_sent == packet.seq_num:
+    # Old one, resend ack
+    elif not self.last_ack_sent is None and mod_add(packet.seq_num, 1) == self.last_ack_sent:
       self.conn.register_sendmess(ip, packet.srcport, TcpPacket(packet.destport, packet.srcport, 0, self.last_ack_sent, \
-                 "ACK", self.recv_window_size, "ack of synack...").pack())
+                 "ACK", self.recv_window_size, "re-ack of synack...").pack())
 
     # whoa, you can't change the SYN seq_num now?  You already sent a different one before.
     elif not self.last_ack_sent is None and self.last_ack_sent != packet.seq_num:
