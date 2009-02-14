@@ -1,36 +1,39 @@
 include tcp.repy
 
+MSS = 2
+
 if callfunc == 'initialize':
-  IP = getmyip()
+  IP = '127.0.0.1' #  getmyip()
   PORT = 12345
   PORT_TWO = 12346
-  MESSAGE = "hi"
-  MAXLEN = 4096
+  MESSAGE = "hi hows it going foo bar baz good bye??"
+  MAXLEN = 1000000 # all of it
 
 def server():
   socket = Connection()
   socket.bind(IP, PORT_TWO)
-  
   socket.listen()
   socket.accept()
-  
-  tries = 5
-  while tries:
-    mess = socket.recv(MAXLEN)
+
+  retries = 10
+  mess = ""
+  while retries:
+    mess += socket.recv(MAXLEN)
     if mess == MESSAGE:
       break
-    tries -= 1
-    sleep(.01)
+    else:
+      retries -= 1
+      sleep(.01)
 
   if mess != MESSAGE:
-    print "%s != %s" % (mess, MESSAGE)
-  socket.disconnect()
+    print "%s != " % mess
+    print "%s" % MESSAGE
 
 def client():
   socket = Connection()
   socket.bind(IP, PORT)
-
   socket.connect(IP, PORT_TWO)
+  
   bytes = socket.send(MESSAGE)
   if bytes == 0:
     print "Expected some bytes"

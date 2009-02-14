@@ -1,8 +1,38 @@
 """ 
-  <Source>
-    RFC 793 -- TCP
+  <Description>
+    This class tracks the changing state of a TCP connection.
+
+    It'll raise errors when a application state change is
+    impossible.
+    
+    It'll ignore any remotely requested state changes which
+    are impossible.
+
+    Otherwise, it'll change states according to the action
+    and in many cases give advice on what should be done.
+
+  <Usage>
+    TcpStateMachine() - get object
+    state_machine.next(packet) - handle state changes for a packet
+    state_machine.listen() - handle state changes for listen
+    state_machine.connect() - handle state changes for connect
+    state_machine.accept() - handle state changes for accept
+    state_machine.send() - see if send action is valid
+    state_machine.recv() - see if recv action is valid
+    state_machine.close() - go back to closed
+
+  <Returns>
+    The state machine gives these possible advices:
+      OP_RCV_REMOTE_SYN - receive a SYN from a remote party
+      OP_RCV_LOOPBACK_SYN - receive a SYN from a local party
+      OP_RCV_SYNACK - receive a SYNACK from a party
+      OP_RCV_PAYLOADACK - receive a payload final ACK for SYNACK
+      OP_RCV_ACK - receive an ACK (maybe the final ACK of SYNACK)
+      OP_RCV_PAYLOAD - receive a PAYLOAD
+      OP_RCV_NONE - please ignore
 
   <State Diagram>
+    RFC 793 -- TCP
 
                                            Transmission Control Protocol
                                                 Functional Specification
@@ -60,16 +90,12 @@ include constants.repy
 include errors.repy
 include packet.repy 
 
-# Keeps track of our connection state.
 class TcpStateMachine:
   """
   <Purpose>
     The state machine organizes the changes in a relationship
     between a pair of connected parties.
     
-  <Side Effects>
-    Calls Repy's getlock().
-
   <Example Use>
     sm = TcpStateMachine()
     def callback(ip, port, mess, ch):
@@ -92,8 +118,8 @@ class TcpStateMachine:
       None
     
     <Side Effects>
-      Creates a lock in self.lock.
-      Creates a server and a client.
+      Call getlock().
+      Sets state to be STATE_CLOSED
      
     <Returns>
       The new state machine object.
@@ -109,7 +135,6 @@ class TcpStateMachine:
     # state changes must be atomic
     self.lock = getlock()
 
-  # Callback for received packets
   def next(self, packet):
     """
     <Purpose>
@@ -117,27 +142,20 @@ class TcpStateMachine:
       of a state machine.
     
     <Arguments>
-      packet
-          The packet
+      packet - The packet to change on.
     
     <Exceptions>
-      Raises UnknownStateError if it cannot handle the type of
-      packet coming in.
+      None
     
     <Side Effects>
-      Acquires the self.lock at the beginning and releases
-      at end.
+      None
 
     <Returns>
       An opcode specifying the exact transition
-      made.  Can be:
-      (OP_RCV_REMOTE_SYN, OP_RCV_LOOPBACK_SYN,
-       OP_RCV_SYNACK, OP_RCV_ACKSYN, OP_RCV_ACK,
-       OP_RCV_PAYLOAD, OP_RCV_NONE)
-
+      made.  It is one of the advice constants.
     """
-    advice = OP_RCV_NONE
     self.lock.acquire()       
+    advice = OP_RCV_NONE
 
     if(self.state == self.STATE_CLOSED): 
       pass # ignore
@@ -204,14 +222,13 @@ class TcpStateMachine:
       None
           
     <Exceptions>
-      AlreadyConnectedError if the state is not STATE_CLOSED
+      raise AlreadyConnectedError("cannot listen because the connection is already in use")
     
     <Side Effects>
-      Uses lock.
       Sets the state to STATE_LISTEN.
 
     <Returns>
-      A tuple of advice.
+      None
     """
     self.lock.acquire()
     if self.state != self.STATE_CLOSED:
@@ -229,14 +246,13 @@ class TcpStateMachine:
       None
           
     <Exceptions>
-      AlreadyConnectedError if the connection is used
+      raise AlreadyConnectedError("cannot connect because the connection is already in use")
     
     <Side Effects>
-      Uses lock.
       Changes state to STATE_SYN_SENT.     
 
     <Returns>
-      A tuple of advice.
+      None
     """
 
     self.lock.acquire()
@@ -255,14 +271,15 @@ class TcpStateMachine:
       None
           
     <Exceptions>
+      raise NotRequestedError("cannot accept without a requested connection")
       NotRequestedError if not in STATE_SYN_RCVD from listen()
       returning.
     
     <Side Effects>
-      Uses lock.
+      None
      
     <Returns>
-      A tuple of advice.
+      None
     """
     self.lock.acquire()
     if self.state != self.STATE_SYN_RCVD:
@@ -279,13 +296,13 @@ class TcpStateMachine:
       None
     
     <Exceptions>
-      NotEstablished error if not in STATE_ESTAB.
+      raise NotEstablishedError("must be established to send")
     
     <Side Effects>
-      Uses lock.
+      None
      
     <Returns>
-      Tuple of advice.
+      None
     """
     self.lock.acquire()
     if self.state != self.STATE_ESTAB:
@@ -302,13 +319,13 @@ class TcpStateMachine:
       None
     
     <Exceptions>
-      NotEstablished error if not in STATE_ESTAB.
+      raise NotEstablishedError("must be established to recv")
     
     <Side Effects>
-      Uses lock.
+      None
      
     <Returns>
-      Tuple of advice.
+      None
     """
     self.lock.acquire()
     if self.state != self.STATE_ESTAB:
@@ -319,7 +336,7 @@ class TcpStateMachine:
   def close(self):
     """
     <Purpose>
-      Set the state to STATE_CLOSED
+      Does what is needed to close a connection.
     
     <Arguments>
       None
@@ -328,10 +345,10 @@ class TcpStateMachine:
       None
     
     <Side Effects>
-      None
+      Set the state to STATE_CLOSED
      
     <Returns>
-      Tuple of advice.
+      None
     """
     self.lock.acquire()
     self.state = self.STATE_CLOSED

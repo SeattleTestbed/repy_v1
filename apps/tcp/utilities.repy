@@ -1,12 +1,37 @@
-MAX_SEQ_NUM = 2 ** 32 # 16 bits
+"""
+<Description>
+  Helps handle fixed size numbering.  Wrap around
+  the number by a maximum.
 
-# Modulo helpers
-# BUG: Watch out for edge cases.
-#      Are they right?
+<Usage>
+  mod_sep(start, end, max) - tell the difference between
+    the start and end assuming the end may wrap around the
+    max.
+  mod_between(start, mid, end, max) - tell if the mid
+    is between the start and end assuming all of the three
+    may wrap around the max.
+  mod_add(value1, value1, max) - add them and wrap around
+  mod_sub(value1, value1, max) - subtract them and wrap around
+  mod_rand(max) - return a random number strictly below the maximum
+"""
+
+MAX_SEQ_NUM = 2 ** 32 # 16 bits
 class RangeError(Exception):
   """This exception indicates a value is out of range"""
 
 def mod_sep(start, end, max = MAX_SEQ_NUM):
+  """
+  <Purpose>
+    Find the distance separating the start and end. Examples:
+      0 sep 5 (MAX=10) == 5 # regular
+      9 sep 1 (MAX=10) == 2 # wrap around end
+
+  <Exception>
+    raise RangeError("start and end must be strictly less than max")
+
+  <Return>
+    The positive separation from start to end, wrapping around max.
+  """
   if start >= max or end >= max:
     raise RangeError("start and end must be strictly less than max")
 
@@ -24,10 +49,13 @@ def mod_between(start, mid, end, max = MAX_SEQ_NUM):
       0 <= 1 <= 3 (MAX=10) mid in middle or
       9 < 1 < 2 (MAX=10) # end in middle or 
       7 < 9 < 2 (MAX=10) # start in middle
+
   <Exception>
     raise RangeError("start, middle, and end must be strictly less than max")
-  """
 
+  <Return>
+    True if between, False otherwise
+  """
   if start >= max or mid >= max or end >= max:
     raise RangeError("start, middle, and end must be strictly less than max")
   return (start <= mid and  mid <= end) \

@@ -28,6 +28,7 @@ def test_callback():
   conn = Connection()
   conn.server = TcpServer(conn)
   conn.client = TcpClient(conn)
+  conn.conn = True
   conn.remoteip = IP_GOOD
   conn.remoteport = PORT_GOOD
   conn.localport = LOCAL_PORT
@@ -41,6 +42,7 @@ def test_callback_ip_mismatch():
   conn = Connection()
   conn.server = TcpServer(conn)
   conn.client = TcpClient(conn)
+  conn.conn = True
   conn.remoteip = IP_GOOD
   conn.remoteport = PORT_GOOD
   conn.localport = LOCAL_PORT
@@ -54,6 +56,7 @@ def test_callback_remoteport_mismatch():
   conn = Connection()
   conn.server = TcpServer(conn)
   conn.client = TcpClient(conn)
+  conn.conn = True
   conn.remoteip = IP_GOOD
   conn.remoteport = PORT_GOOD
   conn.localport = LOCAL_PORT
@@ -66,6 +69,7 @@ def test_callback_localport_mismatch():
   conn = Connection()
   conn.server = TcpServer(conn)
   conn.client = TcpClient(conn)
+  conn.conn = True
   conn.remoteip = IP_GOOD
   conn.remoteport = PORT_GOOD
   conn.localport = LOCAL_PORT

@@ -46,7 +46,7 @@ if callfunc == 'initialize':
 
   socket.connect(IP, mycontext['SECOND_PORT'])
 
-  sleep(DEFAULT_TIMEOUT * 3)
+  sleep(DEFAULT_TIMEOUT)
 
   if (mycontext['receivedACK'] != True):
       raise Exception("Ack was not sent after a SYNAck was recieved.")

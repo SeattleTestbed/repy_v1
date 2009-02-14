@@ -6,19 +6,12 @@
   January 13th, 2009
 
 <Description>
-  Work towards Tcp over Upd.
-
-  This code implements:
-     * reliable packets (acks) (1/13/09)
-     * the sliding window (1/20/09)
-     * three way handshake (2/4/09)
+  This class is the public interface for tcp.
+  Implements the Berkley Sockets interface.
 
 <Usage>
-  Public Objects:
-    Connection - Tcp Socket.  Sends/Receives messages.
-    NotConnectedError(Exception) - recv or send called without peer
-    TimeoutError(Exception) - no response from peer
-    NotBoundError(Exception) - the connection needs to have an address
+  Public Object
+    Connection - the socket
 
   Public Methods:
     Connection() - get new socket
@@ -33,13 +26,13 @@
   Private Methods:
     connection.callback(ip, port, mess, ch) - single inlet for receiving
     connection.register_recvmess(ip, port, callback) - single point for setting up listener
-
-  Other Public Methods:
-    register_sendmess(destip, destport, message, srcip = None, srcport = None) -
-    	single outlet for sending
+    connection.register_sendmess(destip, destport, message,
+				 srcip = None, srcport = None) - single outlet for sending
 
   Private Objects:
     TcpStateMachine - handles event calls, sending, recving, handshake.
+    TcpClient - handles packets with ACK bit set
+    TcpServer - handles packets with SYN or PSH bits set
 """
 
 include client.repy
@@ -53,13 +46,11 @@ include utilities.repy
 # Public Interface
 ##############################################################
 
-# Acts like Berkeley Socket.
 class Connection:
   """
   <Purpose>
     Wraps up a Tcp socket.
-  <Side Effects>
-    None
+
   <Example Use>
     # Get an object
     connection = Connection()
@@ -78,8 +69,6 @@ class Connection:
   ##############################################################
   # Public methods
   ##############################################################
-
-  # Get object
   def __init__(self):
     """
     <Purpose>
@@ -96,6 +85,9 @@ class Connection:
         * maxdgramsize - the maximum size of a packet
         * retries - times to retry sending
         * timeout - seconds to wait before retrying
+
+      Gets a lock through Repy's getlock().
+      Initializes a statemachine.
 
     <Returns>
       A new Connection object.
@@ -129,11 +121,9 @@ class Connection:
     self.client = None
     self.server = None
 
-    # need locks for race conditions
-    self.send_lock = getlock() # just send
-    self.recv_lock = getlock() # just recv
+    # need lock for race conditions
+    self.lock = getlock() # general
 
-  # Attach to an address
   def bind(self, localip, localport):
     """
     <Purpose>
@@ -149,7 +139,7 @@ class Connection:
              this port as a messport.
 
     <Exceptions>
-      AlreadyConnectedError if the connection is active.
+      raise AlreadyConnectedError("cannot rebind an active connection")
 
     <Side Effects>
       None
@@ -157,17 +147,16 @@ class Connection:
     <Returns>
       Nothing
     """
-    self.acquire_all_locks()
+    self.lock.acquire()
     if self.conn:
-      self.release_all_locks()
+      self.lock.release()
       raise AlreadyConnectedError("cannot rebind an active connection")
     
     # I am:
     self.localip = localip
     self.localport = localport
-    self.release_all_locks()
+    self.lock.release()
 
-  # Setup a udp callback    
   def listen(self):
     """
     <Purpose>
@@ -179,48 +168,47 @@ class Connection:
       None
 
     <Exceptions>
-      NotBoundError if bind() is not yet called.
-      TimeoutError if no request comes in default
-        timeout times retries seconds.
-      AlreadyConnectedError if the connection is active.
+      raise NotBoundError("need to bind before listening")
+      raise AlreadyConnectedError("cannot listen with an active connection")
+      raise TimeoutError("timed out listening")
 
     <Side Effects>
       Sets up a UDP callback.
+      Initializes server.
 
     <Returns>
       Tuple address(ip, port) of remote party.
     """
 
-    self.acquire_all_locks()
+    self.lock.acquire()
     if not self.localip or not self.localport:
-      self.release_all_locks()
+      self.lock.release()
       raise NotBoundError("need to bind before listening")
 
     if self.conn:
-      self.release_all_locks()
+      self.lock.release()
       raise AlreadyConnectedError("cannot listen with an active connection")
 
     self.conn = self.register_recvmess(self.localip, self.localport, self.callback)
     self.state_machine.listen() # do any state accounting
 
     self.server = TcpServer(self)
-    self.release_all_locks()
+    self.lock.release()
 
     # block until syn request or timeout
     (self.requestip, self.requestport) = self.server.listen(self.timeout * self.retries)
 
     # fill in what we have
-    self.acquire_all_locks()
+    self.lock.acquire()
 
     # guarenteed to never happen here (timeout is in server)
     if not self.requestip or not self.requestport:
-      self.release_all_locks()
+      self.lock.release()
       raise TimeoutError("timed out listening")
     addr = (self.requestip, self.requestport)
-    self.release_all_locks()
+    self.lock.release()
     return addr
 
-  # continue handshake
   def accept(self):
     """
     <Purpose>
@@ -237,28 +225,29 @@ class Connection:
       raise NotConnectedError("cannot accept without a connection")
       raise AlreadyConnectedError("cannot accept when already connected")
       raise NotRequestedError("cannot accept without a request")
-    
+      TimeoutError if the request host does not acknowledge.    
+
     <Side Effects>
-      None      
+      Initializes client.
      
     <Returns>
       Nothing
     """
-    self.acquire_all_locks()
+    self.lock.acquire()
     if not self.localip or not self.localport:
-      self.release_all_locks()
+      self.lock.release()
       raise NotBoundError("need to bind and listen before accepting")
 
     if self.conn == None:
-      self.release_all_locks()
+      self.lock.release()
       raise NotConnectedError("cannot accept without a connection")
 
     if self.remoteip and self.remoteport:
-      self.release_all_locks()
+      self.lock.release()
       raise AlreadyConnectedError("cannot accept when already connected")
 
     if not self.requestip or not self.requestport:
-      self.release_all_locks()
+      self.lock.release()
       raise NotRequestedError("cannot accept without a request")
 
     # change states
@@ -274,14 +263,13 @@ class Connection:
     self.client = TcpClient(self)
     self.client.set_recv_window(self.server.get_recv_window())
     ack_num = self.server.get_ack_num()
-    self.release_all_locks()
+    self.lock.release()
 
     # actually complete it, blocks for final ACK
     self.client.accept(ack_num, self.remoteip, self.remoteport, \
 				self.localip, self.localport, \
 					self.retries, self.timeout)
 
-  # Request connection.
   def connect(self, remoteip, remoteport):
     """
     <Purpose>
@@ -298,24 +286,24 @@ class Connection:
              The port to communicate to.
 
     <Exceptions>
-      NotBoundError if bind() is not yet called.
-      TimeoutError if the remote host does not respond in default
-        timeout times retries seconds.
-      AlreadyConnectedError if the connection is active.
+      raise NotBoundError("need to bind before connecting")
+      raise AlreadyConnectedError("cannot connect on an active connection")
+      TimeoutError if the remote host does not respond.
 
     <Side Effects>
       Sets up a UDP callback.
+      Initializes client and server.
 
     <Returns>
       Nothing
     """
-    self.acquire_all_locks()
+    self.lock.acquire()
     if not self.localip or not self.localport:
-      self.release_all_locks()
+      self.lock.release()
       raise NotBoundError("need to bind before connecting")
 
     if self.conn:
-      self.release_all_locks()
+      self.lock.release()
       raise AlreadyConnectedError("cannot connect on an active connection")
 
     # Peer is:
@@ -328,16 +316,12 @@ class Connection:
     self.server = TcpServer(self)
 
     self.state_machine.connect() # do any state accounting
-    self.release_all_locks()
+    self.lock.release()
 
     self.client.connect(remoteip, remoteport, \
 		self.localip, self.localport, \
                 self.retries, self.timeout) # block until syn or synack recv
 
-  # Sends via client the data in packets to the server. 
-  # Throws exception on timeout.
-  # Throws an exception when no connection
-  # Returns the bytes sent.
   def send(self, data):
     """
     <Purpose>
@@ -348,7 +332,10 @@ class Connection:
              Whatever message you want to send to the remote party.
 
     <Exceptions>
-      NotConnectedError if the connection is not established.
+      raise NotBoundError("cannot send data without binding")
+      raise NotConnectedError("cannot send data without a receiver")
+      raise NotEstablishedError("cannot send data without accepting")
+      TimeoutError if the remote party does not acknowlege the message.
 
     <Side Effects>
       None
@@ -358,29 +345,27 @@ class Connection:
       dropped packets.
     """
 
-    self.send_lock.acquire()
+    self.lock.acquire()
     if not self.localip or not self.localport:
-      self.send_lock.release()
+      self.lock.release()
       raise NotBoundError("cannot send data without binding")
 
     if self.conn == None:
-      self.send_lock.release()
+      self.lock.release()
       raise NotConnectedError("cannot send data without a receiver")
 
     if not self.remoteip or not self.remoteport:
-      self.send_lock.release()
+      self.lock.release()
       raise NotEstablishedError("cannot send data without accepting")
    
+
+    self.lock.release()
     # send them
     bytes = self.client.send(data, self.remoteip, self.remoteport, \
 					self.localip, self.localport, \
 					self.retries, self.timeout)
-    self.send_lock.release()
     return bytes
 
-  # Throws an exception when no connection
-  # Returns a buffer filled with data. 
-  # Returns a maximum of maxLen bytes.
   def recv(self, maxLen):
     """
     <Purpose>
@@ -396,39 +381,40 @@ class Connection:
       raise NotEstablishedError("cannot recv data without accepting")
 
     <Side Effects>
-      Will wait 1 timeout period if the buffer is empty.
       Deletes the returned data from the connection buffer.
+      Add to the client's advertise window the new server's free buffer space.
 
     <Returns>
-      The maxLen bytes.
+      The maxLen bytes of buffered messages.
     """
-    self.recv_lock.acquire()
+    self.lock.acquire()
 
     if not self.localip or not self.localport:
-      self.recv_lock.release()
+      self.lock.release()
       raise NotBoundError("cannot recv data without binding, listening, and accepting")
 
     if self.conn == None:
-      self.recv_lock.release()
+      self.lock.release()
       raise NotConnectedError("cannot recv data without listening and accepting")
 
     if not self.remoteip or not self.remoteport:
-      self.recv_lock.release()
+      self.lock.release()
       raise NotEstablishedError("cannot recv data without accepting")
   
     message = self.server.recv(maxLen)
     
     # If empty, wait a little
-    if not message:
-      sleep(self.timeout)
-      message = self.server.recv(maxLen)
+#    if not message:
+#      self.lock.release()
+#      sleep(self.timeout)
+#      self.lock.acquire()
+#      message = self.server.recv(maxLen)
 
     self.client.set_recv_window(self.server.get_recv_window())
-    self.recv_lock.release()
+    self.lock.release()
+
     return message
 
-  # Close the connection
-  # BUG: Need Tcp 4-way close
   def disconnect(self):
     """
     <Purpose>
@@ -438,18 +424,19 @@ class Connection:
       None
 
     <Exceptions>
-      NotConnectedError if the connection is not established.
+      raise NotConnectedError("cannot disconnect without connection")
 
     <Side Effects>
       Destroys the UDP callback.
+      Destroys client and server.
 
     <Returns>
       Nothing
     """
 
-    self.acquire_all_locks()
+    self.lock.acquire()
     if self.conn == None:
-      self.release_all_locks()
+      self.lock.release()
       raise NotConnectedError("cannot disconnect without connection")
     stopcomm(self.conn)
     self.conn = None
@@ -459,59 +446,44 @@ class Connection:
     self.remoteport = None
     self.requestip = None
     self.requestport = None
-    self.release_all_locks()
+    self.state_machine.close()
+    self.lock.release()
 
   ##############################################################
   # Private Methods
   ##############################################################
 
-  def acquire_all_locks(self):
-    self.send_lock.acquire()
-    self.recv_lock.acquire()
-
-  def release_all_locks(self):
-    self.recv_lock.release()
-    self.send_lock.release()
-  
-
-  # hook for controller to intercept event calls
   def callback(self, ip, port, mess, ch):
     """
     <Purpose>
       Provides a single way point between received messages.
-      Allows for easier debugging.  By putting a single output 
-      statement you can output all messages that come in.
-    
-      Passes call down to statemachine's callback.
-      Elimates UDP port which should not be used.
 
-    <Arguments>
-      Same as a UDP callback.
-    
-    <Exceptions>
-      Undefined
-    
-    <Side Effects>
-      Undefined
-     
-    <Returns>
-      Nothing
+      Constructs packet from mess and sends to state machine.
+      The state machine tells the client and server what to do
+      to handle the packet.      
     """
-    self.recv_lock.acquire()
+    self.lock.acquire()
     # print "recving: " + mess + " at: " + str(ip) + ":" + str(port) # DEBUG
     packet = unpack(mess)
+
+    # How can this happen?
+    # (1) the thread came in and hit this function's lock
+    # (2) socket.disconnect()
+    # (3) the thread continued on assuming a connection
+    if not self.conn: 
+      self.lock.release() # ignore it quietly
+      return None 
 
     # ignore bad ips and ports
     if (self.remoteip and self.remoteport) and \
 	(ip != self.remoteip or packet.srcport != self.remoteport):
-      self.recv_lock.release()
+      self.lock.release()
       return None
 
-    # routed correctly
+    # routed incorrectly
     if self.localport != packet.destport:
-      self.recv_lock.release()
-      raise Exception("controller error?")
-    
+      self.lock.release()
+      raise Exception("controller error?")    
 
     # Let the state machine tell us what to do.
     advice = self.state_machine.next(packet)
@@ -552,22 +524,13 @@ class Connection:
     # ignore
     else:
       pass 
-    self.recv_lock.release()
+    self.lock.release()
 
-  # Hook for controller to handle recv
   def register_recvmess(self, ip, port, callback):
     """
     <Purpose>
       Provides a single point for setting up a listener.
-      Allows for easier debugging.  By putting a single output 
-      statement you can know whenever the code sets up a listener.
 
-    <Arguments>
-      Same as Repy's UDP recvmess.
-    
-    <Exceptions>
-      Same as Repy's UDP recvmess.
-    
     <Side Effects>
       Sets up UDP listener event.
      
@@ -577,23 +540,11 @@ class Connection:
     # print "listening on: " + str(ip) + ":" + str(port) # DEBUG
     return recvmess(ip, port, self.callback)
 
-  # Hook for controller to handle send
   def register_sendmess(self, destip, destport, message, srcip = None, srcport = None):
     """
     <Purpose>
       Provides a single outlet for tracking sent messages.
-      Allows for easier debugging.  By putting a single output
-      statement you can output all messages that go out.
 
-    <Arguments>
-      Same as Repy's UDP sendmess.
-    
-    <Exceptions>
-      Same as Repy's UDP sendmess.
-    
-    <Side Effects>
-      None
-     
     <Returns>
       The bytes sent.
     """

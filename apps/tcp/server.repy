@@ -20,7 +20,6 @@ include packet.repy
 include sleep_lock.repy
 include utilities.repy
 
-# Holds receiving structure
 class TcpServer:
   """
   <Purpose>
@@ -80,8 +79,14 @@ class TcpServer:
     self.requestip = None
     self.requestport = None
 
-  # Finish off trickled down call to recv
   def recv(self, maxLen):
+    """
+    <Purpose>
+      Retrieve buffered messages.
+
+    <Side Effects>
+      Restores possible recv window.
+    """
     self.lock.acquire()
     message = self.buffer[0:maxLen]
     self.recv_window_size += len(message)
@@ -134,8 +139,14 @@ class TcpServer:
 
     self.lock.release()
 
-  # wait for SYN, process_payload gets SYN and sets us up
   def listen(self, timeout):
+    """
+    <Purpose>
+      wait for SYN, process_payload gets SYN and sets us up
+
+    <Exceptions>
+      raise TimeoutError("timed out listening")
+    """
     self.lock.acquire()
     self.sleep_lock.acquire()
     self.sleep_lock.sleep(timeout)
@@ -158,16 +169,28 @@ class TcpServer:
 
     return addr
 
-  # atomic getter for window to pass to Client
   def get_recv_window(self):
+    """
+    <Purpose>
+      atomic getter for window to pass to Client
+
+    <Returns>
+      recv window size
+    """
     self.lock.acquire()
     win = self.recv_window_size
     self.lock.release()
     return win
 
-  # for SYNACK
-  # atomic getter for window to pass to Client
   def get_ack_num(self):
+    """
+    <Purpose>
+      atomic getter for ack num to pass to Client
+      used for SYNACK to check if ACK is right num
+    
+    <Returns>
+      the ack num received of SYN
+    """
     self.lock.acquire()
     ack = self.last_ack_sent
     self.lock.release()

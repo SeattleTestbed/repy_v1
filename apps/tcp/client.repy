@@ -1,10 +1,26 @@
+"""
+<Description>
+  Encapsilates the sending structure of a connection.
+
+<Usage>
+  TcpClient(conn) - constructor, takes conn obj to send through
+  client.connect(...) - send SYN
+  client.accept(...) - send SYNACK
+  client.send(...) - send message
+  client.process(packet) - account for ACK
+
+<Example>
+  include client.repy
+
+  client = TcpClient(None)
+"""
+
 include constants.repy
 include errors.repy
 include packet.repy
 include sleep_lock.repy
 include utilities.repy
 
-# Holds sending structure
 class TcpClient:
   """
   <Purpose>
@@ -20,9 +36,9 @@ class TcpClient:
   <Example Use>
     def callback(ip, port, mess, ch):
       print mess
-
+    
     recvmess(getmyip(), 12345, callback)
-    client = TcpClient()
+    client = TcpClient(None)
     client.send(getmyip(), 12345, "hi")
 
   """
@@ -33,14 +49,17 @@ class TcpClient:
       Initializes varibles.
     
     <Arguments>
-      None.
+      conn - a connection obj to send through packets
     
     <Exceptions>
-      None.
+      None
     
     <Side Effects>
-      Creates self.lock
-     
+      Call getlock().
+      Initializes a SleepLock
+      Sets recv_window_size to default.
+      Makes a random sequence number to start with.
+
     <Returns>
       New client object.
     """
@@ -150,8 +169,11 @@ class TcpClient:
     <Purpose>
       Used for SYNACK to send it, stops with Timeout or
       the window_size is set by ACK
+
     <Exceptions>
-      TimeoutError
+      raise UnknownStateError("whoa shouldn't have variables yet")
+      raise TimeoutError("tried %d times" % times_sent)
+
     <Returns>
       Bytes sent.
     """
@@ -190,8 +212,11 @@ class TcpClient:
     <Purpose>
       Used for SYN to send it, stops with Timeout or
       the window_size is set by SYNACK
+
     <Exceptions>
-      TimeoutError
+      raise UnknownStateError("whoa shouldn't have variables yet")
+      raise TimeoutError("tried %d times" % times_sent)
+
     <Returns>
       Bytes sent.
     """
@@ -271,8 +296,11 @@ class TcpClient:
   # Getters
   ##########
  
-  # atomic setter for Server to specify recv window
   def set_recv_window(self, size):
+    """
+    <Purpose>
+      atomic setter for Server to specify recv window
+    """
     self.lock.acquire()
     self.recv_window_size = size
     self.lock.release() 
@@ -354,7 +382,7 @@ class TcpClient:
         the ACK
     
     <Exceptions>
-      ...
+      raise UnknownStateError("expected an ack")
     
     <Side Effects>
       Changes window size and seq nums and last ack recv

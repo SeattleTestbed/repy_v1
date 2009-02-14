@@ -1,3 +1,20 @@
+"""
+<Description>
+  The the application includes to get all of the library.
+
+<Example>
+  # A hello world application
+  include tcp.repy
+  
+  conn = Connection()
+  conn.connect(getmyip(), 12345)
+  conn.send("hello world!")
+  message = conn.recv(4096)
+  conn.disconnect()
+ 
+  print message
+"""
+
 include client.repy
 include connection.repy
 # include controller.repy

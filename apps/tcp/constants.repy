@@ -1,8 +1,16 @@
+"""
+<Description>
+  Holds global constants.
+
+  Some of these should be made locals or 
+  gotten rid of in the future.
+"""
+
 DEFAULT_MAXDGRAMSIZE = 1050 # MSS
 DEFAULT_RETRIES = 4 # listen times for ack
 DEFAULT_TIMEOUT = 1 # seconds to wait
 
-MSS = 1000 # bytes maximum payload                
+MSS = 1050 # bytes maximum payload                
 WINDOW_SIZE = 5 * MSS
 
 # State machine outputs

@@ -3,6 +3,7 @@ include tcp.repy
 if callfunc == 'initialize':
   IP = '127.0.0.1' #  getmyip()
   PORT = 12345
+  PORT_TWO = 12346
   fn = "seattle.txt"
   fnout = "junk_test.out" # write if error
   fobj = open(fn, "r")
@@ -10,19 +11,23 @@ if callfunc == 'initialize':
   fobj.close()
   MAXLEN = 1000000 # all of it
 
-  socket = Connection()
-  socket.bind(IP, PORT)
-
-
 def server():
+  socket = Connection()
+  socket.bind(IP, PORT_TWO)
+  socket.listen()
+  socket.accept()
+
   tries = 100
   while tries:
     mycontext['mess'] += socket.recv(MAXLEN)
     if mycontext['mess'] == MESSAGE:
       break
-    tries -= 1
-    sleep(.01)
+    else:
+      tries -= 1
+      sleep(.01)
 
+  socket.disconnect()
+  print "hi"
   if mycontext['mess'] != MESSAGE:
     print "%s != " % mycontext['mess']
     print "%s" % MESSAGE
@@ -31,22 +36,21 @@ def server():
     fobj.close()
 
 def client():
-  socket.connect(IP, PORT)
+  socket = Connection()
+  socket.bind(IP, PORT)
+  socket.connect(IP, PORT_TWO)
 
   bytes = socket.send(MESSAGE)
   if bytes == 0:
     print "Expected some bytes"
 
+  socket.disconnect()
 
 def main():
   mycontext['mess'] = ""
-
-  settimer(0, client, ())
-  sleep(.01) 
-  server()
-
-  socket.disconnect()
-
+  settimer(0, server, ())
+  sleep(.01)
+  client()
 
 if callfunc == 'initialize':
   main()
