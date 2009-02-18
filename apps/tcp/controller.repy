@@ -201,6 +201,7 @@ class Controller:
     if (not hasattr(conn, 'localport')) or conn.localport is None :
       raise NotBoundError("connection must be bound before registered")
     
+    if (not hasattr(conn, 'localip')) or conn.localip is 
     self.conn_lock.acquire()
     
     #Has this port already been registered?
