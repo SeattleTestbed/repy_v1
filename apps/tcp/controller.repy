@@ -199,9 +199,14 @@ class Controller:
     
     #How to check if passed an actual connection object? Check for 'localport' field
     if (not hasattr(conn, 'localport')) or conn.localport is None :
-      raise NotBoundError("connection must be bound before registered")
+      raise NotBoundError("connection's localport must be bound before registered")
     
-    if (not hasattr(conn, 'localip')) or conn.localip is 
+    if (not hasattr(conn, 'localip')) or conn.localip is None:
+      raise NotBoundError("connection's localip must be bound before registered")
+    
+    if conn.localip is not self.ip:
+      raise NotBounderror("connection's ip(" + conn.localip + ") differs from controllers(" + self.ip + ")")
+    
     self.conn_lock.acquire()
     
     #Has this port already been registered?
@@ -301,4 +306,4 @@ class Controller:
       return
     
     self.connections[tcp_pkt.destport].callback(remoteip, remoteport, msg, ch)
-  
+
