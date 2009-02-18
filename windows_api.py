@@ -45,7 +45,11 @@ ULONG_PTR = ctypes.c_ulong # Map Microsoft ULONG_PTR to C long
 LPTSTR = ctypes.c_char_p # Map Microsoft LPTSTR to a pointer to a string
 LPCSTR = ctypes.c_char_p  # Map Microsoft LPCTSTR to a pointer to a string
 ULARGE_INTEGER = ctypes.c_ulonglong # Map Microsoft ULARGE_INTEGER to 64 bit int
+LARGE_INTEGER = ctypes.c_longlong # Map Microsoft ULARGE_INTEGER to 64 bit int
 DWORDLONG = ctypes.c_ulonglong # Map Microsoft DWORDLONG to 64 bit int
+
+# General Constants
+ULONG_MAX = 4294967295 # Maximum value for an unsigned long, 2^32 -1
 
 # Microsoft Constants
 TH32CS_SNAPTHREAD = ctypes.c_ulong(0x00000004) # Create a snapshot of all threads
@@ -105,6 +109,11 @@ _getLastError = kerneldll.GetLastError # Gets last error number of last error
 _waitForSingleObject = kerneldll.WaitForSingleObject # Waits to acquire mutex
 _createMutex = kerneldll.CreateMutexW # Creates a Mutex, Unicode version
 _releaseMutex = kerneldll.ReleaseMutex # Releases mutex
+
+try:
+  _getTickCount = kerneldll.GetTickCount64 # Try to get the 64 bit variant
+except AttributeError: # This means the function does not exist
+  _getTickCount = kerneldll.GetTickCount # Use the 32bit version
 
 _freeDiskSpace = kerneldll.GetDiskFreeSpaceExW # Determines free disk space
 
