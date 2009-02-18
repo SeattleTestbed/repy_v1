@@ -14,6 +14,14 @@
 
 """
 
+"""
+  TODOS
+
+  * what to do if multiple controllers bound to same ip/port
+  * 
+  
+"""
+
 include tcp.repy
 
 
@@ -33,8 +41,9 @@ class ControllerAlreadyStartedError(Exception):
 class ControllerStoppedError(Exception):
   """ A Controller was used without being started """
   
-  
-  
+class ControllerHasConnections(Exception):
+  """ Tried to stop a controller which still has connections registered """
+
 
 class Controller:
   """
@@ -84,8 +93,8 @@ class Controller:
     #The Connection objects registered for this controller
     self.connections = {}
     
-    #The UDP listner event handler. Also acts as a flag
-    #for whether or not the controller has been started.
+    #The UDP listner event handler. Checked if is None in most functions
+    #to determine if the controller has been started
     self.comm_handle = None
     
     #To protect accesses to the shared connections dict
@@ -115,8 +124,6 @@ class Controller:
       None
           
     """
-    #The single UDP listener to handle all incoming Connection packets
-    
     if self.comm_handle is not None:
       #Starting a controller that was already started...
       raise ControllerAlreadyStartedError("already listening on %s:%s" % (self.ip, self.port))
@@ -154,17 +161,13 @@ class Controller:
     self.ip = None
     self.port = None
     
-    #TODO should we error/warn if Connections are still using this Controller?
-    #for now let's just kill all listening Connections
     self.conn_lock.acquire()
-    for connection in self.connections:
-      connection.remoteip = None
-      connection.remoteport = None
+    if len(self.connections) > 0:
+      raise ControllerHasConnections(str(len(self.connections)) + " Connections still active")
       
-    self.connections.clear()
-    self.conn_lock.release()
     stopcomm(self.comm_handle)
     self.comm_handle = None
+    self.conn_lock.release()
     
     
   def register(self, conn):
@@ -194,13 +197,20 @@ class Controller:
     if self.comm_handle is None:
       raise ControllerStoppedError("Cannot register connections on stopped Controller")
     
+    #How to check if passed an actual connection object? Check for 'localport' field
+    if (not hasattr(conn, 'localport')) or conn.localport is None :
+      raise NotBoundError("connection must be bound before registered")
+    
     self.conn_lock.acquire()
+    
+    #Has this port already been registered?
     if conn.localport in self.connections:
       self.conn_lock.release()
       raise PortAlreadyBoundError("Port " + str(conn.localport) + " in use")
     
     self.connections[conn.localport] = conn
     self.conn_lock.release()
+    
     
   def unregister(self, conn):
     """
