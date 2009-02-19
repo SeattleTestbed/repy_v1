@@ -13,7 +13,6 @@
 
   Passes quietly
 """
-include constants.repy
 include client.repy
 
 if callfunc == 'initialize':
@@ -24,6 +23,7 @@ if callfunc == 'initialize':
   TIMEOUT = .01
   RETRIES = 4  
   MSS = 2
+  CONG_WINDOW_SIZE = MSS
 
 def test_send():
   mycontext['packet_count'] = 0
@@ -33,12 +33,14 @@ def test_send():
   DATA = "h"
   SND_WINDOW= 10
   RCV_WINDOW= 20
+  CONG_MULT = 1
   mycontext['conn'].register_sendmess = psh_register
   cli = TcpClient(mycontext['conn'])
   cli.last_seq_sent = SEQ_NUM
   cli.last_ack_recv = ACK_NUM
   cli.recv_window_size= RCV_WINDOW
   cli.send_window_size= SND_WINDOW
+  cli.cong_window_mult= CONG_MULT
   try:
     cli.send(DATA, DEST_IP, DEST_PORT, SRC_IP, SRC_PORT,RETRIES, TIMEOUT)
   except TimeoutError:
@@ -84,11 +86,13 @@ def test_send_no_window():
   ACK_NUM = SEQ_NUM + 1
   DATA = "hi"
   WINDOW= 0
+  CONG_MULT = 1
   mycontext['conn'].register_sendmess = psh_register
   cli = TcpClient(mycontext['conn'])
   cli.last_seq_sent = SEQ_NUM
   cli.last_ack_recv = ACK_NUM
   cli.send_window_size= WINDOW
+  cli.cong_window_mult = CONG_MULT
   try:
     cli.send(DATA, DEST_IP, DEST_PORT, SRC_IP, SRC_PORT,RETRIES, TIMEOUT)
   except TimeoutError:
@@ -108,11 +112,13 @@ def test_send_just_window():
   ACK_NUM = SEQ_NUM + 1
   DATA = "hihihihi"
   WINDOW= MSS
+  CONG_WIN = 2 * MSS
   mycontext['conn'].register_sendmess = psh_register
   cli = TcpClient(mycontext['conn'])
   cli.last_seq_sent = SEQ_NUM
   cli.last_ack_recv = ACK_NUM
   cli.send_window_size= WINDOW
+  cli.cong_window_mult= CONG_WIN # NOTE: > send win
   try:
     cli.send(DATA, DEST_IP, DEST_PORT, SRC_IP, SRC_PORT,RETRIES, TIMEOUT)
   except TimeoutError:
@@ -138,6 +144,7 @@ def test_send_sliding_window():
   cli.last_seq_sent = SEQ_NUM
   cli.last_ack_recv = ACK_NUM
   cli.send_window_size= WINDOW
+  cli.cong_window_mult= 100 # big number
   try:
     cli.send(DATA, DEST_IP, DEST_PORT, SRC_IP, SRC_PORT,RETRIES, TIMEOUT)
   except TimeoutError:
@@ -157,7 +164,7 @@ def test_send_sliding_window():
   assert mycontext['packets'][(ACK_NUM+2*MSS)].payload == "hi"
   assert mycontext['packets'][(ACK_NUM+3*MSS)].payload == "hi"
 
-def test_send_slow_start_sliding_window():
+def test_send_congestion_window_resets():
   mycontext['packetc'].clear()
   SEQ_NUM = 2
   ACK_NUM = SEQ_NUM + 1
@@ -168,6 +175,7 @@ def test_send_slow_start_sliding_window():
   cli.last_seq_sent = SEQ_NUM
   cli.last_ack_recv = ACK_NUM
   cli.send_window_size= WINDOW
+  cli.cong_window_mult= 100 # big number
   try:
     cli.send(DATA, DEST_IP, DEST_PORT, SRC_IP, SRC_PORT,RETRIES, TIMEOUT)
   except TimeoutError:
@@ -179,12 +187,67 @@ def test_send_slow_start_sliding_window():
   assert (ACK_NUM+MSS) in mycontext['packetc'].keys()
   assert (ACK_NUM+2*MSS) in mycontext['packetc'].keys()
   assert (ACK_NUM+3*MSS) in mycontext['packetc'].keys()
+
   assert mycontext['packetc'][ACK_NUM] == RETRIES + 1
-  assert mycontext['packetc'][(ACK_NUM+MSS)] == RETRIES
-  assert mycontext['packetc'][(ACK_NUM+2*MSS)] == RETRIES - 1
-  assert mycontext['packetc'][(ACK_NUM+3*MSS)] == RETRIES - 2
+  assert mycontext['packetc'][(ACK_NUM+MSS)] == 1
+  assert mycontext['packetc'][(ACK_NUM+2*MSS)] == 1
+  assert mycontext['packetc'][(ACK_NUM+3*MSS)] == 1
   assert cli.last_ack_recv == ACK_NUM
   assert cli.last_seq_sent == SEQ_NUM + WINDOW
+  assert cli.cong_window_mult == 1
+
+def test_send_just_congestion_window():
+  mycontext['packet_count'] = 0
+  mycontext['packets'].clear()
+  SEQ_NUM = 2
+  ACK_NUM = SEQ_NUM + 1
+  DATA = "hihihihi"
+  WINDOW= 2 * MSS
+  CONG_WIN = 1
+  mycontext['conn'].register_sendmess = psh_register
+  cli = TcpClient(mycontext['conn'])
+  cli.last_seq_sent = SEQ_NUM
+  cli.last_ack_recv = ACK_NUM
+  cli.send_window_size= WINDOW # NOTE: > cong win
+  cli.cong_window_mult= CONG_WIN 
+  try:
+    cli.send(DATA, DEST_IP, DEST_PORT, SRC_IP, SRC_PORT,RETRIES, TIMEOUT)
+  except TimeoutError:
+    pass
+  else:
+    raise Exception("should raise timeout")
+
+  assert len(mycontext['packets']) == 1
+  assert ACK_NUM in mycontext['packets'].keys()
+  assert cli.last_ack_recv == ACK_NUM
+  assert cli.last_seq_sent == SEQ_NUM + CONG_WIN * MSS
+  assert mycontext['packet_count'] == RETRIES + 1
+  assert mycontext['packets'][ACK_NUM].payload == "hi"
+
+def test_send_no_congestion_window():
+  mycontext['packetc'].clear()
+  SEQ_NUM = 2
+  ACK_NUM = SEQ_NUM + 1
+  DATA = "hihihihi"
+  WINDOW= len(DATA)
+  mycontext['conn'].register_sendmess = psh_register
+  cli = TcpClient(mycontext['conn'])
+  cli.last_seq_sent = SEQ_NUM
+  cli.last_ack_recv = ACK_NUM
+  cli.send_window_size= WINDOW
+  cli.cong_window_mult= 0
+  try:
+    cli.send(DATA, DEST_IP, DEST_PORT, SRC_IP, SRC_PORT,RETRIES, TIMEOUT)
+  except TimeoutError:
+    pass
+  else:
+    raise Exception("should raise timeout")
+
+  assert mycontext['packetc'][ACK_NUM] == RETRIES
+  assert cli.last_ack_recv == ACK_NUM
+  assert cli.last_seq_sent == SEQ_NUM + MSS
+  assert cli.cong_window_mult == 1
+
 
 ####################
 # Test Helper Functions
@@ -204,7 +267,6 @@ def psh_register(destip, destport, message, srcip = None, srcport = None):
     mycontext['packets'][pack.seq_num] = pack
     return len(pack.payload)
 
-
 def main():
   # setup
   mycontext['packet_count'] = 0
@@ -218,7 +280,9 @@ def main():
   test_send_no_window()
   test_send_just_window()
   test_send_sliding_window()
-  test_send_slow_start_sliding_window()
+  test_send_congestion_window_resets()
+  test_send_just_congestion_window()
+  test_send_no_congestion_window()
 
   # teardown
   exitall()

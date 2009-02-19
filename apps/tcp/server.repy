@@ -69,7 +69,7 @@ class TcpServer:
 
     # Sliding window accounting
     self.last_ack_sent = None # begin window
-    self.recv_window_size = WINDOW_SIZE # size of window
+    self.recv_window_size = AD_WINDOW_SIZE # size of window
 
     # lock on buffer control
     self.lock = getlock()

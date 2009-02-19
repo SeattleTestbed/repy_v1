@@ -67,7 +67,11 @@ class TcpClient:
     self.packet_cache = {} # holds currently sent, unacked packets
 
     # kept track of + updated by Server
-    self.recv_window_size = WINDOW_SIZE # size of window
+    self.recv_window_size = AD_WINDOW_SIZE # size of window
+
+    # Congestion window -- slow start
+    self.DEFAULT_CONG_WINDOW_MULT = 1 # reset to this if not ACK'ed
+    self.cong_window_mult = self.DEFAULT_CONG_WINDOW_MULT # counts up on ACK's
 
     # Sliding window accounting
     self.send_window_size = None # size of window
@@ -109,26 +113,45 @@ class TcpClient:
     data = list(data)
  
     # Send them -- Sliding Window Algorithm
-    while data:   
-      # reset variables
-      last_ack = self.last_ack_recv # save to see if changes
-      times_sent = 0
- 
+    while True:
+      self.lock.acquire()
+
+      # the last ack changed and we have no more data
+      # nor packets cached
+      if not data and not self.packet_cache:
+	self.lock.release()
+	break;
+      else: # reset variables
+        last_ack = self.last_ack_recv # save to see if changes
+        times_sent = 0
+      self.lock.release()
+
       # while we haven't receieved a newer ack
-      while self.last_ack_recv == last_ack:
+      while True:
         self.sleep_lock.acquire()
+        self.lock.acquire()
+	# success
+	if self.last_ack_recv != last_ack:
+          self.sleep_lock.release()
+	  self.lock.release()
+	  break;
+
+	# reset if necessary -- Slow Start Algorithm
+	if times_sent:
+	  self.cong_window_mult = self.DEFAULT_CONG_WINDOW_MULT
+
         # give up
         if times_sent > retries:
           self.sleep_lock.release()
+	  self.lock.release()
           raise TimeoutError("tried %d times" % times_sent)
 
-        self.lock.acquire()
         # Send or Re-send all those in cache
-        # BUG: Should these be modulo sorted?
+        # These must be modulo sorted because
         # Say we're never sending the first
         # one because the window size is too small.
-        seqs = self.packet_cache.keys() 
-        free_window = self.send_window_size
+        seqs = mod_sort(self.packet_cache.keys(), self.last_ack_recv, self.last_seq_sent)
+        free_window = min(self.send_window_size, self.cong_window_mult * CONG_WINDOW_SIZE)
         for seq_num in seqs:
           if len(self.packet_cache[seq_num].payload) <= free_window:
             free_window -= len(self.packet_cache[seq_num].payload)
@@ -138,27 +161,32 @@ class TcpClient:
             free_window = 0
             break
 
-        # make and Send a new packet -- Slow Start Algorithm
-        if data and free_window:
+        # make and send new packets
+        while data and free_window:
             # can we send the whole window?
-            if free_window < MSS: # yes
-              payload_size = self.send_window_size
-            else: # no just send MSS of the window
-              payload_size = MSS
+            payload_size = min(free_window, MSS)
+
             # make the packet
             next_seq_num = mod_add(self.last_seq_sent, 1)
             packet = TcpPacket(srcport, destport, next_seq_num, 0, "PSH", self.recv_window_size, ''.join(data[0:payload_size]))
-            del data[0:payload_size]
             self.packet_cache[packet.seq_num] = packet
             self.last_seq_sent = mod_add(packet.seq_num, len(packet.payload) - 1)
+
             # send it as well
             bytes_sent += self.conn.register_sendmess(destip, destport, packet.pack(), srcip, srcport)
-        self.lock.release()
+
+	    # go around again?
+            del data[0:payload_size]
+	    free_window -= payload_size
+
+	# always increment, we'll reset it as needed
+	self.cong_window_mult += 1
 
         # increment tries
         times_sent += 1
         # take a deep breath
         self.sleep_lock.sleep(timeout)
+        self.lock.release()
 
     return bytes_sent
 
@@ -200,9 +228,9 @@ class TcpClient:
       bytes_sent += self.conn.register_sendmess(destip, destport, \
                 	synack.pack(), srcip, srcport)
 
-      self.lock.release()
       times_sent += 1
       self.sleep_lock.sleep(timeout)
+      self.lock.release()
 
     return bytes_sent
 
@@ -243,9 +271,9 @@ class TcpClient:
       bytes_sent += self.conn.register_sendmess(destip, destport, \
                 	syn.pack(), srcip, srcport)
 
-      self.lock.release()
       times_sent += 1
       self.sleep_lock.sleep(timeout)
+      self.lock.release()
 
     return bytes_sent
 
@@ -405,6 +433,8 @@ class TcpClient:
       return None
     elif self.last_ack_recv is None: # bad ack of syn
       return None 
+    elif self.last_ack_recv == lateist_ack: # already all acked
+      return
     else:  # keep going
       pass
 

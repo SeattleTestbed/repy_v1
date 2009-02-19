@@ -27,7 +27,6 @@ def server():
       sleep(.01)
 
   socket.disconnect()
-  print "hi"
   if mycontext['mess'] != MESSAGE:
     print "%s != " % mycontext['mess']
     print "%s" % MESSAGE

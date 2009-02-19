@@ -6,12 +6,15 @@
   gotten rid of in the future.
 """
 
-DEFAULT_MAXDGRAMSIZE = 1050 # MSS
+DEFAULT_MAXDGRAMSIZE = 1000 # MSS
 DEFAULT_RETRIES = 4 # listen times for ack
 DEFAULT_TIMEOUT = 1 # seconds to wait
 
-MSS = 1050 # bytes maximum payload                
-WINDOW_SIZE = 5 * MSS
+MSS = 1000 # bytes maximum payload                
+CONG_WINDOW_SIZE = MSS  #  increment up to ad window
+AD_WINDOW_SIZE = 5 * MSS # start out free buffer space
+WINDOW_SIZE = AD_WINDOW_SIZE # alias
+
 
 # State machine outputs
 (OP_RCV_REMOTE_SYN, OP_RCV_LOOPBACK_SYN, \

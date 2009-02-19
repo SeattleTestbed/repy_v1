@@ -10,6 +10,9 @@
   mod_between(start, mid, end, max) - tell if the mid
     is between the start and end assuming all of the three
     may wrap around the max.
+  mod_sort(nums, start, end, max) - sort the numbers
+    in the array between start and end modulo-wise with
+    respect to the max.
   mod_add(value1, value1, max) - add them and wrap around
   mod_sub(value1, value1, max) - subtract them and wrap around
   mod_rand(max) - return a random number strictly below the maximum
@@ -61,6 +64,42 @@ def mod_between(start, mid, end, max = MAX_SEQ_NUM):
   return (start <= mid and  mid <= end) \
 	or (mid <= end and end <= start) \
      	or (end <= start and start <= mid)
+
+def mod_sort(nums, start, end, max = MAX_SEQ_NUM):
+  """
+  <Purpose>
+    Put the numbers in order between the start and end.
+
+  <Exception>
+    raise RangeError("start and end must be strictly less than max")
+
+  <Return>
+    Sorted array
+  """
+  if start >= max or end >= max:
+    raise RangeError("start and end must be strictly less than max")
+
+  # make sure no stray values outside of start and end
+  for x in nums:
+    if not mod_between(start, x, end, max):
+      raise RangeError("all numbers must be between the start and end")
+
+  sorted_nums = []
+  while nums:
+    i = 0
+    min_sep = mod_sep(start, nums[i], max)
+    min_i = i
+    while i < len(nums):
+      sep = mod_sep(start, nums[i], max)
+      if sep < min_sep:
+        min_sep = sep
+        min_i = i
+      i += 1
+    sorted_nums.append(nums[min_i])
+    del nums[min_i]
+
+  return sorted_nums
+
 
 def mod_add(value1, value2, max = MAX_SEQ_NUM):
   return (value1 + value2) % max

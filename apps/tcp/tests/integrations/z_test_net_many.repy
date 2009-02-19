@@ -15,7 +15,7 @@ def server():
   socket.listen()
   socket.accept()
 
-  retries = 10
+  retries = 100
   mess = ""
   while retries:
     mess += socket.recv(MAXLEN)

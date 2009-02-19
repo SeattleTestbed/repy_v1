@@ -14,7 +14,7 @@ def server():
   socket.listen()
   socket.accept()
   
-  tries = 5
+  tries = 100
   while tries:
     mess = socket.recv(MAXLEN)
     if mess == MESSAGE:

@@ -3,50 +3,24 @@ This code is an implementation of TCP over Repy's native UDP.
 See the project wiki:
  https://seattle.cs.washington.edu/wiki/TopSecret
 
+--==[ Manifest ]==--
+The code has the following layout:
+ *.repy - Classes.
+ Makefile - Runs test suite.
+ tests/ - The files here are test file-folders, classes, resources, and scripts.
+	*.txt - Input files to test sending large amounts of data.
+        build.sh - Pre-processes test files in folder through Repypp.
+        restrictions.default - All tests run through Repy with this.
+	run_tests.py - Seattle's test runner slightly modified.
+        functionals/ - testing how functions of a single class interact
+        integrations/ - testing how classes interact
+	units/ - testing how each function of a class works in isolation
+
 --==[ Testing ]==--
 To run the test suite do:
  $ make
 
-To run a subset of the tests use `make FN=<glob_expression>`.  
-For example:
- $ # run only the test "z_test_me.repy"
- $ make FN=z_test_me.repy
-Or:
- $ # run all z tests of the class "connection"
- $ make FN=z_test_connection*
-
-To remove all the built files:
- $ make clean
-
---==[ Manifest ]==--
-The code has the following layout:
- 
- *.repy
-        Classes.
-
- Makefile
-        Runs test suite.
-
- tests/ 
-        This folder contains TCP specific test files.  The
-        files include test helpers and actual test files.
-        
-	*.txt
-		Input files to test sending large amounts of data.
-
-        build.sh
-		Pre-processes test files in folder through Repypp.
-		Used by Makefile.
-
-        [ez]_test_*.py
-        	TCP tests.  Need to be built by running Makefile.
-
-        restrictions.default
-		All tests run through Repy with this restrictions
-                file.
-
-	run_tests.py
-		Seattle's test runner slightly modified.
+See Makefile for other options.
      
 --==[ Unit test files ]==--
 Unit test files may be in the format '''z_test_<classname>_<function_name>.repy'''.  These unit
