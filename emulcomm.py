@@ -434,6 +434,28 @@ def getmyip():
   
   s.close()
 
+
+  if myip == '' or myip == '0.0.0.0':
+    # It's possible on some platforms (Windows Mobile) that the IP will be
+    # 0.0.0.0 even when I have a public IP and google is up.   However, if
+    # I get a real connection with SOCK_STREAM, then I should get the real
+    # answer.   
+    # I'll do much the same as before, only using SOCK_STREAM, which 
+    # unfortunately will actually connect
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+      s.connect(('google.com', 80))
+    except Exception, e:
+      raise e
+    (myip, localport) = s.getsockname() 
+  
+    s.close()
+
+  if myip == '' or myip == '0.0.0.0':
+    # hmm, SOCK_STREAM failed too.   Let's raise an exception...
+    raise Exception, "Cannot get external IP despite successful name resolution.  Sockets do not seem to behave properly"
+  
+
   return myip
 
 
