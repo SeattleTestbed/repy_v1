@@ -9,6 +9,8 @@
 # 	make ingrs - run integrations
 #	make clean - delete built tests and test output
 #	make dist - make a distributable tarball
+#	make image - link the library into a single file
+#	make example - run a hello world script
 #
 # You can pass the FN=<regex> to match subsets of tests.
 # Ex. make units FN=state_machin
@@ -22,14 +24,28 @@
 ############
 # Constants
 ###########
+REPYDIR=../..
+REPYPP=../../../seattlelib/repypp.py
+ROOTDIR=tcp
+
+# test
 TESTDIR=tmp_test_dir
 TESTS_SRC_DIR=tests
 FN=[zne]_test_*
 UNITS=${TESTS_SRC_DIR}/units
 FUNCS=${TESTS_SRC_DIR}/functionals
 INGRS=${TESTS_SRC_DIR}/integrations
-REPYDIR=../..
-REPYPP=../../../seattlelib/repypp.py
+RESTR_FN=restrictions.default
+
+# image
+IMAGEDIR=image
+
+# dist
+DISTDIR='.dist'
+
+# example
+EXAMPLEDIR=examples
+EXAMPLE_SCRIPT=helloworld
 
 #############
 # Public Commands
@@ -44,35 +60,55 @@ ingrs: cp_ingrs build test
 # Use to execute a single test file without framework.
 # Ex. make run FN=<filename>
 run: cp_units cp_funcs cp_ingrs build
-	cd ${TESTDIR} && python repy.py restrictions.default *${FN}*
+	cd ${TESTDIR} && python repy.py ${RESTR_FN} *${FN}*
 
 clean: 
+	# test 
 	rm -rf ${TESTDIR}
 	for file in `ls *.repy`; do rm -f ${TESTS_SRC_DIR}/$${file}; done
 	for file in `ls ${UNITS}/*`; do rm -f ${TESTS_SRC_DIR}/`basename $${file}`; done
 	for file in `ls ${FUNCS}/*`; do rm -f ${TESTS_SRC_DIR}/`basename $${file}`; done
 	for file in `ls ${INGRS}/*`; do rm -f ${TESTS_SRC_DIR}/`basename $${file}`; done
+	
+	# dist 
+	rm -rf ${DISTDIR}
+	rm -f ${ROOTDIR}.tgz
+	rm -rf ${ROOTDIR}
+
+	# image
+	rm -rf ${IMAGEDIR}
+
+# Links all the files into a single easily includable file
+image:
+	if [ ! -e ${IMAGEDIR} ]; then mkdir ${IMAGEDIR}; fi
+	cat *.repy > ${IMAGEDIR}/${ROOTDIR}.repy
+	sed -i 's/^\(include .*\)$$/#\1/' ${IMAGEDIR}/${ROOTDIR}.repy
 
 # Makes a distributable version of the current code
 dist: clean
 	# get all of the repo setup
-	mkdir '.tcp'
-	cp -r * .tcp
-	mv .tcp tcp
+	mkdir ${DISTDIR}
+	cp -r * ${DISTDIR}
 
 	# setup a Repy distribution
-	if [ ! -e tcp/repy ]; then mkdir tcp/repy; fi
-	cp ${REPYDIR}/*.py tcp/repy
-	sed -i 's/^REPYDIR=.*$$/REPYDIR=repy/' tcp/Makefile
-	sed -i 's/^REPYPP=.*$$/REPYPP=${TESTS_SRC_DIR}\/repypp.py/' tcp/Makefile
+	if [ ! -e ${DISTDIR}/repy ]; then mkdir ${DISTDIR}/repy; fi
+	cp ${REPYDIR}/*.py ${DISTDIR}/repy
+	sed -i 's/^REPYDIR=.*$$/REPYDIR=repy/' ${DISTDIR}/Makefile
+	sed -i 's/^REPYPP=.*$$/REPYPP=${TESTS_SRC_DIR}\/repypp.py/' ${DISTDIR}/Makefile
 
 	# setup a Repypp distribution
-	cp ${REPYPP} tcp/${TESTS_SRC_DIR}
-	sed -i 's/^REPYPP=.*$$/REPYPP=repypp.py/' tcp/${TESTS_SRC_DIR}/build.sh
+	cp ${REPYPP} ${DISTDIR}/${TESTS_SRC_DIR}
+	sed -i 's/^REPYPP=.*$$/REPYPP=repypp.py/' ${DISTDIR}/${TESTS_SRC_DIR}/build.sh
 
 	# tar it
-	tar czf tcp.tgz tcp
-	rm -rf tcp
+	mv ${DISTDIR} ${ROOTDIR} # rename as root dir
+	tar czf ${ROOTDIR}.tgz ${ROOTDIR}
+	rm -rf ${ROOTDIR}
+
+example: image
+	cp ${EXAMPLEDIR}/${EXAMPLE_SCRIPT}.repy ${IMAGEDIR}
+	cd ${IMAGEDIR} && python ../${REPYPP} ${EXAMPLE_SCRIPT}.repy ${EXAMPLE_SCRIPT}
+	cd ${IMAGEDIR} && python ../${REPYDIR}/repy.py ../${TESTS_SRC_DIR}/${RESTR_FN} ${EXAMPLE_SCRIPT}
 
 ################
 # Private Commands
