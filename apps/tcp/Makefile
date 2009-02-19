@@ -8,6 +8,7 @@
 # 	make funcs - run class scope tests
 # 	make ingrs - run integrations
 #	make clean - delete built tests and test output
+#	make dist - make a distributable tarball
 #
 # You can pass the FN=<regex> to match subsets of tests.
 # Ex. make units FN=state_machin
@@ -27,6 +28,8 @@ FN=[zne]_test_*
 UNITS=${TESTS_SRC_DIR}/units
 FUNCS=${TESTS_SRC_DIR}/functionals
 INGRS=${TESTS_SRC_DIR}/integrations
+REPYDIR=../..
+REPYPP=../../../seattlelib/repypp.py
 
 #############
 # Public Commands
@@ -50,6 +53,26 @@ clean:
 	for file in `ls ${FUNCS}/*`; do rm -f ${TESTS_SRC_DIR}/`basename $${file}`; done
 	for file in `ls ${INGRS}/*`; do rm -f ${TESTS_SRC_DIR}/`basename $${file}`; done
 
+# Makes a distributable version of the current code
+dist: clean
+	# get all of the repo setup
+	mkdir '.tcp'
+	cp -r * .tcp
+	mv .tcp tcp
+
+	# setup a Repy distribution
+	if [ ! -e tcp/repy ]; then mkdir tcp/repy; fi
+	cp ${REPYDIR}/*.py tcp/repy
+	sed -i 's/^REPYDIR=.*$$/REPYDIR=repy/' tcp/Makefile
+	sed -i 's/^REPYPP=.*$$/REPYPP=${TESTS_SRC_DIR}\/repypp.py/' tcp/Makefile
+
+	# setup a Repypp distribution
+	cp ${REPYPP} tcp/${TESTS_SRC_DIR}
+	sed -i 's/^REPYPP=.*$$/REPYPP=repypp.py/' tcp/${TESTS_SRC_DIR}/build.sh
+
+	# tar it
+	tar czf tcp.tgz tcp
+	rm -rf tcp
 
 ################
 # Private Commands
@@ -66,7 +89,7 @@ build:
 	cp ${TESTS_SRC_DIR}/*.txt ${TESTDIR}
 	cp ${TESTS_SRC_DIR}/restrictions.* ${TESTDIR}
 	cp ${TESTS_SRC_DIR}/run_tests.py ${TESTDIR}
-	cp ../../*.py ${TESTDIR}
+	cp ${REPYDIR}/*.py ${TESTDIR}
 
 cp_units:
 	cp ${UNITS}/* ${TESTS_SRC_DIR}
@@ -74,6 +97,3 @@ cp_funcs:
 	cp ${FUNCS}/* ${TESTS_SRC_DIR}
 cp_ingrs:
 	cp ${INGRS}/* ${TESTS_SRC_DIR}
-
-
-
