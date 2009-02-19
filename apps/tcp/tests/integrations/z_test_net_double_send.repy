@@ -13,11 +13,23 @@ def server():
   
   socket.listen()
   socket.accept()
-
+  
   bytes = socket.send(MESSAGE)
+
   if bytes == 0:
     print "Expected some bytes"
-  
+
+  tries = 100
+  while tries:
+    mess = socket.recv(MAXLEN)
+    if mess == MESSAGE:
+      break
+    tries -= 1
+    sleep(.01)
+
+  if mess != MESSAGE:
+    print "%s != %s" % (mess, MESSAGE)
+
   socket.disconnect()
 
 def client():
@@ -25,6 +37,9 @@ def client():
   socket.bind(IP, PORT)
 
   socket.connect(IP, PORT_TWO)
+  bytes = socket.send(MESSAGE)
+  if bytes == 0:
+    print "Expected some bytes"
 
   tries = 100
   while tries:
@@ -47,3 +62,4 @@ def main():
 if callfunc == 'initialize':
   main()
   exitall()
+
