@@ -199,14 +199,57 @@ class TcpStateMachine:
       # old handshake? # BUG: how about old SYN's
       elif packet.is_synack():
         advice = OP_RCV_SYNACK
+      # close
+      elif packet.is_fin():
+        self.state = self.STATE_CLOSE_WAIT
+        advice = OP_RCV_FIN
       else:
-        pass
-    elif(self.state == self.STATE_FIN_WAIT_1): pass
-    elif(self.state == self.STATE_FIN_WAIT_2): pass
-    elif(self.state == self.STATE_CLOSING): pass
-    elif(self.state == self.STATE_CLOSE_WAIT): pass
-    elif(self.state == self.STATE_LAST_ACK): pass
-    elif(self.state == self.STATE_TIME_WAIT): pass
+	pass
+
+    elif(self.state == self.STATE_FIN_WAIT_1):
+      # rcvd ACK of fin
+      if packet.is_ack():
+	self.state = self.STATE_FIN_WAIT_2
+        advice = OP_RCV_ACK
+      # send ACK of FIN
+      elif packet.is_fin():
+        self.state = self.STATE_CLOSING
+        advice = OP_RCV_FIN
+      else:
+	pass
+
+    elif(self.state == self.STATE_FIN_WAIT_2):
+      # send ACK of FIN
+      if packet.is_fin():
+        self.state = self.STATE_TIME_WAIT
+        advice = OP_RCV_ACK
+        self.state = self.STATE_CLOSED
+      else:
+	pass
+
+    elif(self.state == self.STATE_CLOSING):
+      # rcv ACK of FIN
+      if packet.is_ack():
+        self.state = self.STATE_TIME_WAIT
+        advice = OP_RCV_ACK
+        self.state = self.STATE_CLOSED # ??
+      else:
+	pass
+
+    elif(self.state == self.STATE_CLOSE_WAIT):
+      pass
+
+    elif(self.state == self.STATE_LAST_ACK):
+      # rcv ACK of FIN
+      if packet.is_ack():
+        advice = OP_RCV_ACK
+        self.state = self.STATE_CLOSED # ??
+      else:
+	pass
+
+    elif(self.state == self.STATE_TIME_WAIT):
+      pass
+
     else: # garbled packet
       pass # ignore it
 
@@ -351,7 +394,27 @@ class TcpStateMachine:
       None
     """
     self.lock.acquire()
-    self.state = self.STATE_CLOSED
+    if self.state == self.STATE_FIN_WAIT_1 \
+       or self.state == self.STATE_FIN_WAIT_2 \
+       or self.state == self.STATE_LAST_ACK \
+       or self.state == self.STATE_TIME_WAIT \
+       or self.state == self.STATE_CLOSING:
+      self.lock.release()
+      raise AlreadyClosingError("cannot close an already closing connection")
+
+    elif self.state == self.STATE_CLOSED \
+       or self.state == self.STATE_LISTEN \
+       or self.state == self.STATE_SYN_SENT:
+      self.state = self.STATE_CLOSED
+
+    elif self.state == self.STATE_ESTAB \
+       or self.state == self.STATE_SYN_RCVD:
+      self.state = self.STATE_FIN_WAIT_1
+
+    else: # CLOSE_WAIT
+      assert self.state == self.STATE_CLOSE_WAIT
+      self.state = self.STATE_LAST_ACK
+      
     self.lock.release()
     
    

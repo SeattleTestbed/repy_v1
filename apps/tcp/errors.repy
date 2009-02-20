@@ -24,3 +24,6 @@ class NotEstablishedError(Exception):
 
 class NotRequestedError(Exception):
   """This exception indicates a connection has not been requested"""
+
+class AlreadyClosingError(Exception):
+  """This exception indicates our connection is already closing"""

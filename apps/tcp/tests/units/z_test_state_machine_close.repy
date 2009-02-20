@@ -15,12 +15,33 @@
 """
 include state_machine.repy
 
-def test_any_close_closed():
-  try_close(mycontext['sm'].STATE_CLOSED)
-  try_close(mycontext['sm'].STATE_LISTEN)
-  try_close(mycontext['sm'].STATE_SYN_SENT)
-  try_close(mycontext['sm'].STATE_SYN_RCVD)
-  try_close(mycontext['sm'].STATE_ESTAB)
+def test_syn_rcvd_close_fin_wait_1():
+  mycontext['sm'].state = mycontext['sm'].STATE_SYN_RCVD
+  mycontext['sm'].close()
+  assert mycontext['sm'].state == mycontext['sm'].STATE_FIN_WAIT_1
+
+def test_estab_close_fin_wait_1():
+  mycontext['sm'].state = mycontext['sm'].STATE_ESTAB
+  mycontext['sm'].close()
+  assert mycontext['sm'].state == mycontext['sm'].STATE_FIN_WAIT_1
+
+def test_close_wait_close_last_ack():
+  mycontext['sm'].state = mycontext['sm'].STATE_CLOSE_WAIT
+  mycontext['sm'].close()
+  assert mycontext['sm'].state == mycontext['sm'].STATE_LAST_ACK
+
+def test_some_close_closed():
+  assert_close(mycontext['sm'].STATE_LISTEN)
+  assert_close(mycontext['sm'].STATE_CLOSED)
+  assert_close(mycontext['sm'].STATE_SYN_SENT)
+
+def test_else_close_alreadyClosing():
+  try_close(mycontext['sm'].STATE_FIN_WAIT_1)
+  try_close(mycontext['sm'].STATE_FIN_WAIT_2)
+  try_close(mycontext['sm'].STATE_LAST_ACK)
+  try_close(mycontext['sm'].STATE_CLOSING)
+  try_close(mycontext['sm'].STATE_TIME_WAIT)
+
 
 
 ####################
@@ -29,17 +50,32 @@ def test_any_close_closed():
 
 # Sets state to given state
 # And makes sure state after is closed.
-def try_close(state):
+def assert_close(state):
   mycontext['sm'].state = state
   mycontext['sm'].close()
   assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSED
+
+# Sets state to given state
+# And makes sure error is raised. 
+def try_close(state):
+  mycontext['sm'].state = state
+  try:            
+    mycontext['sm'].close()
+  except AlreadyClosingError:
+    pass        
+  else:
+    raise Exception("should have raised error")
   
 if callfunc == 'initialize':
   # setup
   mycontext['sm'] = TcpStateMachine()
   
   # Run tests
-  test_any_close_closed()
+  test_else_close_alreadyClosing()
+  test_syn_rcvd_close_fin_wait_1()
+  test_estab_close_fin_wait_1()
+  test_close_wait_close_last_ack()
+  test_some_close_closed()
 
   # teardown
   exitall()

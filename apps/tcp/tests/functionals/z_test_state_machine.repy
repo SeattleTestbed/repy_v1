@@ -17,75 +17,78 @@
 include state_machine.repy
 include test_packet_sender.repy
 
-########################
-#  Neither Tests
-########################
-def test_closed_to_closed():
-  mycontext['sm'].close()
-  assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSED
-  mycontext['tps'].send("SYN")
-  assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSED
-
-########################
-#  Passive Tests
-########################
-
-def test_closed_to_listen():
-  mycontext['sm'].close()
-  assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSED
-  mycontext['sm'].listen()
-  assert mycontext['sm'].state == mycontext['sm'].STATE_LISTEN
-
-def test_listen_to_syn_rcvd():
-  mycontext['sm'].close()
-  mycontext['sm'].listen()
-  assert mycontext['sm'].state == mycontext['sm'].STATE_LISTEN
-  mycontext['tps'].send("SYN")
-  assert mycontext['sm'].state == mycontext['sm'].STATE_SYN_RCVD
-
-########################
-# Active Tests
-########################
-def test_closed_to_syn_sent():
-  mycontext['sm'].close()
-  assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSED
-  mycontext['sm'].connect()
-  assert mycontext['sm'].state == mycontext['sm'].STATE_SYN_SENT
-
-# loopback
-def test_syn_sent_to_syn_rcvd():
-  mycontext['sm'].close()
-  mycontext['sm'].connect()
-  assert mycontext['sm'].state == mycontext['sm'].STATE_SYN_SENT
-  mycontext['tps'].send("SYN")
-  assert mycontext['sm'].state == mycontext['sm'].STATE_SYN_RCVD
-
-def test_syn_sent_to_estab():
-  mycontext['sm'].close()
-  mycontext['sm'].connect()
-  assert mycontext['sm'].state == mycontext['sm'].STATE_SYN_SENT
-  mycontext['tps'].send("SYNACK")
-  assert mycontext['sm'].state == mycontext['sm'].STATE_ESTAB
-
-########################
-#  Both Tests
-########################
-def test_syn_rcvd_to_estab():
+def test_passive():
   # passive
-  mycontext['sm'].state = mycontext['sm'].STATE_SYN_RCVD
+  mycontext['sm'].state = mycontext['sm'].STATE_CLOSED
+  mycontext['sm'].listen()
+  mycontext['tps'].send("SYN")
   mycontext['tps'].send("ACK")
-  assert mycontext['sm'].state == mycontext['sm'].STATE_ESTAB
-
-def test_estab_to_closed():
-  mycontext['sm'].state = mycontext['sm'].STATE_ESTAB
-  mycontext['sm'].close()
-  assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSED
-
-def test_estab_to_estab():
-  mycontext['sm'].state = mycontext['sm'].STATE_ESTAB
   mycontext['tps'].send("ACK")
   mycontext['tps'].send("PSH")
   assert mycontext['sm'].state == mycontext['sm'].STATE_ESTAB
+  mycontext['tps'].send("FIN")
+  mycontext['sm'].close()  
+  mycontext['tps'].send("ACK")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSED
+
+def test_passive_pshack():
+  # passive
+  mycontext['sm'].state = mycontext['sm'].STATE_CLOSED
+  mycontext['sm'].listen()
+  mycontext['tps'].send("SYN")
+  mycontext['tps'].send("PSH")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_ESTAB
+  mycontext['tps'].send("FIN")
+  mycontext['sm'].close()  
+  mycontext['tps'].send("ACK")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSED
+
+def test_active():
+  # active
+  mycontext['sm'].state = mycontext['sm'].STATE_CLOSED
+  mycontext['sm'].connect()
+  mycontext['tps'].send("SYNACK")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_ESTAB
+  mycontext['sm'].close()
+  mycontext['tps'].send("ACK")
+  mycontext['tps'].send("FIN")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSED
+
+def test_active_loopback():
+  # active
+  mycontext['sm'].state = mycontext['sm'].STATE_CLOSED
+  mycontext['sm'].connect()
+  mycontext['tps'].send("SYN")
+  mycontext['tps'].send("ACK")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_ESTAB
+  mycontext['sm'].close()
+  mycontext['tps'].send("ACK")
+  mycontext['tps'].send("FIN")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSED 
+
+def test_active_loopback_pshack():
+  # active
+  mycontext['sm'].state = mycontext['sm'].STATE_CLOSED
+  mycontext['sm'].connect()
+  mycontext['tps'].send("SYN")
+  mycontext['tps'].send("PSH")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_ESTAB
+  mycontext['sm'].close()
+  mycontext['tps'].send("ACK")
+  mycontext['tps'].send("FIN")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSED 
+
+def test_active_finfin():
+  # active
+  mycontext['sm'].state = mycontext['sm'].STATE_CLOSED
+  mycontext['sm'].connect()
+  mycontext['tps'].send("SYNACK")
+  mycontext['tps'].send("PSH")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_ESTAB
+  mycontext['sm'].close()
+  mycontext['tps'].send("FIN")
+  mycontext['tps'].send("ACK")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSED 
 
 
 ####################
@@ -107,20 +110,12 @@ if callfunc == 'initialize':
   mycontext['tps'] = TestPacketSender(IP, PORT)
   
   # Run tests
- 
-  # neither good
-  test_closed_to_closed()
-  # passive good
-  test_closed_to_listen()
-  test_listen_to_syn_rcvd()
-  # active good
-  test_closed_to_syn_sent()
-  test_syn_sent_to_syn_rcvd()
-  test_syn_sent_to_estab()
-  # both good
-  test_syn_rcvd_to_estab()
-  test_estab_to_estab()
-  test_estab_to_closed()
+  test_passive()
+  test_passive_pshack()
+  test_active()
+  test_active_loopback()
+  test_active_loopback_pshack()
+  test_active_finfin()
 
   # teardown
   stopcomm(ch)

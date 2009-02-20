@@ -26,6 +26,7 @@ def test_closed_next_any():
   mycontext['tps'].send("SYNACK")
   mycontext['tps'].send("ACK")
   mycontext['tps'].send("PSH")
+  mycontext['tps'].send("FIN")
   assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSED
 
 ########################
@@ -41,6 +42,7 @@ def test_listen_next_else():
   mycontext['tps'].send("SYNACK")
   mycontext['tps'].send("ACK")
   mycontext['tps'].send("PSH")
+  mycontext['tps'].send("FIN")
   assert mycontext['sm'].state == mycontext['sm'].STATE_LISTEN
 
 ########################
@@ -59,6 +61,7 @@ def test_syn_sent_next_synack():
 
 def test_syn_sent_next_else():
   mycontext['sm'].state = mycontext['sm'].STATE_SYN_SENT
+  mycontext['tps'].send("FIN")
   mycontext['tps'].send("ACK")
   mycontext['tps'].send("PSH")
   assert mycontext['sm'].state == mycontext['sm'].STATE_SYN_SENT
@@ -80,18 +83,118 @@ def test_syn_rcvd_next_else():
   mycontext['sm'].state = mycontext['sm'].STATE_SYN_RCVD
   mycontext['tps'].send("SYN")
   mycontext['tps'].send("SYNACK")
+  mycontext['tps'].send("FIN")
   assert mycontext['sm'].state == mycontext['sm'].STATE_SYN_RCVD
 
 #################
 # ESTAB
 #################
-def test_estab_next_any():
+def test_estab_next_fin():
+  mycontext['sm'].state = mycontext['sm'].STATE_ESTAB
+  mycontext['tps'].send("FIN")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSE_WAIT
+
+def test_estab_next_else():
   mycontext['sm'].state = mycontext['sm'].STATE_ESTAB
   mycontext['tps'].send("SYN")
   mycontext['tps'].send("SYNACK")
   mycontext['tps'].send("ACK")
   mycontext['tps'].send("PSH")
   assert mycontext['sm'].state == mycontext['sm'].STATE_ESTAB
+
+################
+# FIN WAIT-1
+################
+def test_fin_wait_1_next_fin():
+  mycontext['sm'].state = mycontext['sm'].STATE_FIN_WAIT_1
+  mycontext['tps'].send("FIN")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSING
+
+def test_fin_wait_1_next_ack():
+  mycontext['sm'].state = mycontext['sm'].STATE_FIN_WAIT_1
+  mycontext['tps'].send("ACK")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_FIN_WAIT_2
+
+def test_fin_wait_1_next_else():
+  mycontext['sm'].state = mycontext['sm'].STATE_FIN_WAIT_1
+  mycontext['tps'].send("SYN")
+  mycontext['tps'].send("SYNACK")
+  mycontext['tps'].send("PSH")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_FIN_WAIT_1
+
+################
+# FIN WAIT-2
+################
+def test_fin_wait_2_next_fin():
+  mycontext['sm'].state = mycontext['sm'].STATE_FIN_WAIT_2
+  mycontext['tps'].send("FIN")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSED
+
+def test_fin_wait_2_next_else():
+  mycontext['sm'].state = mycontext['sm'].STATE_FIN_WAIT_2
+  mycontext['tps'].send("SYN")
+  mycontext['tps'].send("SYNACK")
+  mycontext['tps'].send("PSH")
+  mycontext['tps'].send("ACK")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_FIN_WAIT_2
+
+################
+# CLOSING
+################
+def test_closing_next_ack():
+  mycontext['sm'].state = mycontext['sm'].STATE_CLOSING
+  mycontext['tps'].send("ACK")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSED
+
+def test_closing_next_else():
+  mycontext['sm'].state = mycontext['sm'].STATE_CLOSING
+  mycontext['tps'].send("SYN")
+  mycontext['tps'].send("FIN")
+  mycontext['tps'].send("SYNACK")
+  mycontext['tps'].send("PSH")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSING
+
+################
+# TIME WAIT
+################
+def test_time_wait_next_any():
+  mycontext['sm'].state = mycontext['sm'].STATE_TIME_WAIT
+  mycontext['tps'].send("SYN")
+  mycontext['tps'].send("FIN")
+  mycontext['tps'].send("SYNACK")
+  mycontext['tps'].send("PSH")
+  mycontext['tps'].send("ACK")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_TIME_WAIT
+
+################
+# CLOSE WAIT
+################
+def test_close_wait_next_any():
+  mycontext['sm'].state = mycontext['sm'].STATE_CLOSE_WAIT
+  mycontext['tps'].send("SYN")
+  mycontext['tps'].send("FIN")
+  mycontext['tps'].send("SYNACK")
+  mycontext['tps'].send("PSH")
+  mycontext['tps'].send("ACK")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSE_WAIT
+
+################
+# LAST ACK
+################
+def test_last_ack_next_ack():
+  mycontext['sm'].state = mycontext['sm'].STATE_LAST_ACK
+  mycontext['tps'].send("ACK")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSED
+
+def test_last_ack_next_else():
+  mycontext['sm'].state = mycontext['sm'].STATE_LAST_ACK
+  mycontext['tps'].send("SYN")
+  mycontext['tps'].send("FIN")
+  mycontext['tps'].send("SYNACK")
+  mycontext['tps'].send("PSH")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_LAST_ACK
+
+
 
 ####################
 # Test Helper Functions
@@ -121,7 +224,19 @@ if callfunc == 'initialize':
   test_syn_rcvd_next_ack()
   test_syn_rcvd_next_psh()
   test_syn_rcvd_next_else()
-  test_estab_next_any()
+  test_estab_next_fin()
+  test_estab_next_else()
+  test_fin_wait_1_next_fin()
+  test_fin_wait_1_next_ack()
+  test_fin_wait_1_next_else()
+  test_fin_wait_2_next_fin()
+  test_fin_wait_2_next_else()
+  test_closing_next_ack()
+  test_closing_next_else()
+  test_time_wait_next_any()
+  test_close_wait_next_any()
+  test_last_ack_next_ack()
+  test_last_ack_next_else()
 
   # teardown
   stopcomm(ch)

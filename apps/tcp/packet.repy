@@ -1,5 +1,33 @@
 """
-TCP Header Format
+  <Description>
+    Structures UDP payloads into TCP packet objects.
+
+  <Usage>
+    Static methods:
+      unpack(message) - decodes message into packet
+   
+    Class methods:
+      TcpPacket() - new Packet constructor
+      packet.pack() - encode into string UDP message
+      packet.copy() - clone a duplicate of the packet
+
+    Boolean check methods: 
+      packet.is_syn()
+      packet.is_synack()
+      packet.is_ack()
+      packet.is_payload()
+      packet.is_fin()
+
+    Attributes:
+      packet.srcport - source port
+      packet.destport - destination port
+      packet.seq_num - sequence number
+      packet.ack_num - acknowledgment number
+      packet.control_bits - the type (ex. ACK, FIN, etc.)
+      packet.window = advertized window size in bytes
+      packet.payload - data
+
+  <TCP Header Format>
 
     0                   1                   2                   3   
     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 
@@ -30,32 +58,33 @@ TCP Header Format
 # Keeps track of our packet.
 class TcpPacket:
   """
-  <Purpose>
-    
-    
-  <Side Effects>
-    
-    
   <Example Use>
-
+    pack = TcpPacket(12345, 12356, 2, 0, "SYN", 100, "will you connect with me?")
+    sendmess(124.3.4.1, 12346, pack.pack()) 
   """
 
   def __init__(self, srcport, destport, seq_num, ack_num, control_bits, window, payload):
     """
     <Purpose>
-      
+      Assign attributes.      
     
     <Arguments>
-      
+      packet.srcport - source port
+      packet.destport - destination port
+      packet.seq_num - sequence number
+      packet.ack_num - acknowledgment number
+      packet.control_bits - the type (ex. ACK, FIN, etc.)
+      packet.window = advertized window size in bytes
+      packet.payload - data      
     
     <Exceptions>
-      
-    
+      None
+         
     <Side Effects>
-      
-     
+      Type casts numbers to integers.
+
     <Returns>
-      
+      The object packet
     """
     
     self.srcport = int(srcport)
@@ -66,121 +95,74 @@ class TcpPacket:
     self.window = int(window)
     self.payload = payload
 
-  # Returns true if this packet has control bits of an ack.
-  # Otherwise, false.
   def is_ack(self):
     """
     <Purpose>
-      
+      What type of packet is this one?      
     
-    <Arguments>
-      
-    
-    <Exceptions>
-      
-    
-    <Side Effects>
-      
-     
     <Returns>
-      
+      Returns true if this packet has control bits of an ack.
+      Otherwise, false.      
     """
-    
     return self.control_bits == "ACK"
 
 
-
-  # Returns true if this packet has control bits of a syn.
-  # Otherwise, false.
   def is_syn(self):
     """
     <Purpose>
-      
+      What type of packet is this one?      
     
-    <Arguments>
-      
-    
-    <Exceptions>
-      
-    
-    <Side Effects>
-      
-     
     <Returns>
-      
+      Returns true if this packet has control bits of a syn.
+      Otherwise, false.
     """
-    
     return self.control_bits == "SYN"
 
-
-
-  # Returns true if this packet has control bits of an syn, ack.
-  # Otherwise, false.
   def is_synack(self):
     """
     <Purpose>
+      What type of packet is this one?      
       
-    
-    <Arguments>
-      
-    
-    <Exceptions>
-      
-    
-    <Side Effects>
-      
-     
     <Returns>
-      
+      Returns true if this packet has control bits of an syn, ack.
+      Otherwise, false.
     """
-    
     return self.control_bits == "SYNACK"
 
-
-
-
-  # Returns true if this packet has control bits of a payload packet.
-  # Otherwise, false.
   def is_payload(self):
     """
     <Purpose>
-      
-    
-    <Arguments>
-      
-    
-    <Exceptions>
-      
-    
-    <Side Effects>
-      
-     
+      What type of packet is this one?      
+
     <Returns>
-      
+      Returns true if this packet has control bits of a payload packet.
+      Otherwise, false.
     """
-    
     return self.control_bits == "PSH"
 
+  def is_fin(self):
+    """
+    <Purpose>
+      What type of packet is this one?      
+
+    <Returns>
+      Returns true if this packet has control bits of a FIN packet.
+      Otherwise, false.
+    """
+    return self.control_bits == "FIN"
 
 
-  # Pack up into Tcp header format Return message.
-  # BUG: Need to encode in bits
   def pack(self):
     """
     <Purpose>
+      Pack up into Tcp header format.
+      BUG: Need to encode in bits
       
-    
-    <Arguments>
-      
-    
-    <Exceptions>
-      
-    
     <Side Effects>
-      
+      Uses tildas as delimiters.
      
     <Returns>
-      
+      Returns encoded message.
     """
     
     return "%d~%d~%d~%d~%s~%d~%s" % (self.srcport, self.destport, \
@@ -193,43 +175,29 @@ class TcpPacket:
     <Purpose>
       Copy constructor
     
-    <Arguments>
-      
-    
-    <Exceptions>
-      
-    
-    <Side Effects>
-      
-     
     <Returns>
-      
+      Exact duplicate of packet with own memory address.
     """
     return unpack(self.pack())
 
 
 ##############################################################
-# Private Methods
+# Static Methods
 ##############################################################
 
-# Unpack a tcp message into parts
-# Returns a packet
 def unpack(data):
   """
   <Purpose>
-    
-    
+    Decode a TCP packet message into parts.
+
   <Arguments>
-    
-    
-  <Exceptions>
-        
+    Encoded packet as string    
     
   <Side Effects>
-    
+    Relies on tildas delimiters.
      
   <Returns>
-    
+   Returns the packet.
   """
   
   res = data.split("~")
