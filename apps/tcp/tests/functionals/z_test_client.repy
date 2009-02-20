@@ -17,7 +17,7 @@ if callfunc == 'initialize':
   DEST_PORT = 12345
   SRC_IP = 'whateversrc'
   SRC_PORT = 12346
-  TIMEOUT = 5
+  TIMEOUT = .1
   RETRIES = 4  
   MSS = 2
   CONG_WINDOW_SIZE = MSS
@@ -33,7 +33,6 @@ def test_client():
   DATA = "h"
   SND_WINDOW= 10
   RCV_WINDOW= 20
-  CONG_MULT = 1
 
   mycontext['conn'].register_sendmess = ack_all_register
   mycontext['client'] = TcpClient(mycontext['conn'])
@@ -42,9 +41,9 @@ def test_client():
   cli.last_ack_recv = ACK_NUM
   cli.recv_window_size= RCV_WINDOW
   cli.send_window_size= SND_WINDOW
-  cli.cong_window_mult= CONG_MULT
-  cli.send(DATA, DEST_IP, DEST_PORT, SRC_IP, SRC_PORT,RETRIES, TIMEOUT)
+  bytes = cli.send(DATA, DEST_IP, DEST_PORT, SRC_IP, SRC_PORT,RETRIES, TIMEOUT)
 
+  assert bytes == len(DATA)
   assert  len(mycontext['packets']) == 1
   assert ACK_NUM in mycontext['packets'].keys()
   assert mycontext['packets'][ACK_NUM].is_payload()
@@ -68,7 +67,7 @@ def test_client_window():
   DATA = "hihihihi"
   SND_WINDOW= HUGE
   RCV_WINDOW= HUGE
-  CONG_MULT = HUGE
+  CONG_WIN = HUGE
 
   mycontext['conn'].register_sendmess = ack_all_register
   mycontext['client'] = TcpClient(mycontext['conn'])
@@ -77,7 +76,7 @@ def test_client_window():
   cli.last_ack_recv = ACK_NUM
   cli.recv_window_size= RCV_WINDOW
   cli.send_window_size= SND_WINDOW
-  cli.cong_window_mult= CONG_MULT
+  cli.cong_window_size= CONG_WIN
   cli.send(DATA, DEST_IP, DEST_PORT, SRC_IP, SRC_PORT,RETRIES, TIMEOUT)
 
   assert  len(mycontext['packets']) == len(DATA)/MSS
@@ -99,7 +98,7 @@ def test_client_sliding_window():
   DATA = "hihihihi"
   SND_WINDOW= HUGE
   RCV_WINDOW= HUGE
-  CONG_MULT = HUGE
+  CONG_WIN = HUGE
 
   mycontext['conn'].register_sendmess = ack_first_register
   mycontext['client'] = TcpClient(mycontext['conn'])
@@ -108,7 +107,7 @@ def test_client_sliding_window():
   cli.last_ack_recv = ACK_NUM
   cli.recv_window_size= RCV_WINDOW
   cli.send_window_size= SND_WINDOW
-  cli.cong_window_mult= CONG_MULT
+  cli.cong_window_size= CONG_WIN
   cli.send(DATA, DEST_IP, DEST_PORT, SRC_IP, SRC_PORT,RETRIES, TIMEOUT)
 
   assert  len(mycontext['packets']) == len(DATA)/MSS
@@ -119,23 +118,64 @@ def test_client_sliding_window():
 
   assert mycontext['packetc'][ACK_NUM] == 1
   assert mycontext['packetc'][ACK_NUM + 1 * MSS] == 2
-  assert mycontext['packetc'][ACK_NUM + 2 * MSS] == 3
-  assert mycontext['packetc'][ACK_NUM + 3 * MSS] == 4
+  assert mycontext['packetc'][ACK_NUM + 2 * MSS] == 2
+  assert mycontext['packetc'][ACK_NUM + 3 * MSS] == 2
 
   assert cli.last_ack_recv == ACK_NUM + len(DATA)
   assert cli.last_seq_sent == SEQ_NUM + len(DATA)
 
-def test_client_congestion_window():
-  mycontext['packet_count'] = 0
-  mycontext['packets'].clear()
-  mycontext['packetc'].clear()
-  
+def test_client_congestion_window_slow_start():
   SEQ_NUM = 2
   ACK_NUM = SEQ_NUM + 1
-  DATA = "hihihihi"
+  DATA = "hihihihihihihihi" # eight packets
   SND_WINDOW= HUGE
   RCV_WINDOW= HUGE
-  CONG_MULT = 1
+  CONG_WIN = CONG_WINDOW_SIZE
+
+  mycontext['conn'].register_sendmess = ack_all_register
+  mycontext['client'] = TcpClient(mycontext['conn'])
+  cli = mycontext['client']
+  cli.last_seq_sent = SEQ_NUM
+  cli.last_ack_recv = ACK_NUM
+  cli.recv_window_size= RCV_WINDOW
+  cli.send_window_size= SND_WINDOW
+  cli.cong_window_size= CONG_WIN
+  cli.send(DATA, DEST_IP, DEST_PORT, SRC_IP, SRC_PORT, RETRIES, TIMEOUT)
+
+  # Pk  1 2 3 4 5 6 7 8
+  # CW  1 2 2 4 4 4 4 8
+  assert cli.cong_window_size == (len(DATA)/MSS + 1)*CONG_WINDOW_SIZE
+  assert cli.cong_window_threshold == None
+
+def test_client_congestion_window_avoidance():
+  SEQ_NUM = 2
+  ACK_NUM = SEQ_NUM + 1
+  DATA = "hihihihihihihihihi" # 9 packets
+  SND_WINDOW= HUGE
+  RCV_WINDOW= HUGE
+  CONG_WIN = CONG_WINDOW_SIZE
+
+  mycontext['conn'].register_sendmess = ack_all_register
+  mycontext['client'] = TcpClient(mycontext['conn'])
+  cli = mycontext['client']
+  cli.last_seq_sent = SEQ_NUM
+  cli.last_ack_recv = ACK_NUM
+  cli.recv_window_size = RCV_WINDOW
+  cli.send_window_size = SND_WINDOW
+  cli.cong_window_size = CONG_WIN * 2
+  cli.cong_window_threshold = CONG_WIN * 2
+  cli.send(DATA, DEST_IP, DEST_PORT, SRC_IP, SRC_PORT, RETRIES, TIMEOUT)
+
+  assert cli.cong_window_threshold ==  CONG_WIN * 2
+  assert cli.cong_window_size == 5 * CONG_WINDOW_SIZE
+
+def test_client_congestion_window_threshold():
+  SEQ_NUM = 2
+  ACK_NUM = SEQ_NUM + 1
+  DATA = "hihi" # 2 packets
+  SND_WINDOW= HUGE
+  RCV_WINDOW= HUGE
+  CONG_WIN = CONG_WINDOW_SIZE
 
   mycontext['conn'].register_sendmess = ack_first_register
   mycontext['client'] = TcpClient(mycontext['conn'])
@@ -144,24 +184,34 @@ def test_client_congestion_window():
   cli.last_ack_recv = ACK_NUM
   cli.recv_window_size= RCV_WINDOW
   cli.send_window_size= SND_WINDOW
-  cli.cong_window_mult= CONG_MULT
+  cli.cong_window_size= CONG_WIN * 3
+  cli.cong_window_threshold = None
   cli.send(DATA, DEST_IP, DEST_PORT, SRC_IP, SRC_PORT, RETRIES, TIMEOUT)
 
-  assert  len(mycontext['packets']) == len(DATA)/MSS
-  assert ACK_NUM in mycontext['packetc'].keys()
-  assert (ACK_NUM + MSS) in mycontext['packetc'].keys()
-  assert (ACK_NUM + 2 * MSS) in mycontext['packetc'].keys()
-  assert (ACK_NUM + 3 * MSS) in mycontext['packetc'].keys()
+  assert cli.cong_window_threshold ==  CONG_WIN * 2
+  assert cli.cong_window_size == CONG_WIN * 2
 
-  assert mycontext['packetc'][ACK_NUM] == 1
-  assert mycontext['packetc'][ACK_NUM + 1 * MSS] == 1
-  assert mycontext['packetc'][ACK_NUM + 2 * MSS] == 2
-  assert mycontext['packetc'][ACK_NUM + 3 * MSS] == 2
+def test_client_congestion_window_threshold_reset():
+  SEQ_NUM = 2
+  ACK_NUM = SEQ_NUM + 1
+  DATA = "hihi" # 2 packets
+  SND_WINDOW= HUGE
+  RCV_WINDOW= HUGE
+  CONG_WIN = CONG_WINDOW_SIZE
 
+  mycontext['conn'].register_sendmess = ack_first_register
+  mycontext['client'] = TcpClient(mycontext['conn'])
+  cli = mycontext['client']
+  cli.last_seq_sent = SEQ_NUM
+  cli.last_ack_recv = ACK_NUM
+  cli.recv_window_size= RCV_WINDOW
+  cli.send_window_size= SND_WINDOW
+  cli.cong_window_size= CONG_WIN * 3
+  cli.cong_window_threshold = CONG_WIN
+  cli.send(DATA, DEST_IP, DEST_PORT, SRC_IP, SRC_PORT, RETRIES, TIMEOUT)
 
-  assert cli.cong_window_mult == len(DATA)/CONG_WINDOW_SIZE + 1
-  assert cli.last_ack_recv == ACK_NUM + len(DATA)
-  assert cli.last_seq_sent == SEQ_NUM + len(DATA)
+  assert cli.cong_window_threshold ==  int(((CONG_WIN * 3.0) + (CONG_WIN/3.0))/2.0)
+  assert cli.cong_window_size == CONG_WIN * 2
 
 
 ####################
@@ -232,7 +282,10 @@ def main():
   test_client()
   test_client_window()
   test_client_sliding_window()
-  test_client_congestion_window()
+  test_client_congestion_window_slow_start()
+  test_client_congestion_window_avoidance()
+  test_client_congestion_window_threshold()
+  test_client_congestion_window_threshold_reset()
 
   # teardown
   exitall()

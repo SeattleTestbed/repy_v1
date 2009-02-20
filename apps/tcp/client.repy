@@ -70,8 +70,9 @@ class TcpClient:
     self.recv_window_size = AD_WINDOW_SIZE # size of window
 
     # Congestion window -- slow start
-    self.DEFAULT_CONG_WINDOW_MULT = 1 # reset to this if not ACK'ed
-    self.cong_window_mult = self.DEFAULT_CONG_WINDOW_MULT # counts up on ACK's
+    self.cong_window_size = CONG_WINDOW_SIZE # counts up on ACK's
+    self.cong_window_threshold = None # starts cong avoidance
+    self.cong_window_incr = None # increment for cong avoidance
 
     # Sliding window accounting
     self.send_window_size = None # size of window
@@ -136,9 +137,20 @@ class TcpClient:
 	  self.lock.release()
 	  break;
 
-	# reset if necessary -- Slow Start Algorithm
-	if times_sent:
-	  self.cong_window_mult = self.DEFAULT_CONG_WINDOW_MULT
+	# Congestion Window Slow Start reset
+	if self.packet_cache: # any unacked packets?
+	  self.cong_window_threshold = int(self.cong_window_size * 1.0 / 2.0)
+ 	  self.cong_window_incr = (CONG_WINDOW_SIZE * CONG_WINDOW_SIZE * 1.0)/ (self.cong_window_threshold * 1.0)
+	  self.cong_window_size = CONG_WINDOW_SIZE
+
+	# Congestion Avoidance?
+  	elif self.cong_window_threshold and self.cong_window_size >= self.cong_window_threshold:
+	  self.cong_window_size = int(self.cong_window_size)
+ 	  self.cong_window_incr = (CONG_WINDOW_SIZE * CONG_WINDOW_SIZE * 1.0)/ (self.cong_window_size * 1.0)
+
+	# Slow Start
+	else:
+	  pass
 
         # give up
         if times_sent > retries:
@@ -151,11 +163,12 @@ class TcpClient:
         # Say we're never sending the first
         # one because the window size is too small.
         seqs = mod_sort(self.packet_cache.keys(), self.last_ack_recv, self.last_seq_sent)
-        free_window = min(self.send_window_size, self.cong_window_mult * CONG_WINDOW_SIZE)
+        free_window = min(self.send_window_size, self.cong_window_size)
         for seq_num in seqs:
           if len(self.packet_cache[seq_num].payload) <= free_window:
             free_window -= len(self.packet_cache[seq_num].payload)
-            bytes_sent += self.conn.register_sendmess(destip, destport, \
+            bytes_sent += len(self.packet_cache[seq_num].payload)
+	    self.conn.register_sendmess(destip, destport, \
                 self.packet_cache[seq_num].pack(), srcip, srcport)
           else: # can't send anymore
             free_window = 0
@@ -173,14 +186,12 @@ class TcpClient:
             self.last_seq_sent = mod_add(packet.seq_num, len(packet.payload) - 1)
 
             # send it as well
-            bytes_sent += self.conn.register_sendmess(destip, destport, packet.pack(), srcip, srcport)
+            bytes_sent += len(packet.payload)
+            self.conn.register_sendmess(destip, destport, packet.pack(), srcip, srcport)
 
 	    # go around again?
             del data[0:payload_size]
 	    free_window -= payload_size
-
-	# always increment, we'll reset it as needed
-	self.cong_window_mult += 1
 
         # increment tries
         times_sent += 1
@@ -428,8 +439,8 @@ class TcpClient:
     if self.last_ack_recv is None \
 	 and lateist_ack == packet.ack_num: # good ack of syn
       self.last_ack_recv = packet.ack_num # == last_seq_sent
-      self.sleep_lock.wakeup()
       self.send_window_size = packet.window 
+      self.sleep_lock.wakeup()
       return None
     elif self.last_ack_recv is None: # bad ack of syn
       return None 
@@ -450,11 +461,25 @@ class TcpClient:
         # the definition of our protocol.
         if mod_between(self.last_ack_recv, seq_num, last_seq):
           del self.packet_cache[seq_num]
+
+	  # congestion avoidance
+	  if self.cong_window_threshold and self.cong_window_size >= self.cong_window_threshold:
+  	    self.cong_window_size += self.cong_window_incr
+
+          # Slow-Start
+	  else:
+  	    self.cong_window_size += CONG_WINDOW_SIZE 
+
+
       # all done up to this ack
       self.last_ack_recv = packet.ack_num
-      self.sleep_lock.wakeup()
+
       # reset window
       self.send_window_size = packet.window 
+
+      # all in window are done so stop waiting
+      if not self.packet_cache:
+        self.sleep_lock.wakeup()
 
     else: # old ack 
       pass # ignore it
