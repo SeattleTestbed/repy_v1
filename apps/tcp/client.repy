@@ -82,6 +82,7 @@ class TcpClient:
     self.lock = getlock()
     self.sleep_lock = SleepLock()
 
+
   def send(self, data, destip, destport, \
                 srcip, srcport, retries, timeout):
     """
@@ -202,6 +203,10 @@ class TcpClient:
     return bytes_sent
 
 
+  ##################################
+  # Handshakers
+  ###################################
+
   def accept(self, ack_num, destip, destport, \
                 srcip, srcport, retries, timeout):
     """
@@ -216,34 +221,18 @@ class TcpClient:
     <Returns>
       Bytes sent.
     """
-    if not self.send_window_size is None or not self.last_ack_recv is None:
+    self.lock.acquire()
+    if not self.last_ack_recv is None:
+      self.lock.release()
       raise UnknownStateError("whoa shouldn't have variables yet")
    
     synack = TcpPacket(srcport, destport, self.last_seq_sent, ack_num, "SYNACK", self.recv_window_size, "synacking...")
-    times_sent = 0
-    bytes_sent = 0
-    while True:
-      self.sleep_lock.acquire()
-     
-      self.lock.acquire()
-      if not self.send_window_size is None:
-        self.lock.release()
-        self.sleep_lock.release()
-        break
-      
-      # give up
-      if times_sent > retries:
-        self.sleep_lock.release()
-        raise TimeoutError("tried %d times" % times_sent)
+    start_ack = None 
 
-      bytes_sent += self.conn.register_sendmess(destip, destport, \
-                	synack.pack(), srcip, srcport)
+    self.lock.release()
+    # allow an interrupt here if you want.
 
-      times_sent += 1
-      self.sleep_lock.sleep(timeout)
-      self.lock.release()
-
-    return bytes_sent
+    return self._send_packet(synack, start_ack, destip, destport, srcip, srcport, retries, timeout)
 
   def connect(self, destip, destport, \
                 srcip, srcport, retries, timeout):
@@ -259,34 +248,50 @@ class TcpClient:
     <Returns>
       Bytes sent.
     """
-
-    if not self.send_window_size is None or not self.last_ack_recv is None:
+    
+    self.lock.acquire()
+    if not self.last_ack_recv is None:
+      self.lock.release()
       raise UnknownStateError("whoa shouldn't have variables yet")
    
     syn = TcpPacket(srcport, destport, self.last_seq_sent, 0, "SYN", self.recv_window_size, "syncing...")
-    times_sent = 0
-    bytes_sent = 0
-    while True:
-      self.sleep_lock.acquire()
-      self.lock.acquire()
-      if not self.send_window_size is None:
-        self.lock.release()
-        self.sleep_lock.release()
-        break
+    start_ack = None 
 
-      # give up
-      if times_sent > retries:
-        self.sleep_lock.release()
-        raise TimeoutError("tried %d times" % times_sent)
+    self.lock.release()
+    # allow an interrupt here if you want.
 
-      bytes_sent += self.conn.register_sendmess(destip, destport, \
-                	syn.pack(), srcip, srcport)
+    return self._send_packet(syn, start_ack, destip, destport, srcip, srcport, retries, timeout)
 
-      times_sent += 1
-      self.sleep_lock.sleep(timeout)
+
+  def close(self, destip, destport, srcip, srcport, retries, timeout):
+    """
+    <Purpose>
+      Used for FIN to send it, stops with Timeout or ACK of FIN.
+
+    <Exceptions>
+      raise TimeoutError("tried %d times" % times_sent)
+
+    <Returns>
+      Bytes sent.
+    """
+    self.lock.acquire()
+    if self.last_ack_recv is None:
       self.lock.release()
+      raise NotConnectedError("must be connected to close")
+   
+    self.last_seq_sent = mod_add(self.last_seq_sent, 1)
+    fin = TcpPacket(srcport, destport, self.last_seq_sent, 0, "FIN", self.recv_window_size, "fining...")
+    start_ack = self.last_ack_recv
 
-    return bytes_sent
+    self.lock.release()
+    # allow an interrupt here if you want.
+
+    return self._send_packet(fin, start_ack, destip, destport, srcip, srcport, retries, timeout)
+
+
+  ###########################
+  # Callback
+  #############################
 
   def process(self, packet):
     """
@@ -484,3 +489,37 @@ class TcpClient:
     else: # old ack 
       pass # ignore it
 
+
+  def _send_packet(self, packet, start_ack, destip, destport, srcip, srcport, retries, timeout):
+    """ 
+    <Purpose>
+      Send a FIN, SYN, SYNACK, etc. packet again and again until ACK'd.
+
+    <Arguments>
+      start_ack - how we know we've been ACK'd.  May be == None.
+    """
+
+    times_sent = 0
+    bytes_sent = 0
+    while True:
+      self.sleep_lock.acquire()
+     
+      self.lock.acquire()
+      if not self.last_ack_recv is None and start_ack != self.last_ack_recv:
+        self.lock.release()
+        self.sleep_lock.release()
+        break
+      
+      # give up
+      if times_sent > retries:
+        self.sleep_lock.release()
+        raise TimeoutError("tried %d times" % times_sent)
+
+      bytes_sent += self.conn.register_sendmess(destip, destport, \
+                	packet.pack(), srcip, srcport)
+
+      times_sent += 1
+      self.sleep_lock.sleep(timeout)
+      self.lock.release()
+
+    return bytes_sent
