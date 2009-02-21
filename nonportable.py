@@ -476,7 +476,7 @@ def win_check_cpu_use(cpulim, pid):
   global winlastcpuinfo
   
   # get use information and time...
-  now = time.time()
+  now = getruntime()
   usedata = windowsAPI.processTimes(pid)
 
   # Add kernel and user time together...   It's in units of 100ns so divide
@@ -709,7 +709,7 @@ class LinuxCPUTattlerThread(threading.Thread):
       try:
 
         # tell the monitoring process about my cpu information...
-        print >> self.fileobj, repr(list(os.times())+ [time.time()])
+        print >> self.fileobj, repr(list(os.times())+ [getruntime()])
         self.fileobj.flush()
 
         # prevent concurrent status file writes.   
@@ -777,7 +777,7 @@ def enforce_cpu_quota(readfobj, cpulimit, frequency, childpid):
     os.kill(childpid, signal.SIGCONT)
 
     # Save information about wake time and stoptime for future adjustment
-    resumeTime = time.time()
+    resumeTime = getruntime()
     lastStoptime = stoptime
   else:
     resumeTime = 0.0
@@ -841,14 +841,14 @@ def get_time_and_cpu_percent(readfobj):
   oldclocktime = lastenforcedata[4]
   oldcurrenttime = lastenforcedata[5]
 
-  # NOTE: Processor time is going backwards...   Is this possible?   
+  # NOTE: Time is going backwards...   Is this possible?   
   # Should do something nicer like ignore quota?
-  if clocktime < oldclocktime:
+  if currenttime < oldcurrenttime:
     raise Exception, "Elapsed time '"+str(currenttime)+"' less than previous '"+str(oldcurrenttime)+"'"
 
   # user time is going backwards...   I don't think this is possible
   if usertime < oldusertime:
-    raise Exception, "User time '"+str(usertime)+"' at '"+str(currenttime)+"' less than user time '"+str(oldusertime)+"' at '"+str(oldcurrenttime)+"'"
+    raise Exception, "User time '"+str(usertime)+"' at '"+str(currenttime)+"' (uptime) less than user time '"+str(oldusertime)+"' at '"+str(oldcurrenttime)+"' (uptime)"
 
   # Determine if latest data points contain a segmentation caused by sleeping
   if oldclocktime < resumeTime:
