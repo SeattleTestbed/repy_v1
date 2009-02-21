@@ -29,6 +29,8 @@ def server():
     print "%s != " % mess
     print "%s" % MESSAGE
 
+  socket.disconnect()
+
 def client():
   socket = Connection()
   socket.bind(IP, PORT)

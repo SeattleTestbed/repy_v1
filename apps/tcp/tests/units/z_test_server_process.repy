@@ -227,6 +227,22 @@ def test_pp_cumulative():
   assert serv.last_ack_sent == (SEQ_NUM + SS + SS)
   assert serv.recv_window_size == WINDOW-SS-SS
 
+def test_pp_fin():
+  mycontext['packets'].clear()
+  SEQ_NUM = 1
+  ACK_NUM = SEQ_NUM + 1
+  WINDOW = 10
+  serv = TcpServer(mycontext['conn'])
+  assert not serv.fin_rcvd
+  serv.last_ack_sent = SEQ_NUM
+  serv.recv_window_size = WINDOW
+  pack = mycontext['tpf'].fin(SEQ_NUM)
+  assert serv.process(IP, pack)
+  assert not serv.packet_cache
+  assert mycontext['packets'][ACK_NUM].is_ack()
+  assert serv.last_ack_sent == ACK_NUM
+  assert serv.fin_rcvd
+
 ####################
 # Test Helper Functions
 ####################
@@ -250,6 +266,7 @@ def main():
   test_pp_outside_window()
   test_pp_at_window()
   test_pp_cumulative()
+  test_pp_fin()
 
   # teardown
   exitall()

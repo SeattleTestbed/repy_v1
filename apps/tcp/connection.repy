@@ -1,7 +1,4 @@
 """
-<Author>
-  Richard Jordan
-
 <Start Date>
   January 13th, 2009
 
@@ -11,10 +8,9 @@
 
 <Usage>
   Public Object
-    Connection - the socket
+    Connection() - get new socket
 
   Public Methods:
-    Connection() - get new socket
     connection.bind(localip, localport) - sets localip, localport
     connection.listen() - listen for peers
     connection.accept() - accept a request from a peer
@@ -32,7 +28,7 @@
   Private Objects:
     TcpStateMachine - handles event calls, sending, recving, handshake.
     TcpClient - handles packets with ACK bit set
-    TcpServer - handles packets with SYN or PSH bits set
+    TcpServer - handles packets with SYN, FIN, PSH bits set
 """
 
 include client.repy
@@ -438,6 +434,24 @@ class Connection:
     if self.conn == None:
       self.lock.release()
       raise NotConnectedError("cannot disconnect without connection")
+
+    # Need to decide whether to send FIN or just close.
+    # Let's ask the state machine.
+    if self.state_machine.close(): # need to send FIN?
+      # copy them all for thread safety
+      (remoteip, remoteport, localip, localport, retries, timeout) =\
+         (self.remoteip, self.remoteport, self.localip, self.localport, \
+	  self.retries, self.timeout)
+      self.lock.release()
+
+      # Start sending FIN, block until ACK'd
+      self.client.close(remoteip, remoteport, localip, localport, retries, timeout)
+  
+      # Wait for FIN, send ACK
+      self.server.close(self.timeout * self.retries)
+      self.lock.acquire()
+
+    # Cleanup
     stopcomm(self.conn)
     self.conn = None
     self.client = None
@@ -446,7 +460,6 @@ class Connection:
     self.remoteport = None
     self.requestip = None
     self.requestport = None
-    self.state_machine.close()
     self.lock.release()
 
   ##############################################################
@@ -498,6 +511,8 @@ class Connection:
       # Is valid SYN sequence?
       if self.client.process(packet): # stop send syn
         self.server.process(ip, packet) # send back final ack
+      else:
+	self.state_machine.rollback() # error so rollback state_machin
    
     # real syanck
     elif advice == OP_RCV_SYNACK: 
@@ -505,6 +520,8 @@ class Connection:
       # Is valid SYN sequence?
       if self.client.process(packet): # stop send syn
         self.server.process(ip, packet) # send back final ack
+      else:
+	self.state_machine.rollback() # error so rollback state_machin
 
     # payload and final ack
     elif advice == OP_RCV_PAYLOADACK:  
@@ -513,13 +530,22 @@ class Connection:
       self.client.process(packet)      
 
     # ack estab, maybe final
-    elif advice == OP_RCV_ACK:  
+    elif advice == OP_RCV_ACK:
       self.client.process(packet) # send payloads?
 
     # payload estab
     elif advice == OP_RCV_PAYLOAD:  
       self.server.process(ip, packet) # send ack?
       self.client.set_recv_window(self.server.get_recv_window())
+
+    # closing handshake
+    elif advice == OP_RCV_FIN:
+      if not self.server.process(ip, packet):
+	self.state_machine.rollback() # error so rollback state_machin
+
+    elif advice == OP_RCV_ACK_FIN:
+      if not self.client.process(packet):
+	self.state_machine.rollback() # not so fast, let's try again
 
     # ignore
     else:

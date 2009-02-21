@@ -48,6 +48,7 @@ class TcpClient:
   def accept(*args): pass
   def connect(*args): pass
   def set_recv_window(*args): pass
+  def close(*args): pass
 
 class TcpServer:
   """

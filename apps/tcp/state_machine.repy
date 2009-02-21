@@ -12,14 +12,24 @@
     and in many cases give advice on what should be done.
 
   <Usage>
-    TcpStateMachine() - get object
-    state_machine.next(packet) - handle state changes for a packet
-    state_machine.listen() - handle state changes for listen
-    state_machine.connect() - handle state changes for connect
-    state_machine.accept() - handle state changes for accept
-    state_machine.send() - see if send action is valid
-    state_machine.recv() - see if recv action is valid
-    state_machine.close() - go back to closed
+    Object:
+      TcpStateMachine() - get object
+   
+    Callback:
+      state_machine.next(packet) - handle state changes for a packet
+
+    Handshakers:
+      state_machine.listen() - handle state changes for listen
+      state_machine.connect() - handle state changes for connect
+      state_machine.accept() - handle state changes for accept
+      state_machine.close() - go back to closed
+
+    Doers:
+      state_machine.send() - see if send action is valid
+      state_machine.recv() - see if recv action is valid
+  
+    Helper:
+      state_machine.rollback() - go back one state because of error
 
   <Returns>
     The state machine gives these possible advices:
@@ -30,6 +40,8 @@
       OP_RCV_ACK - receive an ACK (maybe the final ACK of SYNACK)
       OP_RCV_PAYLOAD - receive a PAYLOAD
       OP_RCV_NONE - please ignore
+      OP_RCV_FIN - receive the FIN
+      OP_RCV_ACK_FIN - receive the ACK of FIN
 
   <State Diagram>
     RFC 793 -- TCP
@@ -131,9 +143,14 @@ class TcpStateMachine:
 
     # not initialized yet
     self.state = self.STATE_CLOSED
+    self.last_state = None # for rolling back
 
     # state changes must be atomic
     self.lock = getlock()
+
+  #######################
+  # Callback
+  #####################
 
   def next(self, packet):
     """
@@ -156,7 +173,8 @@ class TcpStateMachine:
     """
     self.lock.acquire()       
     advice = OP_RCV_NONE
-
+    
+    self.last_state = self.state
     if(self.state == self.STATE_CLOSED): 
       pass # ignore
 
@@ -210,7 +228,7 @@ class TcpStateMachine:
       # rcvd ACK of fin
       if packet.is_ack():
 	self.state = self.STATE_FIN_WAIT_2
-        advice = OP_RCV_ACK
+        advice = OP_RCV_ACK_FIN
       # send ACK of FIN
       elif packet.is_fin():
         self.state = self.STATE_CLOSING
@@ -222,7 +240,7 @@ class TcpStateMachine:
       # send ACK of FIN
       if packet.is_fin():
         self.state = self.STATE_TIME_WAIT
-        advice = OP_RCV_ACK
+        advice = OP_RCV_FIN
         self.state = self.STATE_CLOSED
       else:
 	pass
@@ -231,7 +249,7 @@ class TcpStateMachine:
       # rcv ACK of FIN
       if packet.is_ack():
         self.state = self.STATE_TIME_WAIT
-        advice = OP_RCV_ACK
+        advice = OP_RCV_ACK_FIN
         self.state = self.STATE_CLOSED # ??
       else:
 	pass
@@ -242,7 +260,7 @@ class TcpStateMachine:
     elif(self.state == self.STATE_LAST_ACK):
       # rcv ACK of FIN
       if packet.is_ack():
-        advice = OP_RCV_ACK
+        advice = OP_RCV_ACK_FIN
         self.state = self.STATE_CLOSED # ??
       else:
 	pass
@@ -255,6 +273,10 @@ class TcpStateMachine:
 
     self.lock.release()
     return advice
+
+  ##########################3
+  # Handshakers
+  ############################
 
   def listen(self):
     """
@@ -329,7 +351,57 @@ class TcpStateMachine:
       self.lock.release()
       raise NotRequestedError("cannot accept without a requested connection")
     self.lock.release()
+
+  def close(self):
+    """
+    <Purpose>
+      Does what is needed to close a connection.
     
+    <Arguments>
+      None
+    
+    <Exceptions>
+      None
+    
+    <Side Effects>
+      Set the state to STATE_CLOSED
+     
+    <Returns>
+      True if the conn should send a FIN. False to
+      recommend the client to take no action.
+    """
+    self.lock.acquire()
+    advice = True
+
+    if self.state == self.STATE_FIN_WAIT_1 \
+       or self.state == self.STATE_FIN_WAIT_2 \
+       or self.state == self.STATE_LAST_ACK \
+       or self.state == self.STATE_TIME_WAIT \
+       or self.state == self.STATE_CLOSING:
+      self.lock.release()
+      raise AlreadyClosingError("cannot close an already closing connection")
+
+    elif self.state == self.STATE_CLOSED \
+       or self.state == self.STATE_LISTEN \
+       or self.state == self.STATE_SYN_SENT:
+      self.state = self.STATE_CLOSED
+      advice = False # don't need to send a FIN
+
+    elif self.state == self.STATE_ESTAB \
+       or self.state == self.STATE_SYN_RCVD:
+      self.state = self.STATE_FIN_WAIT_1
+
+    else: # CLOSE_WAIT
+      assert self.state == self.STATE_CLOSE_WAIT
+      self.state = self.STATE_LAST_ACK
+
+    self.lock.release()
+    return advice
+   
+  ##########################
+  # Doers
+  ###########################
+
   def send(self):
     """
     <Purpose>
@@ -376,45 +448,19 @@ class TcpStateMachine:
       raise NotEstablishedError("must be established to recv")
     self.lock.release()
 
-  def close(self):
+
+  ##########################
+  # Helpers
+  ##########################
+
+  def rollback(self):
     """
     <Purpose>
-      Does what is needed to close a connection.
-    
-    <Arguments>
-      None
-    
-    <Exceptions>
-      None
-    
+      Reverts back one state in case of an error 
+      after a state machine.
+
     <Side Effects>
-      Set the state to STATE_CLOSED
-     
-    <Returns>
-      None
+      Sets last_state to None
     """
-    self.lock.acquire()
-    if self.state == self.STATE_FIN_WAIT_1 \
-       or self.state == self.STATE_FIN_WAIT_2 \
-       or self.state == self.STATE_LAST_ACK \
-       or self.state == self.STATE_TIME_WAIT \
-       or self.state == self.STATE_CLOSING:
-      self.lock.release()
-      raise AlreadyClosingError("cannot close an already closing connection")
-
-    elif self.state == self.STATE_CLOSED \
-       or self.state == self.STATE_LISTEN \
-       or self.state == self.STATE_SYN_SENT:
-      self.state = self.STATE_CLOSED
-
-    elif self.state == self.STATE_ESTAB \
-       or self.state == self.STATE_SYN_RCVD:
-      self.state = self.STATE_FIN_WAIT_1
-
-    else: # CLOSE_WAIT
-      assert self.state == self.STATE_CLOSE_WAIT
-      self.state = self.STATE_LAST_ACK
-      
-    self.lock.release()
-    
-   
+    self.state = self.last_state
+    self.last_state = None

@@ -4,15 +4,25 @@
 
 <Usage>
   TcpClient(conn) - constructor, takes conn obj to send through
-  client.connect(...) - send SYN
-  client.accept(...) - send SYNACK
-  client.send(...) - send message
-  client.process(packet) - account for ACK
+
+  Handshakers:
+    client.connect(...) - send SYN
+    client.accept(...) - send SYNACK
+    client.send(...) - send message
+    client.close(...) - send FIN
+
+  Callback:
+    client.process(packet) - account for ACK
 
 <Example>
   include client.repy
+ 
+  # create dummy conn
+  class Connection:
+    def register_sendmess(*args): print "hi"
 
-  client = TcpClient(None)
+  client = TcpClient(Connection())
+  client.send(...)
 """
 
 include constants.repy
@@ -281,7 +291,7 @@ class TcpClient:
    
     self.last_seq_sent = mod_add(self.last_seq_sent, 1)
     fin = TcpPacket(srcport, destport, self.last_seq_sent, 0, "FIN", self.recv_window_size, "fining...")
-    start_ack = self.last_ack_recv
+    start_ack = self.last_seq_sent
 
     self.lock.release()
     # allow an interrupt here if you want.
@@ -313,16 +323,14 @@ class TcpClient:
       True if the packet is a SYNACK and valid.
     """
     self.lock.acquire()
-
+    valid = False
     if self.last_seq_sent == None:
       self.lock.release()
       raise NotConnectedError("no packets sent to ack")
     
     # handshake
     elif packet.is_synack():
-      ans = self.process_synack(packet)
-      self.lock.release()
-      return ans
+      valid = self.process_synack(packet)
 
     # special case for payloadack of synack
     elif packet.is_payload():
@@ -330,11 +338,12 @@ class TcpClient:
 
     # usually
     elif packet.is_ack():
-      self.process_ack(packet)
+      valid = self.process_ack(packet)
     else:
       pass
 
     self.lock.release()
+    return valid
 
   ##########
   # Getters
@@ -432,7 +441,7 @@ class TcpClient:
       Changes window size and seq nums and last ack recv
      
     <Returns>
-      Nothing.
+      True if the ACK is new, False otherwise.
     """
     if not packet.is_ack():
       raise UnknownStateError("expected an ack")
@@ -446,11 +455,13 @@ class TcpClient:
       self.last_ack_recv = packet.ack_num # == last_seq_sent
       self.send_window_size = packet.window 
       self.sleep_lock.wakeup()
-      return None
+      return True
     elif self.last_ack_recv is None: # bad ack of syn
-      return None 
+      return False 
     elif self.last_ack_recv == lateist_ack: # already all acked
-      return
+      return False
+    elif self.last_ack_recv == packet.ack_num:
+      return False # already ACK'd duplicate
     else:  # keep going
       pass
 
@@ -486,8 +497,10 @@ class TcpClient:
       if not self.packet_cache:
         self.sleep_lock.wakeup()
 
+      return True
+
     else: # old ack 
-      pass # ignore it
+      return False #ignore it
 
 
   def _send_packet(self, packet, start_ack, destip, destport, srcip, srcport, retries, timeout):
@@ -505,7 +518,8 @@ class TcpClient:
       self.sleep_lock.acquire()
      
       self.lock.acquire()
-      if not self.last_ack_recv is None and start_ack != self.last_ack_recv:
+      if (not self.last_ack_recv is None and start_ack is None) or \
+	  (not self.last_ack_recv is None and self.last_ack_recv == mod_add(start_ack, 1)):
         self.lock.release()
         self.sleep_lock.release()
         break

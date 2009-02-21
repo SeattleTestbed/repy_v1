@@ -6,13 +6,20 @@
   Used by connection to handle passive side.
 
 <Usage>
-  Public Methods:
+  Object:
     Server() - get new server
+
+  Public Methods:
     server.listen(timeout) - listen for SYN
     server.recv(maxLen) - delete and return data from buffer
-    server.process(packet) - do what's needed on receipt of payload
-    server.get_ack_num() - return ack num
-    server.get_recv_window() - return window
+    server.close(timeout) - listen for FIN
+
+    Callback:
+      server.process(packet) - do what's needed on receipt of payload
+
+    Getters:
+      server.get_ack_num() - return ack num
+      server.get_recv_window() - return window
 """
 include constants.repy
 include errors.repy
@@ -76,8 +83,11 @@ class TcpServer:
     self.sleep_lock = SleepLock()
 
     # syn
-    self.requestip = None
-    self.requestport = None
+    self.requestip = None  # set by listen
+    self.requestport = None  # set by listen
+
+    # fin
+    self.fin_rcvd = False # Set to True at FIN
 
   def recv(self, maxLen):
     """
@@ -97,6 +107,71 @@ class TcpServer:
     self.lock.release()
 
     return ''.join(message)
+
+
+  #######################
+  # Handshakers
+  #########################
+
+  def listen(self, timeout):
+    """
+    <Purpose>
+      wait for SYN, process_payload gets SYN and sets us up
+
+    <Exceptions>
+      raise TimeoutError("timed out listening")
+    """
+    self.lock.acquire()
+    if not self.requestip or not self.requestport:
+      self.sleep_lock.acquire()
+      self.sleep_lock.sleep(timeout)
+      self.lock.release()
+
+      # block until released
+      self.sleep_lock.acquire()
+      self.sleep_lock.release()
+ 
+      self.lock.acquire()
+      if not self.requestip or not self.requestport:
+        self.lock.release()
+        raise TimeoutError("timed out listening")
+
+    addr = (self.requestip, self.requestport)
+    # reset
+    self.requestip = None
+    self.requestport = None
+    self.lock.release()
+
+    return addr
+
+  def close(self, timeout):
+    """
+    <Purpose>
+      wait for FIN, process_payload gets FIN and sets us up
+
+    <Exceptions>
+      raise TimeoutError("timed out closing")
+    """
+    self.lock.acquire()
+    if not self.fin_rcvd:
+      self.sleep_lock.acquire()
+      self.sleep_lock.sleep(timeout)
+      self.lock.release()
+
+      # block until released
+      self.sleep_lock.acquire()
+      self.sleep_lock.release()
+ 
+      self.lock.acquire()
+      if not self.fin_rcvd:
+        self.lock.release()
+        raise TimeoutError("timed out closing")
+
+    self.lock.release()
+
+  #######################
+  # Callback
+  #######################
 
   def process(self, ip, packet):
     """
@@ -124,9 +199,10 @@ class TcpServer:
       Uses self.lock
 
     <Returns>
-      Nothing.
+      True if valid ACK, False otherwise.
     """
     self.lock.acquire()
+    valid = False
 
     if packet.is_syn():
       self.process_syn(ip, packet)
@@ -134,40 +210,19 @@ class TcpServer:
       self.process_synack(ip, packet)
     elif packet.is_payload():
       self.process_payload(ip, packet)
+    elif packet.is_fin():
+      valid = self.process_payload(ip, packet)
     else:
       raise UnknownStateError("should be one of SYN, SYNACK, PSH")
 
     self.lock.release()
+    return valid
 
-  def listen(self, timeout):
-    """
-    <Purpose>
-      wait for SYN, process_payload gets SYN and sets us up
 
-    <Exceptions>
-      raise TimeoutError("timed out listening")
-    """
-    self.lock.acquire()
-    self.sleep_lock.acquire()
-    self.sleep_lock.sleep(timeout)
-    self.lock.release()
 
-    # block until released
-    self.sleep_lock.acquire()
-    self.sleep_lock.release()
- 
-    self.lock.acquire()
-    if not self.requestip or not self.requestport:
-      self.lock.release()
-      raise TimeoutError("timed out listening")
-
-    addr = (self.requestip, self.requestport)
-    # reset
-    self.requestip = None
-    self.requestport = None
-    self.lock.release()
-
-    return addr
+  #######################
+  # Getters
+  ######################
 
   def get_recv_window(self):
     """
@@ -202,15 +257,24 @@ class TcpServer:
   ################
 
   def process_syn(self, ip, packet):
-    # a SYN request
+    """
+    <Purpose>
+      Handle a SYN request.
+
+    <Exceptions>
+      raise AlreadyConnectedError("cannot handle connection request")
+    
+    <Side Effects>
+      Sets last_ack_sent to ACK of SYN and wakes up self from listening.
+      Stores the request's ip and port.
+    """
     if not self.last_ack_sent is None:
       raise AlreadyConnectedError("cannot handle connection request")
-    elif self.last_ack_sent is None:
-      self.requestip = ip
-      self.requestport = packet.srcport
-      self.last_ack_sent = mod_add(packet.seq_num, 1)
-      self.sleep_lock.wakeup()
-    else: pass
+
+    self.requestip = ip
+    self.requestport = packet.srcport
+    self.last_ack_sent = mod_add(packet.seq_num, 1)
+    self.sleep_lock.wakeup()
 
   def process_synack(self, ip, packet):
     """
@@ -247,6 +311,8 @@ class TcpServer:
       Else, if payload is in window, caches packet.
       Otherwise, re-acks packet.
     
+      Also, handles FIN packets.
+
     <Arguments>
       ip
           The ip it came from.    
@@ -264,13 +330,13 @@ class TcpServer:
       Uses self.lock
 
     <Returns>
-      Nothing.
+      True if valid ACK, False otherwise.
     """
     if self.last_ack_sent is None:
-      raise NotConnectedError("no client yet")
+      raise NotConnectedError("no connection yet")
 
-    if not packet.payload: # no data?
-      return None
+    if not packet.payload and not packet.is_fin():
+      return False
 
     # Is it the payload we want?
     if self.last_ack_sent == packet.seq_num:
@@ -281,9 +347,14 @@ class TcpServer:
       self.packet_cache[packet.seq_num] = packet
       while seq_num in self.packet_cache.keys():
         packet = self.packet_cache[seq_num]
-        self.buffer += packet.payload
-        self.recv_window_size -= len(packet.payload)
-        new_seq_num = mod_add(packet.seq_num, len(packet.payload))
+        if packet.is_payload():
+          self.buffer += packet.payload
+          self.recv_window_size -= len(packet.payload)
+          new_seq_num = mod_add(packet.seq_num, len(packet.payload))
+        else: # FIN add one byte
+	  new_seq_num = mod_add(packet.seq_num, 1) 
+	  self.fin_rcvd = True
+	  self.sleep_lock.wakeup()
         del self.packet_cache[seq_num]
         seq_num = new_seq_num
 
@@ -291,6 +362,7 @@ class TcpServer:
       self.last_ack_sent = seq_num
       self.conn.register_sendmess(ip, packet.srcport, TcpPacket(packet.destport, packet.srcport, 0, self.last_ack_sent, \
                  "ACK", self.recv_window_size, "ack...").pack())
+      return True
 
     # Maybe we can cache it.  Is it inside our window?
     elif mod_sep(self.last_ack_sent, packet.seq_num) < self.recv_window_size:
@@ -305,3 +377,5 @@ class TcpServer:
     else: 
       self.conn.register_sendmess(ip, packet.srcport, TcpPacket(packet.destport, packet.srcport, 0, self.last_ack_sent, "ACK", self.recv_window_size, \
                 "resending ack...").pack())
+
+    return False
