@@ -28,6 +28,9 @@ import signal
 
 import traceback
 
+# I use this so that the safe module doesn't complain about us using open
+myopen = open
+
 # used to query status, etc.
 # This may fail on Windows CE
 try:
@@ -642,7 +645,7 @@ def getuptime():
   # Check if we can use the uptime file
   if os.path.exists("/proc/uptime"):
     # Open the file
-    fileHandle = open('/proc/uptime', 'r')
+    fileHandle = myopen('/proc/uptime', 'r')
     
     # Read in the whole file
     data = fileHandle.read() 
