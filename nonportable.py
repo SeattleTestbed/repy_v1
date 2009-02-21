@@ -53,8 +53,19 @@ import misc
 # Get constants
 import repy_constants
 
+# These are used to determine uptime on BSD/Mac systems
+import ctypes
+import ctypes.util
+
 # This prevents writes to the nanny's status information after we want to stop
 statuslock = threading.Lock()
+
+# This will fail on non-windows systems
+try:
+  import windows_api as windowsAPI
+except:
+  windowsAPI = None
+  pass
 
 # this indicates if we are exiting.   Wrapping in a list to prevent needing a
 # global   (the purpose of this is described below)
@@ -264,6 +275,10 @@ def calculate_cpu_sleep_interval(cpulimit,percentused,elapsedtime):
   # Debug: Used to calculate averages
   #global totaltime, rawcpu, appstart
 
+  # Return 0 if elapsedtime is non-positive
+  if elapsedtime <= 0:
+    return 0
+    
   # Update rolling info
   # Use the *moded version of elapsedtime and percentused
   # To account for segmented intervals
@@ -300,14 +315,84 @@ def calculate_cpu_sleep_interval(cpulimit,percentused,elapsedtime):
 
   # Return amount of time to sleep for
   return stoptime
+
+
+# Store the uptime of the system when we first get loaded
+starttime = 0
+last_uptime = 0
+
+# Save the number of times windows uptime overflowed
+win_overflows = 0
+
+def getruntime():
+  """
+   <Purpose>
+      Return the amount of time the program has been running.   This is in
+      wall clock time.   This function is not guaranteed to always return
+      increasing values due to NTP, etc.
+
+   <Arguments>
+      None
+
+   <Exceptions>
+      None.
+
+   <Side Effects>
+      None
+
+   <Remarks>
+      Accurate granularity not guaranteed past 1 second.
+
+   <Returns>
+      The elapsed time as float
+  """
+  global last_uptime
+
+  # Check if Linux or BSD/Mac
+  if ostype in ["Linux", "Darwin"]:
+    uptime = getuptime()
+
+    # Check if time is going backward
+    if uptime < last_uptime:
+      # If the difference is less than 1 second, that is okay, since
+      # The boot time is only precise to 1 second
+      if (last_uptime - uptime) > 1:
+        raise EnvironmentError, "Uptime is going backwards!"
+      else:
+        # Use the last uptime
+        uptime = last_uptime
+
+    else:  
+      # Update last uptime
+      last_uptime = uptime
+
+  # Check for windows  
+  elif ostype in ["Windows", "WindowsCE"]:
+    # Import the globals
+    global win_overflows
+
+    # Uptime is the number of ticks, plus the added limit of unsigned int each time
+    # the uptime went backwards
+    # Divide by 1000 since it is given in milliseconds
+    uptime = (windowsAPI._getTickCount() + win_overflows*windowsAPI.ULONG_MAX) / 1000.0
+
+    # Check if uptime is going backward, correct for this
+    if uptime < last_uptime:
+      uptime += windowsAPI.ULONG_MAX
+      win_overflows += 1
+
+    # Set the last uptime
+    last_uptime = uptime
+
+  # Who knows...  
+  else:
+    raise EnvironmentError, "Unsupported Platform!"
+
+  # Current uptime, minus the uptime when we first started
+  return uptime - starttime
+ 
   
 ###################     Windows specific functions   #######################
-
-try:
-  import windows_api as windowsAPI
-except:
-  windowsAPI = None
-  pass
 
 
 def win_check_memory_use(pid, memlimit):
@@ -530,7 +615,59 @@ def smarter_select(inlist):
 
 ##############     *nix specific functions (may include Mac)  ###############
 
+# Some import constructs for getuptime
+# Constants
+CTL_KERN = 1
+KERN_BOOTTIME = 21
+                
+# Get libc
+try:
+  libc = ctypes.CDLL(ctypes.util.find_library("c"))
+except:
+  # This may fail on systems where the std C library cannot be found
+  # e.g. Windows
+  pass
 
+# struct timeval
+class timeval(ctypes.Structure):
+    _fields_ = [("tv_sec", ctypes.c_long),
+                ("tv_usec", ctypes.c_long)]
+                
+# Returns current system uptime of linux and Mac/BSD systems
+# This function returns non-decreasing values on Linux, however,
+# on Mac/BSD systems due to how the kernel stores the boot-time,
+# it is possible to see uptime decrease or increase up to 1 second in the worse conditions
+# This is triggered by the system clock being set backwards or forwards
+def getuptime():
+  # Check if we can use the uptime file
+  if os.path.exists("/proc/uptime"):
+    # Open the file
+    fileHandle = open('/proc/uptime', 'r')
+    
+    # Read in the whole file
+    data = fileHandle.read() 
+    
+    # Split the file by commas, grap the first number and convert to a float
+    uptime = float(data.split(" ")[0])
+    
+    # Close the file
+    fileHandle.close()
+  else:
+    # Get an array with 2 elements, set the syscall parameters
+    TwoIntegers = ctypes.c_int * 2
+    mib = TwoIntegers(CTL_KERN, KERN_BOOTTIME)
+    
+    # Get timeval structure, set the size
+    boottime = timeval()                
+    size = ctypes.c_size_t(ctypes.sizeof(boottime))
+    
+    # Make the syscall
+    libc.sysctl(mib, 2, ctypes.pointer(boottime), ctypes.pointer(size), None, 0)
+
+    # Calculate uptime from current time
+    uptime = time.time() - boottime.tv_sec+boottime.tv_usec*1.0e-6
+      
+  return uptime
 
 # needed to make the Nokia N800 actually exit on a harshexit...
 def linux_killme():
@@ -606,7 +743,11 @@ def enforce_cpu_quota(readfobj, cpulimit, frequency, childpid):
   global resumeTime, lastStoptime, segmentedInterval
 
   elapsedtime, percentused = get_time_and_cpu_percent(readfobj)
-
+  
+  # In case of a NTP time shift, we only get thrown off a bit
+  # Also, its a sanity check, since negatime elapsed time shouldn't be possible
+  #elapsedtime = max(0, min(10 * frequency, elapsedtime))
+  
   # They get a free pass (likely their first or last time)
   if elapsedtime == 0.0:
     return
@@ -704,6 +845,7 @@ def get_time_and_cpu_percent(readfobj):
   # Should do something nicer like ignore quota?
   if clocktime < oldclocktime:
     raise Exception, "Elapsed time '"+str(currenttime)+"' less than previous '"+str(oldcurrenttime)+"'"
+
   # user time is going backwards...   I don't think this is possible
   if usertime < oldusertime:
     raise Exception, "User time '"+str(usertime)+"' at '"+str(currenttime)+"' less than user time '"+str(oldusertime)+"' at '"+str(oldcurrenttime)+"'"
@@ -988,3 +1130,6 @@ def init_ostype():
 
 # Call init_ostype!!!
 init_ostype()
+
+# Set the starttime to the initial uptime
+starttime = getruntime()
