@@ -12,11 +12,8 @@
 import restrictions
 import nanny
 import random           # for random.random()
-import time             # for time.time()
-import nonportable      # for harshexit()
+import nonportable      # for harshexit() and getruntime
 import threading        # for Lock()
-
-
 
 # Public interface!
 def randomfloat():
@@ -43,11 +40,6 @@ def randomfloat():
 
   return random.random()
 
-
-
-starttime = time.time()
-
-
 # Public interface!
 def getruntime():
   """
@@ -65,14 +57,14 @@ def getruntime():
    <Side Effects>
       None
 
+   <Remarks>
+      Accurate granularity not guaranteed past 1 second.
+
    <Returns>
       The elapsed time as float
   """
-
   restrictions.assertisallowed('getruntime')
-
-  return time.time() - starttime
-
+  return nonportable.getruntime()
 
 
 # public interface
