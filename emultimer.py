@@ -51,11 +51,20 @@ def sleep(seconds):
 
   restrictions.assertisallowed('sleep',seconds)
   
-  start = time.time()
+  # Using getruntime() in lieu of time.time() because we want elapsed time 
+  # regardless of the oddities of NTP
+  start = nonportable.getruntime()
   sleeptime = seconds
+
+  # return no earlier than the finish time
+  finish = start + seconds
+
   while sleeptime > 0.0:
     time.sleep(sleeptime)
-    sleeptime = (start + sleeptime) - time.time()
+    now = nonportable.getruntime()
+
+    # If sleeptime > 0.0 then I woke up early...
+    sleeptime = finish - now
 
 
 
