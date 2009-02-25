@@ -17,8 +17,7 @@ if callfunc == 'initialize':
   IP = 'shsfa'
 
 def test_close():
-  serv = TcpServer(mycontext['conn'])
-  serv.conn.register_sendmess = fin_register
+  serv = TcpServer(fin_register)
   serv.last_ack_sent = 1
   packet = TcpPacket(PORT, PORT, 1, 0, "FIN", 0, "test")
   assert not serv.fin_rcvd
@@ -28,13 +27,13 @@ def test_close():
   assert mycontext['ackfin'].is_ack()
 
 def test_close_already_closed():
-  serv = TcpServer(None)
+  serv = TcpServer(nop)
   serv.fin_rcvd = True
   serv.close(.1)
   assert serv.fin_rcvd
 
 def test_close_timeout():
-  serv = TcpServer(None)
+  serv = TcpServer(nop)
   try:
     serv.close(.01)
   except TimeoutError:
@@ -45,18 +44,16 @@ def test_close_timeout():
 ####################
 # Test Helper Functions
 ####################
-class Connection:
-  def register_sendmess(self, destip, destport, mess, srcip=None, srcport=None): pass
+def nop():
+  pass
 
-
-def fin_register(destip, destport, mess):
+def fin_register(destip, destport, mess, srcip = None, srcport=None):
   pack = unpack(mess)
   mycontext['ackfin'] = pack
   return 1
 
 def main():
   # setup
-  mycontext['conn'] = Connection()
 
   # Run tests
   test_close()

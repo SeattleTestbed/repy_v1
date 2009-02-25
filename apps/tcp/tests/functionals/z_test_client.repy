@@ -34,8 +34,7 @@ def test_client():
   SND_WINDOW= 10
   RCV_WINDOW= 20
 
-  mycontext['conn'].register_sendmess = ack_all_register
-  mycontext['client'] = TcpClient(mycontext['conn'])
+  mycontext['client'] = TcpClient(ack_all_register)
   cli = mycontext['client']
   cli.last_seq_sent = SEQ_NUM
   cli.last_ack_recv = ACK_NUM
@@ -69,8 +68,7 @@ def test_client_window():
   RCV_WINDOW= HUGE
   CONG_WIN = HUGE
 
-  mycontext['conn'].register_sendmess = ack_all_register
-  mycontext['client'] = TcpClient(mycontext['conn'])
+  mycontext['client'] = TcpClient(ack_all_register)
   cli = mycontext['client']
   cli.last_seq_sent = SEQ_NUM
   cli.last_ack_recv = ACK_NUM
@@ -100,8 +98,7 @@ def test_client_sliding_window():
   RCV_WINDOW= HUGE
   CONG_WIN = HUGE
 
-  mycontext['conn'].register_sendmess = ack_first_register
-  mycontext['client'] = TcpClient(mycontext['conn'])
+  mycontext['client'] = TcpClient(ack_first_register)
   cli = mycontext['client']
   cli.last_seq_sent = SEQ_NUM
   cli.last_ack_recv = ACK_NUM
@@ -132,8 +129,7 @@ def test_client_congestion_window_slow_start():
   RCV_WINDOW= HUGE
   CONG_WIN = CONG_WINDOW_SIZE
 
-  mycontext['conn'].register_sendmess = ack_all_register
-  mycontext['client'] = TcpClient(mycontext['conn'])
+  mycontext['client'] = TcpClient(ack_all_register)
   cli = mycontext['client']
   cli.last_seq_sent = SEQ_NUM
   cli.last_ack_recv = ACK_NUM
@@ -155,8 +151,7 @@ def test_client_congestion_window_avoidance():
   RCV_WINDOW= HUGE
   CONG_WIN = CONG_WINDOW_SIZE
 
-  mycontext['conn'].register_sendmess = ack_all_register
-  mycontext['client'] = TcpClient(mycontext['conn'])
+  mycontext['client'] = TcpClient(ack_all_register)
   cli = mycontext['client']
   cli.last_seq_sent = SEQ_NUM
   cli.last_ack_recv = ACK_NUM
@@ -177,8 +172,7 @@ def test_client_congestion_window_threshold():
   RCV_WINDOW= HUGE
   CONG_WIN = CONG_WINDOW_SIZE
 
-  mycontext['conn'].register_sendmess = ack_first_register
-  mycontext['client'] = TcpClient(mycontext['conn'])
+  mycontext['client'] = TcpClient(ack_first_register)
   cli = mycontext['client']
   cli.last_seq_sent = SEQ_NUM
   cli.last_ack_recv = ACK_NUM
@@ -199,8 +193,7 @@ def test_client_congestion_window_threshold_reset():
   RCV_WINDOW= HUGE
   CONG_WIN = CONG_WINDOW_SIZE
 
-  mycontext['conn'].register_sendmess = ack_first_register
-  mycontext['client'] = TcpClient(mycontext['conn'])
+  mycontext['client'] = TcpClient(ack_first_register)
   cli = mycontext['client']
   cli.last_seq_sent = SEQ_NUM
   cli.last_ack_recv = ACK_NUM
@@ -217,10 +210,6 @@ def test_client_congestion_window_threshold_reset():
 ####################
 # Test Helper Functions
 ####################
-class Connection:
-  def register_sendmess(self, destip, destport, message, srcip = None, srcport = None):
-    pass
-
 def ack_all_register(destip, destport, message, srcip = None, srcport = None):
     pack = unpack(message)
     mycontext['packet_count'] +=1
@@ -275,7 +264,6 @@ def main():
   mycontext['packet_count'] = 0
   mycontext['packets'] = {}
   mycontext['packetc'] = {} # packet counter 
-  mycontext['conn'] = Connection()
   mycontext['client'] = None
   
   # Run tests

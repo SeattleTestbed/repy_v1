@@ -17,12 +17,6 @@ include constants.repy
 include server.repy
 include test_packet_factory.repy
 
-class Connection:
-  def register_sendmess(self, destip, destport, message, srcip = None, srcport = None):
-    pack = unpack(message)
-    mycontext['packets'][pack.ack_num] = pack
-
-
 if callfunc == 'initialize':
   IP = 'whatever'
   PORT = 12345
@@ -30,7 +24,7 @@ if callfunc == 'initialize':
 def test_pp_syn():
   mycontext['packets'].clear()
   SEQ_NUM = 1
-  serv = TcpServer(mycontext['conn'])
+  serv = TcpServer(send_it)
   pack = mycontext['tpf'].syn(SEQ_NUM)
   serv.process(IP, pack)
   assert not serv.buffer
@@ -43,7 +37,7 @@ def test_pp_syn():
 def test_pp_syn_alreadyconnected():
   mycontext['packets'].clear()
   SEQ_NUM = 1
-  serv = TcpServer(mycontext['conn'])
+  serv = TcpServer(send_it)
   serv.last_ack_sent = SEQ_NUM
   pack = mycontext['tpf'].syn(SEQ_NUM)
   try:
@@ -57,7 +51,7 @@ def test_pp_synack_new():
   mycontext['packets'].clear()
   SEQ_NUM = 1
   ACKSEQ_NUM = 2
-  serv = TcpServer(mycontext['conn'])
+  serv = TcpServer(send_it)
   ACK_NUM = 5
   pack = mycontext['tpf'].synack(SEQ_NUM, ACK_NUM)
   serv.process(IP, pack)
@@ -71,7 +65,7 @@ def test_pp_synack_old():
   mycontext['packets'].clear()
   SEQ_NUM = 1
   ACKSEQ_NUM = 2
-  serv = TcpServer(mycontext['conn'])
+  serv = TcpServer(send_it)
   serv.last_ack_sent = ACKSEQ_NUM
   ACK_NUM = 5
   pack = mycontext['tpf'].synack(SEQ_NUM, ACK_NUM)
@@ -88,7 +82,7 @@ def test_pp_synack_already_connected():
   mycontext['packets'].clear()
   SEQ_NUM = 1
   BAD_SEQ_NUM = 2
-  serv = TcpServer(mycontext['conn'])
+  serv = TcpServer(send_it)
   serv.last_ack_sent = SEQ_NUM
   ACK_NUM = 5
   pack = mycontext['tpf'].synack(BAD_SEQ_NUM, ACK_NUM)
@@ -103,7 +97,7 @@ def test_pp_psh_notconnected():
   mycontext['packets'].clear()
   SEQ_NUM = 1
   SS = 2
-  serv = TcpServer(mycontext['conn'])
+  serv = TcpServer(send_it)
   pack = mycontext['tpf'].psh(SEQ_NUM, SS)
   try:
     serv.process(IP, pack)
@@ -118,7 +112,7 @@ def test_pp_next_seq():
   SEQ_NUM = 0
   SS = 2
   WINDOW = 10
-  serv = TcpServer(mycontext['conn'])
+  serv = TcpServer(send_it)
   serv.last_ack_sent = SEQ_NUM
   serv.recv_window_size = WINDOW
   pack = mycontext['tpf'].psh(SEQ_NUM, SS)
@@ -135,7 +129,7 @@ def test_pp_next_seq_edge_mod():
   mycontext['packets'].clear()
   SEQ_NUM = MAX_SEQ_NUM - 1
   MSS = 2
-  serv = TcpServer(mycontext['conn'])
+  serv = TcpServer(send_it)
   serv.last_ack_sent = SEQ_NUM
   pack = mycontext['tpf'].psh(SEQ_NUM, MSS)
   serv.process(IP, pack)
@@ -149,7 +143,7 @@ def test_pp_before_window():
   mycontext['packets'].clear()
   SEQ_NUM = 1
   MSS = 2
-  serv = TcpServer(mycontext['conn'])
+  serv = TcpServer(send_it)
   serv.last_ack_sent = SEQ_NUM
   pack = mycontext['tpf'].psh(SEQ_NUM-1, MSS)
   serv.process(IP, pack)
@@ -164,7 +158,7 @@ def test_pp_in_window():
   SEQ_NUM = 0
   WINDOW =10
   SS = 2
-  serv = TcpServer(mycontext['conn'])
+  serv = TcpServer(send_it)
   serv.last_ack_sent = SEQ_NUM
   serv.recv_window_size = WINDOW
   pack = mycontext['tpf'].psh(SEQ_NUM + WINDOW-1, SS)
@@ -182,7 +176,7 @@ def test_pp_outside_window():
   SEQ_NUM = 0
   WIN = 10
   SS = 20
-  serv = TcpServer(mycontext['conn'])
+  serv = TcpServer(send_it)
   serv.last_ack_sent = SEQ_NUM
   serv.recv_window_size = WIN
   pack = mycontext['tpf'].psh(SEQ_NUM + SS , SS)
@@ -198,7 +192,7 @@ def test_pp_at_window():
   mycontext['packets'].clear()
   SEQ_NUM = 0
   SS = 10
-  serv = TcpServer(mycontext['conn'])
+  serv = TcpServer(send_it)
   serv.last_ack_sent = SEQ_NUM
   serv.recv_window_size = SS
   pack = mycontext['tpf'].psh(SEQ_NUM + SS, SS)
@@ -214,7 +208,7 @@ def test_pp_cumulative():
   SEQ_NUM = 0
   WINDOW = 10
   SS = 2
-  serv = TcpServer(mycontext['conn'])
+  serv = TcpServer(send_it)
   serv.last_ack_sent = SEQ_NUM
   serv.recv_window_size = WINDOW
   winpack = mycontext['tpf'].psh(SEQ_NUM + SS, SS)
@@ -232,7 +226,7 @@ def test_pp_fin():
   SEQ_NUM = 1
   ACK_NUM = SEQ_NUM + 1
   WINDOW = 10
-  serv = TcpServer(mycontext['conn'])
+  serv = TcpServer(send_it)
   assert not serv.fin_rcvd
   serv.last_ack_sent = SEQ_NUM
   serv.recv_window_size = WINDOW
@@ -247,9 +241,12 @@ def test_pp_fin():
 # Test Helper Functions
 ####################
 
+def send_it(destip, destport, message, srcip = None, srcport = None):
+  pack = unpack(message)
+  mycontext['packets'][pack.ack_num] = pack
+
 def main():
   # setup
-  mycontext['conn'] = Connection()
   mycontext['tpf'] = TestPacketFactory(PORT)
   mycontext['packets'] = {}
 

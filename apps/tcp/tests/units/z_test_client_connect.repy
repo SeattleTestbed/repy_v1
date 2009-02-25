@@ -25,8 +25,7 @@ if callfunc == 'initialize':
 
 def test_connect():
   mycontext['packets'].clear()
-  mycontext['conn'].register_sendmess = syn_register
-  cli = TcpClient(mycontext['conn'])
+  cli = TcpClient(syn_register)
   assert not cli.last_seq_sent is None
   SEQ_NUM = cli.last_seq_sent
   try:
@@ -51,10 +50,6 @@ def test_connect():
 ####################
 # Test Helper Functions
 ####################
-class Connection:
-  def register_sendmess(self, destip, destport, message, srcip = None, srcport = None):
-    pass
-
 def syn_register(destip, destport, message, srcip = None, srcport = None):
     mycontext['packet_count'] +=1
     pack = unpack(message)
@@ -66,7 +61,6 @@ def main():
   # setup
   mycontext['packet_count'] = 0
   mycontext['packets'] = {}
-  mycontext['conn'] = Connection()
 
   # Run tests
   test_connect()

@@ -20,7 +20,7 @@ if callfunc == 'initialize':
   IP = 'shsfa'
 
 def test_listen():
-  serv = TcpServer(None)
+  serv = TcpServer(nop)
   packet = TcpPacket(PORT, PORT, 0, 0, "SYN", 0, "test")
   settimer(0.01, serv.process, (IP, packet))
   (ip, port) = serv.listen(.1)
@@ -30,7 +30,7 @@ def test_listen():
   assert PORT == port
 
 def test_listen_timeout():
-  serv = TcpServer(None)
+  serv = TcpServer(nop)
   try:
     serv.listen(.01)
   except TimeoutError:
@@ -41,6 +41,9 @@ def test_listen_timeout():
 ####################
 # Test Helper Functions
 ####################
+def nop():
+  pass
+
 
 def main():
   # setup
@@ -54,4 +57,3 @@ def main():
 
 if callfunc == 'initialize':
   main()
-

@@ -3,7 +3,7 @@
   Encapsilates the sending structure of a connection.
 
 <Usage>
-  TcpClient(conn) - constructor, takes conn obj to send through
+  TcpClient(send_function=None) - constructor, takes optional function to send through
 
   Handshakers:
     client.connect(...) - send SYN
@@ -15,14 +15,17 @@
     client.process(packet) - account for ACK
 
 <Example>
+  # Send out a message.
+  # Who knows if ACK'd?  Need a TcpServer
   include client.repy
  
-  # create dummy conn
-  class Connection:
-    def register_sendmess(*args): print "hi"
+  def callback(ip, port, mess, ch):
+    packet = unpack(mess)
+    client.process(packet)
 
-  client = TcpClient(Connection())
-  client.send(...)
+  client = TcpClient()
+  client.send("hello world", '123.4.5.6', 12345, \
+                srcip, srcport, retries, timeout):
 """
 
 include constants.repy
@@ -39,27 +42,15 @@ class TcpClient:
       a passive-receiver-server.
 
     This class is the active-sender-client.
-    
-  <Side Effects>
-    Call getlock()
-    
-  <Example Use>
-    def callback(ip, port, mess, ch):
-      print mess
-    
-    recvmess(getmyip(), 12345, callback)
-    client = TcpClient(None)
-    client.send(getmyip(), 12345, "hi")
-
   """
 
-  def __init__(self, conn):
+  def __init__(self, send_function=None):
     """
     <Purpose>
       Initializes varibles.
     
     <Arguments>
-      conn - a connection obj to send through packets
+      send_function - a function to send through packets
     
     <Exceptions>
       None
@@ -73,7 +64,11 @@ class TcpClient:
     <Returns>
       New client object.
     """
-    self.conn = conn    
+    if send_function:
+      self.send_function = send_function
+    else:
+      self.send_function = self._send
+    
     self.packet_cache = {} # holds currently sent, unacked packets
 
     # kept track of + updated by Server
@@ -179,7 +174,7 @@ class TcpClient:
           if len(self.packet_cache[seq_num].payload) <= free_window:
             free_window -= len(self.packet_cache[seq_num].payload)
             bytes_sent += len(self.packet_cache[seq_num].payload)
-	    self.conn.register_sendmess(destip, destport, \
+	    self.send_function(destip, destport, \
                 self.packet_cache[seq_num].pack(), srcip, srcport)
           else: # can't send anymore
             free_window = 0
@@ -198,7 +193,7 @@ class TcpClient:
 
             # send it as well
             bytes_sent += len(packet.payload)
-            self.conn.register_sendmess(destip, destport, packet.pack(), srcip, srcport)
+            self.send_function(destip, destport, packet.pack(), srcip, srcport)
 
 	    # go around again?
             del data[0:payload_size]
@@ -529,7 +524,7 @@ class TcpClient:
         self.sleep_lock.release()
         raise TimeoutError("tried %d times" % times_sent)
 
-      bytes_sent += self.conn.register_sendmess(destip, destport, \
+      bytes_sent += self.send_function(destip, destport, \
                 	packet.pack(), srcip, srcport)
 
       times_sent += 1
@@ -537,3 +532,18 @@ class TcpClient:
       self.lock.release()
 
     return bytes_sent
+
+
+  def _send(self, destip, destport, data, srcip=None, srcport=None):    
+    """
+    <Purpose>
+        Gives a default wrapper for send calls.  Just forwards to
+        Repy's UDP sendmess function.
+
+    <Arguments>
+        Same as Repy sendmess.
+ 
+    <Returns>
+        Same as Repy sendmess.
+    """
+    return sendmess(destip, destport, data, srcip, srcport)

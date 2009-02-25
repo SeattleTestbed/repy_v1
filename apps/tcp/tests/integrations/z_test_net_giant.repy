@@ -36,6 +36,7 @@ def server():
 
 def client():
   socket = Connection()
+  socket.timeout = 5 # seconds
   socket.bind(IP, PORT)
   socket.connect(IP, PORT_TWO)
 

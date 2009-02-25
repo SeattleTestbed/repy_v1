@@ -33,8 +33,7 @@ def test_send():
   DATA = "h"
   SND_WINDOW= 10
   RCV_WINDOW= 20
-  mycontext['conn'].register_sendmess = psh_register
-  cli = TcpClient(mycontext['conn'])
+  cli = TcpClient(psh_register)
   cli.last_seq_sent = SEQ_NUM
   cli.last_ack_recv = ACK_NUM
   cli.recv_window_size= RCV_WINDOW
@@ -67,8 +66,7 @@ def test_send_empty():
   DATA = ""
   SND_WINDOW= 10
   RCV_WINDOW= 20
-  mycontext['conn'].register_sendmess = psh_register
-  cli = TcpClient(mycontext['conn'])
+  cli = TcpClient(psh_register)
   cli.last_seq_sent = SEQ_NUM
   cli.last_ack_recv = ACK_NUM
   cli.recv_window_size= RCV_WINDOW
@@ -85,8 +83,7 @@ def test_send_no_window():
   ACK_NUM = SEQ_NUM + 1
   DATA = "hi"
   WINDOW= 0
-  mycontext['conn'].register_sendmess = psh_register
-  cli = TcpClient(mycontext['conn'])
+  cli = TcpClient(psh_register)
   cli.last_seq_sent = SEQ_NUM
   cli.last_ack_recv = ACK_NUM
   cli.send_window_size= WINDOW
@@ -111,8 +108,7 @@ def test_send_just_window():
   DATA = "hihihihi"
   WINDOW= MSS
   CONG_WIN = 2 * MSS
-  mycontext['conn'].register_sendmess = psh_register
-  cli = TcpClient(mycontext['conn'])
+  cli = TcpClient(psh_register)
   cli.last_seq_sent = SEQ_NUM
   cli.last_ack_recv = ACK_NUM
   cli.send_window_size= WINDOW
@@ -137,8 +133,7 @@ def test_send_sliding_window():
   ACK_NUM = SEQ_NUM + 1
   DATA = "hihihihi"
   WINDOW= len(DATA)
-  mycontext['conn'].register_sendmess = psh_register
-  cli = TcpClient(mycontext['conn'])
+  cli = TcpClient(psh_register)
   cli.last_seq_sent = SEQ_NUM
   cli.last_ack_recv = ACK_NUM
   cli.send_window_size= WINDOW
@@ -168,8 +163,7 @@ def test_send_congestion_window_resets():
   ACK_NUM = SEQ_NUM + 1
   DATA = "hihihihi"
   WINDOW= len(DATA)
-  mycontext['conn'].register_sendmess = psh_register
-  cli = TcpClient(mycontext['conn'])
+  cli = TcpClient(psh_register)
   cli.last_seq_sent = SEQ_NUM
   cli.last_ack_recv = ACK_NUM
   cli.send_window_size= WINDOW
@@ -203,8 +197,7 @@ def test_send_just_congestion_window():
   WINDOW= 2 * MSS
   CONG_WIN = MSS
 
-  mycontext['conn'].register_sendmess = psh_register
-  cli = TcpClient(mycontext['conn'])
+  cli = TcpClient(psh_register)
   cli.last_seq_sent = SEQ_NUM
   cli.last_ack_recv = ACK_NUM
   cli.send_window_size= WINDOW # NOTE: > cong win
@@ -229,8 +222,8 @@ def test_send_no_congestion_window():
   ACK_NUM = SEQ_NUM + 1
   DATA = "hihihihi"
   WINDOW= len(DATA)
-  mycontext['conn'].register_sendmess = psh_register
-  cli = TcpClient(mycontext['conn'])
+
+  cli = TcpClient(psh_register)
   cli.last_seq_sent = SEQ_NUM
   cli.last_ack_recv = ACK_NUM
   cli.send_window_size= WINDOW
@@ -249,10 +242,6 @@ def test_send_no_congestion_window():
 ####################
 # Test Helper Functions
 ####################
-class Connection:
-  def register_sendmess(self, destip, destport, message, srcip = None, srcport = None):
-    pass
-
 def psh_register(destip, destport, message, srcip = None, srcport = None):
     pack = unpack(message)
     mycontext['packet_count'] +=1
@@ -269,7 +258,6 @@ def main():
   mycontext['packet_count'] = 0
   mycontext['packets'] = {}
   mycontext['packetc'] = {} # packet counter 
-  mycontext['conn'] = Connection()
 
   # Run tests
   test_send()

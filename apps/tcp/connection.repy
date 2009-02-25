@@ -188,7 +188,7 @@ class Connection:
     self.conn = self.register_recvmess(self.localip, self.localport, self.callback)
     self.state_machine.listen() # do any state accounting
 
-    self.server = TcpServer(self)
+    self.server = TcpServer(self.register_sendmess)
     self.lock.release()
 
     # block until syn request or timeout
@@ -256,7 +256,7 @@ class Connection:
     self.requestport = None
 
     # setup out client
-    self.client = TcpClient(self)
+    self.client = TcpClient(self.register_sendmess)
     self.client.set_recv_window(self.server.get_recv_window())
     ack_num = self.server.get_ack_num()
     self.lock.release()
@@ -308,8 +308,8 @@ class Connection:
 
     # listen for responses
     self.conn = self.register_recvmess(self.localip, self.localport, self.callback)
-    self.client = TcpClient(self)
-    self.server = TcpServer(self)
+    self.client = TcpClient(self.register_sendmess)
+    self.server = TcpServer(self.register_sendmess)
 
     self.state_machine.connect() # do any state accounting
     self.lock.release()
