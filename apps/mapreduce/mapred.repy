@@ -34,28 +34,37 @@ def reduce_func(key, values):
     return {key: sum}
 #end include reducer.repy
 
+#begin include hasher.repy
+#
 
-def get_data(ip, port, sockobj, thiscommhandle, listencommhandle):
+def hash_func(data):
+    return ord(data[0])/8
+#end include hasher.repy
+
+def get_data(ip, port, socketobj, thiscommhandle, listencommhandle):
     """ Listens for connections on a well-defined port, imports data files """
     
     # get a list of all of our neighbors!
-    ipport_len = int(sockobj.recv(2))
-    mycontext['primary'] = sockobj.recv(ipport_len)
+    mycontext['primary'] = recv_message(socketobj)
+    print "got primary loc: ", mycontext['primary']
 
-    mycontext['num_peers'] = int(sockobj.recv(4))
-    node_id = 1
+    # we need to know how many peers we have..
+    mycontext['num_peers'] = int(socketobj.recv(4))
+    print "got num_peers: ", mycontext['num_peers']
+
+    mycontext['peers'] = []
     for i in range(mycontext['num_peers']):
-        ipport_len = int(sockobj.recv(3))
-        mycontext['node' + str(node_id)] = sockobj.recv(ipport_len)
-        node_id += 1
+        mycontext['peers'].append(recv_message(socketobj))
+
+    print "got my peers: ", mycontext['peers']
+
+    # make sure each replica has the same order!
+    mycontext['peers'].sort()
 
     # parse and save data file:
-    # get length of following data
-    data_len = int(sockobj.recv(6))
-    
-    # parse actual data, write to file
-    buf = sockobj.recv(data_len)
-    dataobj = open("mapdata.dat", "w")
+    buf = recv_message(socketobj)
+    print "got data, ", buf
+    dataobj = open("map_data.dat", "w")
     dataobj.write(buf)
     dataobj.close()
         
@@ -76,8 +85,8 @@ def do_map():
         line_parts = line.partition('\t')
         # I assume that results are returned in the form "<key>\t<value>"
         # map.mapper takes key, value as two separate arguments
-        map_result.append(map_func(line_parts[0], line_parts[2]))
-
+        map_result.extend(map_func(line_parts[0], line_parts[2]))
+#        print "map_result" , map_result
     map_result.sort()
     return map_result
     
@@ -95,43 +104,55 @@ def partition(map_result):
         else:
             key_value[kv_pair[0]] = [kv_pair[1]]
 
-    print kv_pair
+    print "map_result" , map_result
+    print "kv_pair", kv_pair
+    print "key_value", key_value
+
 
     # try to partition objects bashed on their hash
     partition_hash = {}
     for key, values in key_value.iteritems():
-        hash = hash_func(key)
+        hashcode = hash_func(key)
         
         # the following is always key in index 0, values following
         # this is so we don't lose track of the key if the hash_func is not
         # totally unique/reversible
         values.insert(0,key)
         if hash in partition_hash:
-            parition_hash[hash].append(values)
+            parition_hash[hashcode].append(values)
         else:
-            partition_hash[hash] = [values]
+            partition_hash[hashcode] = [values]
 
     # we should have a grouping of elements by hash now
     print partition_hash
 
-    # attempt to partition elements based on the number of replicas
-    replica_hash = []
-    cur_replica = 1
+    # attempt to partition elements based on the number of replicas,
+    #   first, get all the hash values and sort them
     hash_list = partition_hash.keys()
+    hash_list.sort()
 
-    step_size = len(hash_list) / mycontext['num_peers']
-    step_max = step_size * mycontext['num_peers']
-    for hash in hash_list:
-        new_kv_dict = {}
-        for kvs_pairs in partition_hash[hash]:
-            kv = dict([[kvs_pairs[0], kvs_pairs[1:]]])
-            new_kv_dict.update(kv)
+    # initialize the peer_data list
+    peer_data = []
+    for index in range(mycontext['num_peers']):
+        peer_data.append({})
 
-        replica_hash[cur_replica] = new_kv_dict
-        cur_replica = (cur_replica + 1) % mycontext['num_peers'] + 1
+    for hashcode in hash_list:
+        cur_replica = hashcode % mycontext['num_peers']
+        
+        for kv_pairs in partition_hash[hashcode]:
+            kv = dict([[kv_pairs[0], kv_pairs[1:]]])
+            peer_data[cur_replica].update(kv)
 
-    # send data to replicas
+
+    # send data to replicas, each replica should have a dictionary of kv pairs
     
+    for peer_index in range(mycontext['num_peers']):
+        address = mycontext['peers'][peer_index].partition(":")
+        socketobj = openconn(address[0], int(address[2]))
+        send_message_dict(socketobj, peer_data[peer_index])
+    
+
+
     
 def do_reduce():
     data = open("reduce_data.dat", "r")
@@ -153,6 +174,63 @@ def report_results(map_results):
     
 
     
+def send_message(socketobj, data):
+    data = str(len(data)) + "*" + data
+    socketobj.send(data)
+
+
+
+def send_message_dict(socketobj, data_dict):
+    buf = ""
+    for key,values in data_dict.iteritems():
+        buf += str(key) + "\n"
+        for value in values:
+            buf += str(value) + "\n"
+        
+        # after last value, add another return to close key
+        buf += "\n"
+
+    send_message(socketobj, buf)
+
+
+
+def recv_message_dict(socketobj, initialread=2):
+    serialized_dict = recv_message(socketobj, initialread)
+
+    data_dict = {} 
+    
+    cur_key = ""
+    for line in serialized_dict.split("\n"):
+        if cur_key == "":
+            cur_key = line
+            data_dict[cur_key] = []
+        elif line == "":
+            cur_key = ""
+        else:
+            data_dict[cur_key].add(line)
+
+    return data_dict
+
+
+
+def recv_message(socketobj, initialread=2):
+    buf = ""
+    found = False
+    
+    while not found:
+        buf += socketobj.recv(initialread)
+        if "*" in buf:
+            found = True
+
+    parts = buf.partition("*")
+    data_len = int(parts[0])
+    
+    data = parts[2]
+    data += socketobj.recv(data_len - len(parts[2]))
+    return data
+
+
+
 if callfunc == 'initialize':
     mycontext['num_mappers'] = 1
     mycontext['num_reducers'] = 1
@@ -182,17 +260,15 @@ if callfunc == 'initialize':
 #    data.close()
 
     # send map results to all reducers, split as necessary
-#    partition(map_result)
+    partition(map_result)
     
     # block until 
-    while mycontext['state'] == 'ReducerWaiting':
+    while mycontext['state'] != 'ReducerWaiting':
         sleep(1)
         
     # start reducing, synchronous call (wait for all data to come in, 
     # then start)
     reduce_result = do_reduce()
-
-    print reduce_result
 
     report_results(reduce_result)
 

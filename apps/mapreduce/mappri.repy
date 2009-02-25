@@ -12,38 +12,68 @@
 def initalize_replicas(data):
     
     # generate strings:
-    # send primary location
-    prim_str = pad_int_to_str(len(mycontext['my_addr']),2)
-    prim_str += mycontext['my_addr']
+    # generate primary location string
+    prim_str = format_message(mycontext['my_addr'])
 
     # generate replica list to send
     replica_str = pad_int_to_str(len(mycontext['replica_list']), 4)
     replica_str += mycontext['replica_str']
 
     # generate data string to send - size limited to 1e6-1 bytes
-    data = pad_int_to_str(len(data),6) + data
+    data = format_message(data)
     
     # send data to each replica
     for ip, port in mycontext['replica_list'].iteritems():
         socketobj = openconn(ip, port)
+        print "sending primary: ", prim_str
         socketobj.send(prim_str)
+        print "sending replicas: ", replica_str
         socketobj.send(replica_str)
+        print "sending data: ", data
         socketobj.send(data)
+
+#        mycontext['is_received'] = socketobj
+
+
+def send_message(socketobj, data):
+    data = str(len(data)) + "*" + data
+    socketobj.send(data)
+
+
+def format_message(data):
+    return str(len(data)) + "*" + data
+
+
+def recv_message(socketobj, initialread=2):
+    buf = ""
+    found = False
+    
+    while not found:
+        buf += socketobj.recv(initialread)
+        if "*" in buf:
+            found = True
+
+    parts = buf.partition("*")
+    data_len = int(parts[0])
+    
+    data = parts[2]
+    data += socketobj.recv(data_len - len(parts[2]))      
+    return data
+
 
 
 def pad_int_to_str(i, len):
     if i / (10**len) > 0:
         raise Exception("integer overflow; consider revising protocol") 
     return ('%0' + str(len) + "d") % i
-                           
+
+
 
 
 def get_results(ip, port, sockobj, thiscommhandle, listencommhandle):
     
-    data_len = int(sockobj.recv(6))
-
     # parse actual data, write to file
-    buf = str(sockobj.recv(data_len))
+    buf = recv_message(sockobj)
     result_file = open("results.dat", "w")
     result_file.write(buf)
     result_file.close()
@@ -106,9 +136,10 @@ if callfunc == 'initialize':
             print "* Port not found!"
             print_usage()
         mycontext['replica_list'][address[0]] = int(address[2])
+
         addr = address[0] + ":" + address[2]
         addr_len = pad_int_to_str(len(addr), 3)
-        mycontext['replica_str'] += addr_len + addr
+        mycontext['replica_str'] += addr_len + "*" + addr
 
     initalize_replicas(data)
     
@@ -116,10 +147,4 @@ if callfunc == 'initialize':
     # once the job has started, we need to listen for reporting back 
     # by the replicas (right now, just one handle/no parallelization)
     
-    is_received = {}
-    for ip in mycontext['replica_list'].keys():
-        is_received[ip] = 0
-    
-    mycontext['recieved_data'] = is_received
-
     listencommhandle = waitforconn(ip, port, get_results) 
