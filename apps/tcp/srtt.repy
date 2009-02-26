@@ -16,8 +16,8 @@
   http://tools.ietf.org/html/rfc1323#section-3.
 
   Defaults Used (can be altered):
-    - Initial RTO: 3 seconds
-    - Granularity: .1 seconds
+    - Initial RTO: 1.0 seconds
+    - Granularity: 0.1 seconds
     - k(multiple): 4
     - alpha      : 1/8
     - beta       : 1/4
@@ -62,8 +62,8 @@ class SmoothedRoundTripTime:
       A new SmoothRoundTripTime object.
     """
 
-    # initial RTO time is 3 seconds.
-    self.curRTO = 3
+    # initial RTO time is 1 second.
+    self.curRTO = 1.0
 
     # Default granularity is .1 seconds
     self.granularity = .1
@@ -107,11 +107,9 @@ class SmoothedRoundTripTime:
       self.curRTTVAR = newMeasurement / 2
       self.curRTO = self.curSRTT + max(self.granularity, self.k * self.curRTTVAR)
     else:
-      self.curRTTVAR = (1 - self.curbeta) * self.curRTTVAR + self.beta * absVal(self.curSRTT - newMeasurement)
-      self.curSRTT = (1 - self.curalpha) * self.curSRTT + self.alpha * newMeasurement
-      self.curRTO = self.curSRTT + max(selg.granularity, self.k * self.curRTTVAR)
-      if (self.curRTO < 1):
-        self.curRTO = 1
+      self.curRTTVAR = (1 - self.beta) * self.curRTTVAR + self.beta * absVal(self.curSRTT - newMeasurement)
+      self.curSRTT = (1 - self.alpha) * self.curSRTT + self.alpha * newMeasurement
+      self.curRTO = self.curSRTT + max(self.granularity, self.k * self.curRTTVAR)
     self.numMeasurements += 1
     return self.curRTO
 
@@ -172,4 +170,5 @@ class SmoothedRoundTripTime:
       return -1 * x
     else:
       return x
+
 
