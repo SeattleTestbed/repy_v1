@@ -16,7 +16,6 @@
 
 <Example>
   # Send out a message.
-  # Who knows if ACK'd?  Need a TcpServer
   include client.repy
  
   def callback(ip, port, mess, ch):
@@ -28,6 +27,7 @@
                 srcip, srcport, retries, timeout):
 """
 
+include congestion_controller.repy
 include constants.repy
 include errors.repy
 include packet.repy
@@ -75,9 +75,7 @@ class TcpClient:
     self.recv_window_size = AD_WINDOW_SIZE # size of window
 
     # Congestion window -- slow start
-    self.cong_window_size = CONG_WINDOW_SIZE # counts up on ACK's
-    self.cong_window_threshold = None # starts cong avoidance
-    self.cong_window_incr = None # increment for cong avoidance
+    self.cong_controller = CongestionController()
 
     # Sliding window accounting
     self.send_window_size = None # size of window
@@ -143,20 +141,8 @@ class TcpClient:
 	  self.lock.release()
 	  break;
 
-	# Congestion Window Slow Start reset
-	if self.packet_cache: # any unacked packets?
-	  self.cong_window_threshold = int(self.cong_window_size * 1.0 / 2.0)
- 	  self.cong_window_incr = (CONG_WINDOW_SIZE * CONG_WINDOW_SIZE * 1.0)/ (self.cong_window_threshold * 1.0)
-	  self.cong_window_size = CONG_WINDOW_SIZE
-
-	# Congestion Avoidance?
-  	elif self.cong_window_threshold and self.cong_window_size >= self.cong_window_threshold:
-	  self.cong_window_size = int(self.cong_window_size)
- 	  self.cong_window_incr = (CONG_WINDOW_SIZE * CONG_WINDOW_SIZE * 1.0)/ (self.cong_window_size * 1.0)
-
-	# Slow Start
-	else:
-	  pass
+        # Pass True if unacked packets, False otherwise
+        self.cong_controller.update(self.packet_cache)
 
         # give up
         if times_sent > retries:
@@ -169,7 +155,7 @@ class TcpClient:
         # Say we're never sending the first
         # one because the window size is too small.
         seqs = mod_sort(self.packet_cache.keys(), self.last_ack_recv, self.last_seq_sent)
-        free_window = min(self.send_window_size, self.cong_window_size)
+        free_window = min(self.send_window_size, self.cong_controller.window_size)
         for seq_num in seqs:
           if len(self.packet_cache[seq_num].payload) <= free_window:
             free_window -= len(self.packet_cache[seq_num].payload)
@@ -473,14 +459,8 @@ class TcpClient:
         if mod_between(self.last_ack_recv, seq_num, last_seq):
           del self.packet_cache[seq_num]
 
-	  # congestion avoidance
-	  if self.cong_window_threshold and self.cong_window_size >= self.cong_window_threshold:
-  	    self.cong_window_size += self.cong_window_incr
-
-          # Slow-Start
-	  else:
-  	    self.cong_window_size += CONG_WINDOW_SIZE 
-
+	  # account for ACK
+	  self.cong_controller.incr()
 
       # all done up to this ack
       self.last_ack_recv = packet.ack_num
