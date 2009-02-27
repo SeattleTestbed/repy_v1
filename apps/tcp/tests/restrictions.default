@@ -16,6 +16,7 @@ resource random 100
 resource messport 12345
 resource messport 12346
 resource connport 12345
+resource connport 12346
 
 call gethostbyname_ex allow
 call sendmess allow
