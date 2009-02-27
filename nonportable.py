@@ -326,9 +326,6 @@ elapsedtime = 0
 starttime = 0
 last_uptime = 0
 
-# Save the number of times windows uptime overflowed
-win_overflows = 0
-
 # Timestamp from our starting point
 last_timestamp = time.time()
 
@@ -362,7 +359,7 @@ def getruntime():
    <Returns>
       The elapsed time as float
   """
-  global starttime, last_uptime, last_timestamp, win_overflows, elapsedtime, granularity, runtimelock
+  global starttime, last_uptime, last_timestamp, elapsedtime, granularity, runtimelock
   
   # Get the lock
   runtimelock.acquire()
@@ -392,26 +389,12 @@ def getruntime():
 
   # Check for windows  
   elif ostype in ["Windows", "WindowsCE"]:   
-    #Import the globals
-    global win_overflows
-
-    # Uptime is the number of ticks, plus the added limit of unsigned int each time
-    # the uptime went backwards
-    # Divide by 1000 since it is given in milliseconds
-    uptime = (windowsAPI._getTickCount() + win_overflows*windowsAPI.ULONG_MAX) / 1000.0
+    # Release the lock
+    runtimelock.release()
     
-    # Check if uptime is going backward, correct for this
-    if uptime < last_uptime:
-      uptime += windowsAPI.ULONG_MAX
-      win_overflows += 1
-    
-    # Current uptime, minus the last uptime
-    diff_uptime = uptime - last_uptime
-      
-    # Set the last uptime
-    last_uptime = uptime
+    # Time.clock returns elapsedtime since the first call to it, so this works for us
+    return time.clock()
      
-
   # Who knows...  
   else:
     raise EnvironmentError, "Unsupported Platform!"
@@ -1298,9 +1281,15 @@ init_ostype()
 # Set granularity
 calculate_granularity()  
 
-# Set the starttime to the initial uptime
-starttime = getruntime()
-last_uptime = starttime
+# For Windows, we need to initialize time.clock()
+if ostype in ["Windows", "WindowsCE"]:
+  time.clock()
 
-# Reset elapsed time 
-elapsedtime = 0
+# Initialize getruntime for other platforms 
+else:
+  # Set the starttime to the initial uptime
+  starttime = getruntime()
+  last_uptime = starttime
+
+  # Reset elapsed time 
+  elapsedtime = 0
