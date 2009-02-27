@@ -812,11 +812,37 @@ class LinuxCPUTattlerThread(threading.Thread):
 
   def run(self):
     # run forever (only exit if an error occurs)
+
+
+    # BUG FIX: On some weird systems, resource usage can actually be 
+    # less than for a previous time period.   We saw this on attu and
+    # were able to trigger it with the following repy code:
+    #
+    # def foo(ip,port,sockobj, ch,mainch): pass
+    # mainch = waitforconn('127.0.0.1',34352,foo)
+    # for num in xrange(10000000): pass
+    # stopcomm(mainch)
+    #
+    # to combat this problem, we will only return monotonically increasing 
+    # times.
+    
+    # set the initial values
+    lasttimesreturned = os.times()
+
     while True:
       try:
+        currenttimes = list(os.times())
+        # This is a fix for the os.times() goes backwards...  Return only 
+        # increasing times...
+        for pos in range(len(currenttimes)):
+          currenttimes[pos] = max(currenttimes[pos], lasttimesreturned[pos])
+
         # tell the monitoring process about my cpu information...
-        print >> self.fileobj, repr(list(os.times())+ [getruntime()])
+        print >> self.fileobj, repr(currenttimes+ [getruntime()])
         self.fileobj.flush()
+
+        # remember what we returned last time
+        lasttimesreturned = currenttimes
 
         # prevent concurrent status file writes.   
         statuslock.acquire()
