@@ -319,6 +319,8 @@ def calculate_cpu_sleep_interval(cpulimit,percentused,elapsedtime):
   # Return amount of time to sleep for
   return stoptime
 
+# Elapsed time
+elapsedtime = 0
 
 # Store the uptime of the system when we first get loaded
 starttime = 0
@@ -326,6 +328,12 @@ last_uptime = 0
 
 # Save the number of times windows uptime overflowed
 win_overflows = 0
+
+# Timestamp from our starting point
+last_timestamp = time.time()
+
+# This is our uptime granularity
+granularity = 1
 
 def getruntime():
   """
@@ -344,13 +352,15 @@ def getruntime():
       None
 
    <Remarks>
-      Accurate granularity not guaranteed past 1 second.
+      By default this will have the same granularity as the system clock. However, if time 
+      goes backward due to NTP or other issues, getruntime falls back to system uptime.
+      This has much lower granularity, and varies by each system.
 
    <Returns>
       The elapsed time as float
   """
-  global last_uptime
-
+  global starttime, last_uptime, last_timestamp, win_overflows, elapsedtime, granularity, runtimelock
+  
   # Check if Linux or BSD/Mac
   if ostype in ["Linux", "Darwin"]:
     uptime = getuptime()
@@ -364,36 +374,71 @@ def getruntime():
       else:
         # Use the last uptime
         uptime = last_uptime
-
+        
+        # No change in uptime
+        diff_uptime = 0
     else:  
+      # Current uptime, minus the last uptime
+      diff_uptime = uptime - last_uptime
+      
       # Update last uptime
       last_uptime = uptime
 
   # Check for windows  
-  elif ostype in ["Windows", "WindowsCE"]:
-    # Import the globals
+  elif ostype in ["Windows", "WindowsCE"]:   
+    #Import the globals
     global win_overflows
 
     # Uptime is the number of ticks, plus the added limit of unsigned int each time
     # the uptime went backwards
     # Divide by 1000 since it is given in milliseconds
     uptime = (windowsAPI._getTickCount() + win_overflows*windowsAPI.ULONG_MAX) / 1000.0
-
+    
     # Check if uptime is going backward, correct for this
     if uptime < last_uptime:
       uptime += windowsAPI.ULONG_MAX
       win_overflows += 1
-
+    
+    # Current uptime, minus the last uptime
+    diff_uptime = uptime - last_uptime
+      
     # Set the last uptime
     last_uptime = uptime
+     
 
   # Who knows...  
   else:
     raise EnvironmentError, "Unsupported Platform!"
-
-  # Current uptime, minus the uptime when we first started
-  return uptime - starttime
- 
+  
+  # Current uptime minus start time
+  runtime = uptime - starttime
+  
+  # Get runtime from time.time
+  current_time = time.time()
+  
+  # Current time, minus the last time
+  diff_time = current_time - last_timestamp
+  
+  # Update the last_timestamp
+  last_timestamp = current_time
+  
+  # Is time going backward?
+  if diff_time < 0.0:
+    # Add in the change in uptime
+    elapsedtime += diff_uptime
+  
+  # Lets check if time.time is too skewed
+  else:
+    skew = abs(elapsedtime + diff_time - runtime)
+    
+    # If the skew is too great, use uptime instead of time.time()
+    if skew < granularity:
+      elapsedtime += diff_time
+    else:
+      elapsedtime += diff_uptime
+          
+  # Return the new elapsedtime
+  return elapsedtime
   
 ###################     Windows specific functions   #######################
 
@@ -671,7 +716,57 @@ def getuptime():
     uptime = time.time() - boottime.tv_sec+boottime.tv_usec*1.0e-6
       
   return uptime
-
+  
+# Returns the granularity of getuptime
+def getgranularity():
+  # Chck if /proc/uptime exists
+  if os.path.exists("/proc/uptime"):
+    # Open the file
+    fileHandle = myopen('/proc/uptime', 'r')
+    
+    # Read in the whole file
+    data = fileHandle.read()
+    
+    # Split the file by commas, grap the first number
+    uptime = data.split(" ")[0]
+    uptimeDigits = len(uptime.split(".")[1])
+    
+    # Close the file
+    fileHandle.close()
+    
+    granularity = uptimeDigits
+  else:
+    # Get an array with 2 elements, set the syscall parameters
+    TwoIntegers = ctypes.c_int * 2
+    mib = TwoIntegers(CTL_KERN, KERN_BOOTTIME)
+    
+    # Get timeval structure, set the size
+    boottime = timeval()                
+    size = ctypes.c_size_t(ctypes.sizeof(boottime))
+    
+    # Make the syscall
+    libc.sysctl(mib, 2, ctypes.pointer(boottime), ctypes.pointer(size), None, 0)
+    
+    # Check if the number of nano seconds is 0
+    if boottime.tv_usec == 0:
+      granularity = 0
+    
+    else:
+      # Convert nanoseconds to string
+      nanoSecStr = str(boottime.tv_usec)
+      
+      # Justify with 0's to 9 digits
+      nanoSecStr = nanoSecStr.rjust(9,"0")
+      
+      # Strip the 0's on the other side
+      nanoSecStr = nanoSecStr.rstrip("0")
+      
+      # Get granularity from the length of the string
+      granularity = len(nanoSecStr)
+    
+  # Convert granularity to a number
+  return pow(10, 0-granularity)
+    
 # needed to make the Nokia N800 actually exit on a harshexit...
 def linux_killme():
   # ask me nicely
@@ -710,7 +805,6 @@ class LinuxCPUTattlerThread(threading.Thread):
     # run forever (only exit if an error occurs)
     while True:
       try:
-
         # tell the monitoring process about my cpu information...
         print >> self.fileobj, repr(list(os.times())+ [getruntime()])
         self.fileobj.flush()
@@ -824,7 +918,6 @@ def get_time_and_cpu_percent(readfobj):
   if not lastenforcedata:
     lastenforcedata = info
     return (0.0, 0.0)
-
 
   # The os.times() info is: (cpu, sys, child cpu, child sys, current time)
   # I think it makes the most sense to use the combined cpu/sys time as well
@@ -1131,8 +1224,48 @@ def init_ostype():
 
   ostype = 'Unknown'
 
+# Calculates the system granularity
+def calculate_granularity():
+  global granularity
+
+  if ostype in ["Windows", "WindowsCE"]:
+    # The Granularity of getTickCount is 1 millisecond
+    granularity = pow(10,-3)
+    
+  elif ostype == "Linux":
+    # We don't know if the granularity is correct yet
+    correctGranularity = False
+    
+    # How many times have we tested
+    tests = 0
+    
+    # Loop while the granularity is incorrect, up to 10 times
+    while not correctGranularity and tests <= 10:
+      current_granularity = getgranularity()
+      uptime_pre = getuptime()
+      time.sleep(current_granularity / 10)
+      uptime_post = getuptime()
+    
+      diff = uptime_post - uptime_pre
+    
+      correctGranularity = int(diff / current_granularity) == (diff / current_granularity)
+      tests += 1
+    
+    granularity = current_granularity
+    
+  elif ostype == "Darwin":
+    granularity = getgranularity()
+    
+    
 # Call init_ostype!!!
 init_ostype()
 
+# Set granularity
+calculate_granularity()  
+
 # Set the starttime to the initial uptime
 starttime = getruntime()
+last_uptime = starttime
+
+# Reset elapsed time 
+elapsedtime = 0
