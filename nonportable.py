@@ -335,6 +335,9 @@ last_timestamp = time.time()
 # This is our uptime granularity
 granularity = 1
 
+# This ensures only one thread calling getruntime at any given time
+runtimelock = threading.Lock()
+
 def getruntime():
   """
    <Purpose>
@@ -360,6 +363,9 @@ def getruntime():
       The elapsed time as float
   """
   global starttime, last_uptime, last_timestamp, win_overflows, elapsedtime, granularity, runtimelock
+  
+  # Get the lock
+  runtimelock.acquire()
   
   # Check if Linux or BSD/Mac
   if ostype in ["Linux", "Darwin"]:
@@ -436,6 +442,9 @@ def getruntime():
       elapsedtime += diff_time
     else:
       elapsedtime += diff_uptime
+  
+  # Release the lock
+  runtimelock.release()
           
   # Return the new elapsedtime
   return elapsedtime
