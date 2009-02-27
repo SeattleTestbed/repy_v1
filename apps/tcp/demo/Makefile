@@ -66,7 +66,7 @@ semiclean:
 	rm -rf ${TCUP}* ${REPYTCP}* ${PYTCP}* ${RESTR}
 
 clean:
-	rm -rf ${TCP} ${REPYDIR} ${REPYTAR} ${TCUP}* ${REPYTCP}* ${PYTCP}* ${DIST} '.${DIST}' ${DIST}.tgz
+	rm -rf ${TCP} ${REPYDIR} ${REPYTAR} ${TCUP}* ${REPYTCP}* ${PYTCP}* ${DIST} '.${DIST}' ${DIST}.tgz ${RESTR}
 
 dist: clean
 	mkdir '.${DIST}'
@@ -84,7 +84,7 @@ benchmarks:
 # download repy
 repy:
 	# Dowloading Repy...
-	if [ ! -e ${REPYDIR} ]; then wget https://seattlegeni.cs.washington.edu/geni/download/flibble/${REPYTAR}; tar xzf ${REPYTAR}; fi
+	if [ ! -e ${REPYDIR} ]; then wget --no-check-certificate https://seattlegeni.cs.washington.edu/geni/download/flibble/${REPYTAR}; tar xzf ${REPYTAR}; fi
 	rm -f ${REPYTAR}
 	# done.
 	#
@@ -92,6 +92,6 @@ repy:
 # download tcp/udp
 tcp:
 	# Dowloading TCP over UDP...
-	if [ ! -e ${TCP} ]; then wget https://seattle.cs.washington.edu/raw-attachment/wiki/TopSecretReadme/${TCP}; fi
+	if [ ! -e ${TCP} ]; then wget --no-check-certificate https://seattle.cs.washington.edu/raw-attachment/wiki/TopSecretReadme/${TCP}; fi
 	# done.
 	#
