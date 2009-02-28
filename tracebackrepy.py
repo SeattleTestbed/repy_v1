@@ -104,41 +104,46 @@ def handle_internalerror(error_string, exitcode):
   <Side Effects>
     The program will exit.
   <Return>
-    Shouldn't
+    Shouldn't return because harshexit will always be called.
   """
 
-  if not servicelog:
-    # If the service log is disabled, lets just exit.
-    nonportable.harshexit(exitcode)
-  else:
-    # Internal errors should not be given to the user's code to be caught,
-    # so we print the exception to the service log and exit. -Brent
-    exceptionstring = "[INTERNAL ERROR] " + error_string + '\n'
-    for line in traceback.format_stack():
-      exceptionstring = exceptionstring + line
-
-    # This magic is determining what directory we are in, so that can be
-    # used as an identifier in the log.  In a standard deployment this
-    # should be of the form vXX where XX is the vessel number.  We don't
-    # want any exceptions here preventing us from exitting, so we will
-    # wrap this in a try-except block, and use a default value if we fail.
-    try:
-      identifier = os.path.basename(os.getcwd())
-    except:
-      # We use a blank except because if we don't, the user might be able to
-      # handle the exception, which is unacceptable on internal errors.  Using
-      # the current pid should avoid any attempts to write to the same file at
-      # the same time.
-      identifier = str(os.getpid())
-
-    if identifier == '':
-      # Handle the case where os.cwd might end in a slash.  This probably isn't
-      # necesary, but the documentation is unclear, so I am including it just in
-      # case.
-      identifier = str(os.getpid())
-  
-    # Again we want to ensure that even if we fail to log, we still exit.
-    try:
-      servicelogger.multi_process_log(exceptionstring, identifier)
-    finally:
+  try:
+    print >> sys.stderr, "Internal Error"
+    if not servicelog:
+      # If the service log is disabled, lets just exit.
       nonportable.harshexit(exitcode)
+    else:
+      # Internal errors should not be given to the user's code to be caught,
+      # so we print the exception to the service log and exit. -Brent
+      exceptionstring = "[INTERNAL ERROR] " + error_string + '\n'
+      for line in traceback.format_stack():
+        exceptionstring = exceptionstring + line
+  
+      # This magic is determining what directory we are in, so that can be
+      # used as an identifier in the log.  In a standard deployment this
+      # should be of the form vXX where XX is the vessel number.  We don't
+      # want any exceptions here preventing us from exitting, so we will
+      # wrap this in a try-except block, and use a default value if we fail.
+      try:
+        identifier = os.path.basename(os.getcwd())
+      except:
+        # We use a blank except because if we don't, the user might be able to
+        # handle the exception, which is unacceptable on internal errors.  Using
+        # the current pid should avoid any attempts to write to the same file at
+        # the same time.
+        identifier = str(os.getpid())
+  
+      if identifier == '':
+        # Handle the case where os.cwd might end in a slash.  This probably 
+        # isn't necesary, but the documentation is unclear, so I am including 
+        # it just in case.
+        identifier = str(os.getpid())
+    
+      # Again we want to ensure that even if we fail to log, we still exit.
+      try:
+        servicelogger.multi_process_log(exceptionstring, identifier, '..')
+      finally:
+        nonportable.harshexit(exitcode)
+
+  finally:
+    nonportable.harshexit(842)
