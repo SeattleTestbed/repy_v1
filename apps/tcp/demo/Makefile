@@ -22,8 +22,8 @@ RESTR=restrictions.default
 PORT_A=12345 
 PORT_B=12346
 DESTIP=`hostname -i`
-TOT=1000
-CHUNK=10
+TOT=10000
+CHUNK=100
 
 DIST=tcpdemo
 
@@ -34,7 +34,7 @@ download: repy tcp benchmarks restrictions
 demo: pytcp repytcp tcup
 
 # run it
-tcup:
+tcup: download
 	# Running TCUP Benchmark...
 	python ${REPYPP} ${TCUP}.repy ${TCUP}
         # Arguments required: (-s or -c) LocalPort [DestinationIP DestinationPort TotalBytes ChunkSize]
@@ -44,7 +44,7 @@ tcup:
 	#
 
 # run it
-repytcp:
+repytcp: download
 	# Running Repy TCP Benchmark...
 	python ${REPYPP} ${REPYTCP}.repy ${REPYTCP}
         # Arguments required: (-s or -c) LocalPort [DestinationIP DestinationPort TotalBytes ChunkSize]
@@ -54,7 +54,7 @@ repytcp:
 	#
 
 # run it
-pytcp:
+pytcp: download
 	# Running Python TCP Benchmark...
         # Arguments required: (-s or -c) LocalPort [DestinationIP DestinationPort TotalBytes ChunkSize]
 	python ${PYTCP}.py -s ${PORT_B} &
@@ -64,9 +64,11 @@ pytcp:
 
 semiclean:
 	rm -rf ${TCUP}* ${REPYTCP}* ${PYTCP}* ${RESTR}
+	killall -9 python
 
 clean:
 	rm -rf ${TCP} ${REPYDIR} ${REPYTAR} ${TCUP}* ${REPYTCP}* ${PYTCP}* ${DIST} '.${DIST}' ${DIST}.tgz ${RESTR}
+	killall -9 python
 
 dist: clean
 	mkdir '.${DIST}'
