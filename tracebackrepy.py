@@ -139,6 +139,6 @@ def handle_internalerror(error_string, exitcode):
   
     # Again we want to ensure that even if we fail to log, we still exit.
     try:
-      servicelogger.multi_process_log(exceptionstring, identifier, '..')
+      servicelogger.multi_process_log(exceptionstring, identifier)
     finally:
       nonportable.harshexit(exitcode)
