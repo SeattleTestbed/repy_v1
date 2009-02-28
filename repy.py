@@ -2,6 +2,7 @@
 <Author>
   Justin Cappos
   Ivan Beschastnikh (12/24/08) -- added usage
+  Brent Couvrette   (2/27/09) -- added servicelog commandline option
 
 <Start Date>
   June 26th, 2008
@@ -25,6 +26,7 @@
   --stop filename        : Repy will watch for the creation of this file and abort when it happens
   --status filename.txt  : Write status information into this file
   --cwd dir              : Set Current working directory
+  --servicelog           : Enable usage of the servicelogger for internal errors
 """
 
 
@@ -55,6 +57,8 @@ import os
 
 ## we'll use tracebackrepy to print our exceptions
 import tracebackrepy
+
+
 
 # This block allows or denies different actions in the safe module.   I'm 
 # doing this here rather than the natural place in the safe module because
@@ -124,6 +128,7 @@ usercontext = {
     'getlock':emulmisc.getlock,         # acquire a lock object
     'exitall':emulmisc.exitall          # Stops executing the sandboxed program
 }
+
 
 
 # There is a "simple execution" mode where there is a single entry into the
@@ -241,6 +246,7 @@ Where [options] are some combination of the following:
 --stop filename        : Repy will watch for the creation of this file and abort when it happens
 --status filename.txt  : Write status information into this file
 --cwd dir              : Set Current working directory
+--servicelog           : Enable usage of the servicelogger for internal errors
 """
   return
 
@@ -253,6 +259,8 @@ if __name__ == '__main__':
   args = sys.argv[1:]
   simpleexec = False
 
+  # By default we don't want to use the service logger
+  servicelog = False
 
   if len(args) < 2:
     usage("Must supply a restrictions file and a program file to execute")
@@ -294,6 +302,11 @@ if __name__ == '__main__':
       # Move
       os.chdir(args[1])
       args = args[2:]
+
+    # Brent: Enable logging of internal errors to the service logger.
+    if args[0] == '--servicelog':
+      servicelog = True
+      args = args[1:]
     
     # Update repy current directory
     repy_constants.REPY_CURRENT_DIR = os.path.abspath(os.getcwd())
@@ -313,7 +326,11 @@ if __name__ == '__main__':
   progname = args[1]
   progargs = args[2:]
 
-  tracebackrepy.initialize(progname)
+
+  # We also need to pass in whether or not we are going to be using the service
+  # log for repy.  I am counting on this being called here being enough for
+  # its use in all of the various repy modules.  -Brent
+  tracebackrepy.initialize(progname, servicelog)
 
   try:
     main(restrictionsfn, progname,progargs,stopfile)

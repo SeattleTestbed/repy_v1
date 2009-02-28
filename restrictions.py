@@ -16,6 +16,8 @@
 # this does the resource tracking / process stopping
 import nanny
 
+# Used to handle internal errors
+import tracebackrepy
 
 """ 
 The restrictions file format consists of lines that look like this:
@@ -375,7 +377,12 @@ def assertisallowed(call,*args):
     # would do an upcall here...
     raise Exception, "Call '"+ str(call)+"' not allowed"
   else:
-    raise Exception, "Internal Error: find_action returned '"+str(action)+"' for call '"+ str(call)+"'"
+    # This will cause the program to exit and log things if logging is
+    # enabled. -Brent
+    tracebackrepy.handle_internalerror("find_action returned '" + str(action) +
+        "' for call '" + str(call) + "'", 31)
+
+
 
 def init_restrictions(filename):
   # Set up tables that list the rules and resource restrictions

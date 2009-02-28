@@ -21,16 +21,28 @@ import sys
 
 userfilename = None
 
+# Used to determine whether or not we use the service logger to log internal
+# errors.  Defaults to false. -Brent
+servicelog = False
+
+# We need the service logger to log internal errors -Brent
+import servicelogger
+
+# We need to be able to do a harshexit on internal errors
+import nonportable
 
 # I'd like to know if it's a "safety concern" so I can tell the user...
 # I'll import the module so I can check the exceptions
 import safe
 
 
-# sets the user's file name
-def initialize(ufn):
+# sets the user's file name.
+# also sets whether or not the servicelogger is used. -Brent
+def initialize(ufn, log=False):
   global userfilename
+  global servicelog
   userfilename = ufn
+  servicelog = log
 
 # Public: this prints the previous exception in a readable way...
 def handle_exception():
@@ -74,4 +86,59 @@ def handle_exception():
     print >> sys.stderr, "Exception (with type "+str(exceptiontype)+"):", exceptionvalue
 
 
+def handle_internalerror(error_string, exitcode):
+  """
+  <Author>
+    Brent Couvrette
+  <Purpose>
+    When an internal error happens in repy it should be handled differently 
+    than normal exceptions, because internal errors could possibly lead to
+    security vulnerabilities if we aren't careful.  Therefore when an internal
+    error occurs, we will not return control to the user's program.  Instead
+    we will log the error to the service log if available, then terminate.
+  <Arguments>
+    error_string - The error string to be logged if logging is enabled.
+    exitcode - The exit code to be used in the harshexit call.
+  <Exceptions>
+    None
+  <Side Effects>
+    The program will exit.
+  <Return>
+    Shouldn't
+  """
 
+  if not servicelog:
+    # If the service log is disabled, lets just exit.
+    nonportable.harshexit(exitcode)
+  else:
+    # Internal errors should not be given to the user's code to be caught,
+    # so we print the exception to the service log and exit. -Brent
+    exceptionstring = "[INTERNAL ERROR] " + error_string + '\n'
+    for line in traceback.format_stack():
+      exceptionstring = exceptionstring + line
+
+    # This magic is determining what directory we are in, so that can be
+    # used as an identifier in the log.  In a standard deployment this
+    # should be of the form vXX where XX is the vessel number.  We don't
+    # want any exceptions here preventing us from exitting, so we will
+    # wrap this in a try-except block, and use a default value if we fail.
+    try:
+      identifier = os.path.basename(os.getcwd())
+    except:
+      # We use a blank except because if we don't, the user might be able to
+      # handle the exception, which is unacceptable on internal errors.  Using
+      # the current pid should avoid any attempts to write to the same file at
+      # the same time.
+      identifier = str(os.getpid())
+
+    if identifier == '':
+      # Handle the case where os.cwd might end in a slash.  This probably isn't
+      # necesary, but the documentation is unclear, so I am including it just in
+      # case.
+      identifier = str(os.getpid())
+  
+    # Again we want to ensure that even if we fail to log, we still exit.
+    try:
+      servicelogger.multi_process_log(exceptionstring, identifier, '..')
+    finally:
+      nonportable.harshexit(exitcode)

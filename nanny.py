@@ -22,6 +22,8 @@ import nonportable
 # needed for locking
 import threading
 
+# needed for handling internal errors
+import tracebackrepy
 
 # These are resources that drain / replenish over time
 renewable_resources = ['cpu', 'filewrite', 'fileread', 'netsend', 'netrecv',
@@ -214,7 +216,10 @@ def tattle_quantity(resource, quantity):
 
   # I assume that the quantity will never be negative
   if quantity < 0:
-    raise Exception, "Internal Error: resource '"+resource+"' has a negative quantity "+str(quantity)+"!"
+    # This will cause the program to exit and log things if logging is
+    # enabled. -Brent
+    tracebackrepy.handle_internalerror("Resource '" + resource + 
+        "' has a negative quantity " + str(quantity) + "!", 132)
     
   # get the lock for this resource
   renewable_resource_lock_table[resource].acquire()
@@ -227,7 +232,10 @@ def tattle_quantity(resource, quantity):
     # It's renewable, so I can wait for it to clear
     if resource not in renewable_resources:
       # Should never have a quantity tattle for a non-renewable resource
-      raise Exception, "Internal Error: resource '"+resource+"' is not renewable!"
+      # This will cause the program to exit and log things if logging is
+      # enabled. -Brent
+      tracebackrepy.handle_internalerror("Resource '" + resource + 
+          "' is not renewable!", 133)
   
 
     resource_consumption_table[resource] = resource_consumption_table[resource] + quantity

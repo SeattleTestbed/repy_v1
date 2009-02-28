@@ -1173,7 +1173,10 @@ def do_forked_cpu_monitor(frequency, cpulimit):
         continue
 
       if childpid != pid:
-        raise Exception, "Internal Error: childpid is not pid given by waitpid!"
+        # This will cause the program to exit and log things if logging is
+        # enabled. -Brent
+        tracebackrepy.handle_internalerror("childpid is not pid given by " + 
+            "waitpid", 130)
 
       # NOTE: there may be weirdness here...
       # after testing, Linux doesn't seem to return from my os.wait if the 

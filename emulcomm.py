@@ -34,7 +34,6 @@ import idhelper
 # for sleep
 import time 
 
-
 # The architecture is that I have a thread which "polls" all of the sockets
 # that are being listened on using select.  If a connection
 # oriented socket has a connection pending, or a message-based socket has a
@@ -107,8 +106,10 @@ def should_selector_exit():
     # Check that selector started is true.   This should *always* be the case
     # when I enter this function.   This is to test for bugs in my code
     if not selectorstarted:
-      print >> sys.stderr, "Internal error, SocketSelector is started when selectorstarted is False"
-      nonportable.harshexit(17)
+      # This will cause the program to exit and log things if logging is
+      # enabled. -Brent
+      tracebackrepy.handle_internalerror("SocketSelector is started when" +
+          ' selectorstarted is False', 39)
 
     # Got the lock...
     for comm in comminfo.values():
@@ -161,9 +162,9 @@ def start_event(entry, handle,eventhandle):
       EventDeliverer(entry['function'],(addr[0], addr[1], data, handle), eventhandle).start()
     except:
       # This is an internal error I think...
-      print >> sys.stderr, "Internal error, can't start UDP EventDeliverer"
-      tracebackrepy.handle_exception()
-      nonportable.harshexit(12)
+      # This will cause the program to exit and log things if logging is
+      # enabled. -Brent
+      tracebackrepy.handle_internalerror("Can't start UDP EventDeliverer", 29)
 
 
 
@@ -187,19 +188,16 @@ def start_event(entry, handle,eventhandle):
       EventDeliverer(entry['function'],(addr[0], addr[1], safesocket, newhandle, handle),eventhandle).start()
     except:
       # This is an internal error I think...
-      print >> sys.stderr, "Internal error, can't start TCP EventDeliverer"
-      tracebackrepy.handle_exception()
-      nonportable.harshexit(15)
+      # This will cause the program to exit and log things if logging is
+      # enabled. -Brent
+      tracebackrepy.handle_internalerror("Can't start TCP EventDeliverer", 23)
 
 
   else:
     # Should never get here
-    print >> sys.stderr, "Internal error in start_event.   Unknown entry type"
-    nonportable.harshexit(16)
-
-
-
-        
+    # This will cause the program to exit and log things if logging is
+    # enabled. -Brent
+    tracebackrepy.handle_internalerror("In start event, Unknown entry type", 51)
 
 
 
@@ -323,8 +321,9 @@ def check_selector():
         return
   
     # this is bad.   The socketselector went away...
-    print >> sys.stderr, "Internal error, SocketSelector died"
-    nonportable.harshexit(13)
+    # This will cause the program to exit and log things if logging is
+    # enabled. -Brent
+    tracebackrepy.handle_internalerror("SocketSelector died", 59)
 
 
 
