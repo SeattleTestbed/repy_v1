@@ -128,6 +128,8 @@ class circular_logger:
   # Am I still on the first buffer
   first = None
 
+  # Should we be using the nanny to limit the lograte
+  should_nanny = True
 
 
   # I do not use these.   This is merely for API convenience
@@ -140,12 +142,13 @@ class circular_logger:
 
 
 
-  def __init__(self, fnp, mbs = 16 * 1024):
+  def __init__(self, fnp, mbs = 16 * 1024, use_nanny=True):
     self.maxbuffersize = mbs
     self.filenameprefix = fnp
     self.oldfn = fnp+".old"
     self.newfn = fnp+".new"
     self.writelock = threading.Lock()
+    self.should_nanny = use_nanny
 
     
     
@@ -210,12 +213,16 @@ class circular_logger:
     # acquire (and release later no matter what)
     self.writelock.acquire()
     try:
-      # block if already over
-      nanny.tattle_quantity('lograte',0)
+      if self.should_nanny:
+        # Only invoke the nanny if the should_nanny flag is set.
+        # block if already over
+        nanny.tattle_quantity('lograte',0)
 
       writeamt = self.writedata(writeitem)
 
-      nanny.tattle_quantity('lograte',writeamt)
+      if self.should_nanny:
+        # Only invoke the nanny if the should_nanny flag is set.
+        nanny.tattle_quantity('lograte',writeamt)
 
     finally:
       self.writelock.release()
@@ -230,14 +237,18 @@ class circular_logger:
     # acquire (and release later no matter what)
     self.writelock.acquire()
     try:
-      # block if already over
-      nanny.tattle_quantity('lograte',0)
+      if self.should_nanny:
+        # Only invoke the nanny if the should_nanny flag is set.
+        # block if already over
+        nanny.tattle_quantity('lograte',0)
   
       writeamt = 0
       for writeitem in writelist:
         writeamt = writeamt + self.writedata(writeitem)
 
-      nanny.tattle_quantity('lograte',writeamt)
+      if self.should_nanny:
+        # Only invoke the nanny if the should_nanny flag is set.
+        nanny.tattle_quantity('lograte',writeamt)
   
     finally:
       self.writelock.release()
