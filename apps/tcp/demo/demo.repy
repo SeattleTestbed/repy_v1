@@ -12,11 +12,12 @@ def server(callargs):
   socket.listen()
   socket.accept()
 
-  # recv
   times = 100
+  # recv
   while times:
     socket.recv(1047)
     times -= 1
+    sleep(.01)
 
   socket.disconnect()
 
@@ -42,7 +43,7 @@ def client(callargs):
   # send
   packetNum = 0
   startTime = getruntime()
-  while (packetNum < totalChunks):
+  while (packetNum < chunks):
     socket.send(chunk)
     socket.recv(1000)
     packetNum += 1
@@ -51,14 +52,15 @@ def client(callargs):
   # close
   socket.disconnect()
 
+  sleep(.1)
   # result
   print statistics(chunks, chunkSize, endTime - startTime)
 
-def statistics(chunks, chunkSize, runtime):
+def statistics(chunks, chunkSize, runTime):
   print "\n\n******* Statistics for TCUP *******"
-  print "* Sent " + str(chunks) + " packets, which had a size of " + str(chunkSize) + " bytes." 
-  print "* Total runtime: " + str(runTime) + " seconds."
-  if runtime:
+  print "* Sent " + str(chunks) + " packets, which had a size of " + str(chunkSize) + " bytes" 
+  print "* Total runtime: " + str(runTime) + " seconds"
+  if runTime:
     print "* At a Rate of: " + str((chunks * chunkSize * 1.0) / (runTime * 1.0)) + " Bytes/Second"
   print "***********************************\n\n"
   
