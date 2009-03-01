@@ -1,0 +1,79 @@
+include tcp.repy
+
+def server(callargs):
+  # init
+  socket = Connection()
+
+  # bind
+  myport = int(callargs[1])
+  socket.bind(getmyip(), myport)
+
+  # listen
+  socket.listen()
+  socket.accept()
+
+  # recv
+  times = 100
+  while times:
+    socket.recv(1047)
+    times -= 1
+
+  socket.disconnect()
+
+def client(callargs):
+  # init
+  socket = Connection()
+
+  # bind
+  myport = int(callargs[1])
+  socket.bind(getmyip(), myport)
+
+  # connect
+  destip = callargs[2]
+  destport = int(callargs[3])
+  socket.connect(destip, destport)
+
+  # send setup
+  totalBytes = int(callargs[4])
+  chunkSize = int(callargs[5])
+  chunks = totalBytes/chunkSize
+  chunk = chunkSize * "a"
+ 
+  # send
+  packetNum = 0
+  startTime = getruntime()
+  while (packetNum < totalChunks):
+    socket.send(chunk)
+    socket.recv(1000)
+    packetNum += 1
+  endTime = getruntime()
+
+  # close
+  socket.disconnect()
+
+  # result
+  print statistics(chunks, chunkSize, endTime - startTime)
+
+def statistics(chunks, chunkSize, runtime):
+  print "\n\n******* Statistics for TCUP *******"
+  print "* Sent " + str(chunks) + " packets, which had a size of " + str(chunkSize) + " bytes." 
+  print "* Total runtime: " + str(runTime) + " seconds."
+  if runtime:
+    print "* At a Rate of: " + str((chunks * chunkSize * 1.0) / (runTime * 1.0)) + " Bytes/Second"
+  print "***********************************\n\n"
+  
+
+def usage():
+  print "Usage: (-c | -s) port [destport destip totalBytes chunkSize]"
+
+def main():
+  if callargs[0] == "-c":
+    client(callargs)
+  elif callargs[0] == "-s":
+    server(callargs)  
+  else:
+    print usage()
+
+if callfunc == 'initialize':
+  main()  
+  exitall()

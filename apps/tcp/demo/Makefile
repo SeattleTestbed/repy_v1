@@ -36,12 +36,14 @@ download: repy tcp benchmarks restrictions
 demo: tcup pytcp repytcp 
 
 # run it
-tcuptest: download
+tcup2: repy tcp restrictions
 	# Running TCUP Benchmark...
 	python ${REPYPP} ${DEMO}.repy ${DEMO}
-	python ${REPY} ${RESTR} ${DEMO} ${PORT_A} ${TOT} ${CHUNK}
+        # Arguments required: (-s or -c) LocalPort [DestinationIP DestinationPort TotalBytes ChunkSize]
+	python ${REPY} ${RESTR} ${DEMO} -s ${PORT_B} &
+	python ${REPY} ${RESTR} ${DEMO} -c ${PORT_A} ${DESTIP} ${PORT_B} ${TOT} ${CHUNK}
         # done.
-	#
+	rm ${DEMO}
 
 tcup: download
 	# Running TCUP Benchmark...
