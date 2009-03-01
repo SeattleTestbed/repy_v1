@@ -27,13 +27,22 @@ CHUNK=100
 
 DIST=tcpdemo
 
+DEMO=demo
+
 all: download demo
 
 download: repy tcp benchmarks restrictions
 
-demo: pytcp repytcp tcup
+demo: tcup pytcp repytcp 
 
 # run it
+tcuptest: download
+	# Running TCUP Benchmark...
+	python ${REPYPP} ${DEMO}.repy ${DEMO}
+	python ${REPY} ${RESTR} ${DEMO} ${PORT_A} ${TOT} ${CHUNK}
+        # done.
+	#
+
 tcup: download
 	# Running TCUP Benchmark...
 	python ${REPYPP} ${TCUP}.repy ${TCUP}
@@ -64,11 +73,13 @@ pytcp: download
 
 semiclean:
 	rm -rf ${TCUP}* ${REPYTCP}* ${PYTCP}* ${RESTR}
+
+clean: semiclean
+	rm -rf ${TCP} ${REPYDIR} ${REPYTAR} ${DIST} '.${DIST}' ${DIST}.tgz
+
+superclean: clean
 	killall -9 python
 
-clean:
-	rm -rf ${TCP} ${REPYDIR} ${REPYTAR} ${TCUP}* ${REPYTCP}* ${PYTCP}* ${DIST} '.${DIST}' ${DIST}.tgz ${RESTR}
-	killall -9 python
 
 dist: clean
 	mkdir '.${DIST}'

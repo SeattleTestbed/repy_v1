@@ -24,8 +24,12 @@
 ############
 # Constants
 ###########
-REPYDIR=../..
-REPYPP=../../../seattlelib/repypp.py
+# the dist
+REPYTAR=seattle_linux.tgz
+# the untared dir
+REPYDIR=seattle_repy
+
+REPYPP=${REPYDIR}/repypp.py
 ROOTDIR=tcp
 
 # test
@@ -85,20 +89,10 @@ image:
 	sed -i 's/^\(include .*\)$$/#\1/' ${IMAGEDIR}/${ROOTDIR}.repy
 
 # Makes a distributable version of the current code
-dist: clean
+dist: superclean
 	# get all of the repo setup
 	mkdir ${DISTDIR}
 	cp -r * ${DISTDIR}
-
-	# setup a Repy distribution
-	if [ ! -e ${DISTDIR}/repy ]; then mkdir ${DISTDIR}/repy; fi
-	cp ${REPYDIR}/*.py ${DISTDIR}/repy
-	sed -i 's/^REPYDIR=.*$$/REPYDIR=repy/' ${DISTDIR}/Makefile
-	sed -i 's/^REPYPP=.*$$/REPYPP=${TESTS_SRC_DIR}\/repypp.py/' ${DISTDIR}/Makefile
-
-	# setup a Repypp distribution
-	cp ${REPYPP} ${DISTDIR}/${TESTS_SRC_DIR}
-	sed -i 's/^REPYPP=.*$$/REPYPP=repypp.py/' ${DISTDIR}/${TESTS_SRC_DIR}/build.sh
 
 	# tar it
 	mv ${DISTDIR} ${ROOTDIR} # rename as root dir
@@ -120,12 +114,22 @@ test:
 
 # Builds all test files
 # Takes FN as arg, ex. `make FN=*controller*` to build all files with glob.
-build:
+build: repy
 	cd ${TESTS_SRC_DIR} && ./build.sh ${TESTDIR} "*${FN}*"
 	cp ${TESTS_SRC_DIR}/*.txt ${TESTDIR}
 	cp ${TESTS_SRC_DIR}/restrictions.* ${TESTDIR}
 	cp ${TESTS_SRC_DIR}/run_tests.py ${TESTDIR}
 	cp ${REPYDIR}/*.py ${TESTDIR}
+
+superclean: clean
+	rm -rf ${REPYDIR}
+
+# download repy
+repy:   
+	# Dowloading Repy...
+	if [ ! -e ${REPYDIR} ]; then wget --no-check-certificate https://seattlegeni.cs.washington.edu/geni/download/flibble/${REPYTAR}; tar xzf ${REPYTAR}; rm -f ${REPYTAR}; fi
+	# done.
+	#
 
 cp_units:
 	cp ${UNITS}/* ${TESTS_SRC_DIR}

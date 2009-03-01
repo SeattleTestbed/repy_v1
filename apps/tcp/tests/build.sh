@@ -5,7 +5,8 @@
 
 : ${1?"Usage: $0 output_directory [files ...]"}
 
-REPYPP=../../../../seattlelib/repypp.py 
+REPYDIR=../seattle_repy
+REPYPP=${REPYDIR}/repypp.py 
 TESTDIR=$1
 
 if [ ! -e ../${TESTDIR} ]
