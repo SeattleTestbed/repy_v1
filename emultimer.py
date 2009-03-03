@@ -15,6 +15,9 @@ import restrictions
 import nanny
 import idhelper
 
+# This is to use do_sleep
+import misc
+
 # for printing exceptions
 import tracebackrepy
 
@@ -51,20 +54,8 @@ def sleep(seconds):
 
   restrictions.assertisallowed('sleep',seconds)
   
-  # Using getruntime() in lieu of time.time() because we want elapsed time 
-  # regardless of the oddities of NTP
-  start = nonportable.getruntime()
-  sleeptime = seconds
-
-  # return no earlier than the finish time
-  finish = start + seconds
-
-  while sleeptime > 0.0:
-    time.sleep(sleeptime)
-    now = nonportable.getruntime()
-
-    # If sleeptime > 0.0 then I woke up early...
-    sleeptime = finish - now
+  # Use the do_sleep implementation in misc
+  misc.do_sleep(seconds)
 
 
 
