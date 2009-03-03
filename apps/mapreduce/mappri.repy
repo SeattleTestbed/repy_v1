@@ -25,11 +25,11 @@ def initalize_replicas(data):
     # send data to each replica
     for ip, port in mycontext['replica_list'].iteritems():
         socketobj = openconn(ip, port)
-        print "sending primary: ", prim_str
+#        print "sending primary: ", prim_str
         socketobj.send(prim_str)
-        print "sending replicas: ", replica_str
+#        print "sending replicas: ", replica_str
         socketobj.send(replica_str)
-        print "sending data: ", data
+#        print "sending data: ", data
         socketobj.send(data)
 
 #        mycontext['is_received'] = socketobj
