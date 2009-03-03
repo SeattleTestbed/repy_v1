@@ -14,16 +14,25 @@ import time
 
 import os
 
+# This is for do_sleep
+import nonportable
+
 # sleep for a specified time.  Don't return early (no matter what)
-def do_sleep(waittime):
+def do_sleep(seconds):
+  # Using getruntime() in lieu of time.time() because we want elapsed time 
+  # regardless of the oddities of NTP
+  start = nonportable.getruntime()
+  sleeptime = seconds
 
-  # there might be a race here
-  endtime = time.time() + waittime
-  sleeptime = endtime - time.time()
-  while sleeptime>0:
+  # return no earlier than the finish time
+  finish = start + seconds
+
+  while sleeptime > 0.0:
     time.sleep(sleeptime)
-    sleeptime = endtime - time.time()
+    now = nonportable.getruntime()
 
+    # If sleeptime > 0.0 then I woke up early...
+    sleeptime = finish - now
 
 
 # check the disk space used by a dir.   Stolen from an implementation in 
