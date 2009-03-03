@@ -64,6 +64,9 @@
    re_foo_bar.py -- run the test (expecting an exception) with foo as the 
   restriction file.
   
+  The n, e, z, b and u tests can be prefixed with "py_" to indicate that this is 
+  a python unit test, and not a repy unit test. Ex: py_z_test_foo.py
+  
   The node manager tests are:
   
     nmtest*.py -- nmmain.py must be running on a
@@ -100,11 +103,19 @@ import testportfiller
 # what we print at the end...
 endput = ''
 
-def run_test(testname):
+def run_test(fulltestname):
   global passcount
   global failcount
   
   #print "Running on: ", testname
+  
+  #Is this a pytjon or repy unit test?
+  is_python_test = False
+  if fulltestname.startswith('py_'):
+    is_python_test = True
+    testname = fulltestname[3:]
+  else:
+    testname = fulltestname
   
   if testname.startswith('rs_') or testname.startswith('re_') or \
 	testname.startswith('rz_') or testname.startswith('rn_') or \
@@ -136,9 +147,9 @@ def run_test(testname):
     raise Exception, "Test name '"+testname+"' of an unknown type!"
 
 
-  logstream.write("Running test %-50s [" % testname)
+  logstream.write("Running test %-50s [" % fulltestname)
   logstream.flush()
-  result = do_actual_test(testtype, restrictfn, testname)
+  result = do_actual_test(testtype, restrictfn, fulltestname, is_python_test)
 
   if result:
     passcount = passcount + 1
@@ -208,7 +219,7 @@ def exec_repy_script(filename, restrictionsfile, arguments):
     
     return (output, '')
   
-def do_actual_test(testtype, restrictionfn, testname):
+def do_actual_test(testtype, restrictionfn, testname, is_python_test):
   global endput
   global mobileNoSubprocess
   
@@ -242,7 +253,10 @@ def do_actual_test(testtype, restrictionfn, testname):
 
   # any out, no err...
   elif testtype == 'n':
-    (testout, testerr) = exec_repy_script(testname, restrictionfn, "--status foo")
+    if is_python_test:
+      (testout, testerr) = exec_command("python " + testname)
+    else:
+      (testout, testerr) = exec_repy_script(testname, restrictionfn, "--status foo")
     
     capture_test_result(testname, testout, testerr, ".repy")
     
@@ -256,7 +270,10 @@ def do_actual_test(testtype, restrictionfn, testname):
 
   # any err, no out...
   elif testtype == 'e':
-    (testout, testerr) = exec_repy_script(testname, restrictionfn, '--status foo')
+    if is_python_test:
+      (testout, testerr) = exec_command("python " + testname)
+    else:
+      (testout, testerr) = exec_repy_script(testname, restrictionfn, '--status foo')
     
     capture_test_result(testname, testout, testerr, ".repy")
     
@@ -270,7 +287,10 @@ def do_actual_test(testtype, restrictionfn, testname):
 
   # no err, no out...
   elif testtype == 'z':
-    (testout, testerr) = exec_repy_script(testname, restrictionfn, '--status foo')
+    if is_python_test:
+      (testout, testerr) = exec_command("python " + testname)
+    else:
+      (testout, testerr) = exec_repy_script(testname, restrictionfn, '--status foo')
     
     capture_test_result(testname, testout, testerr, ".repy")
     
@@ -282,7 +302,10 @@ def do_actual_test(testtype, restrictionfn, testname):
 
   # any err, any out...
   elif testtype == 'b':
-    (testout, testerr) = exec_repy_script(testname, restrictionfn, '--status foo')
+    if is_python_test:
+      (testout, testerr) = exec_command("python " + testname)
+    else:
+      (testout, testerr) = exec_repy_script(testname, restrictionfn, '--status foo')
     
     capture_test_result(testname, testout, testerr, ".repy")
     
@@ -489,7 +512,9 @@ else:
   	  glob.glob("rz_*.py") + glob.glob("rb_*.py") + glob.glob("ru_*.py") + \
 	  glob.glob("re_*.py") + glob.glob("rl_*.py") +glob.glob("s_*.py") + \
 	  glob.glob("n_*.py") + glob.glob("z_*.py") + glob.glob("b_*.py") + \
-	  glob.glob("u_*.py") + glob.glob("e_*.py") + glob.glob("l_*.py"):
+	  glob.glob("u_*.py") + glob.glob("e_*.py") + glob.glob("l_*.py") + \
+    glob.glob("py_n_*.py") + glob.glob("py_z_*.py") + glob.glob("py_b_*.py") + \
+    glob.glob("py_u_*.py") + glob.glob("py_e_*.py"):
     run_test(testfile)
     
   do_oddballtests()
