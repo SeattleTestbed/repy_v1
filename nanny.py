@@ -81,7 +81,7 @@ for init_resource in renewable_resources:
 # Set up renewable resources to start now...
 renewable_resource_update_time = {}
 for init_resource in renewable_resources:
-  renewable_resource_update_time[init_resource] = time.time()
+  renewable_resource_update_time[init_resource] = nonportable.getruntime()
 
 
 
@@ -94,7 +94,7 @@ for init_resource in individual_item_resources:
 # account)
 def update_resource_consumption_table(resource):
 
-  thetime = time.time()
+  thetime = nonportable.getruntime()
 
   # I'm going to reduce all renewable resources by the appropriate amount given
   # the amount of elapsed time.
