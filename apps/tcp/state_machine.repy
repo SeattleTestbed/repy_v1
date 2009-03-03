@@ -207,6 +207,10 @@ class TcpStateMachine:
       else:
 	pass
 
+    #####################
+    # Established
+    #################
+
     elif(self.state == self.STATE_ESTAB):
       # count packet or ignore old ack
       if packet.is_ack():
@@ -223,6 +227,10 @@ class TcpStateMachine:
         advice = OP_RCV_FIN
       else:
 	pass
+
+    ######################
+    # Closing Handshake States
+    #######################
 
     elif(self.state == self.STATE_FIN_WAIT_1):
       # rcvd ACK of fin
@@ -241,32 +249,42 @@ class TcpStateMachine:
       if packet.is_fin():
         self.state = self.STATE_TIME_WAIT
         advice = OP_RCV_FIN
-        self.state = self.STATE_CLOSED
+        self.state = self.STATE_CLOSED # BUG: need to timeout wait
+      elif packet.is_payload(): # Half-open estab
+        advice = OP_RCV_PAYLOAD
       else:
-	pass
+        pass
 
     elif(self.state == self.STATE_CLOSING):
       # rcv ACK of FIN
       if packet.is_ack():
         self.state = self.STATE_TIME_WAIT
         advice = OP_RCV_ACK_FIN
-        self.state = self.STATE_CLOSED # ??
+        self.state = self.STATE_CLOSED # BUG: need to timeout wait
+      if packet.is_fin(): # reack fin
+        advice = OP_RCV_FIN
       else:
 	pass
 
     elif(self.state == self.STATE_CLOSE_WAIT):
-      pass
+      if packet.is_ack(): # Half-open estab
+        advice = OP_RCV_ACK
+      else: 
+        pass
 
     elif(self.state == self.STATE_LAST_ACK):
       # rcv ACK of FIN
       if packet.is_ack():
         advice = OP_RCV_ACK_FIN
-        self.state = self.STATE_CLOSED # ??
+        self.state = self.STATE_CLOSED
       else:
 	pass
 
     elif(self.state == self.STATE_TIME_WAIT):
-      pass
+      if packet.is_fin(): # reack fin
+        advice = OP_RCV_FIN
+      else:
+        pass
 
     else: # garbled packet
       pass # ignore it

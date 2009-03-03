@@ -51,7 +51,7 @@ if callfunc == 'initialize':
   if (mycontext['receivedACK'] != True):
       raise Exception("Ack was not sent after a SYNAck was recieved.")
 
-  socket.disconnect()
+#  socket.disconnect()
   exitall()
 
 

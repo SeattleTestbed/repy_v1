@@ -446,20 +446,16 @@ class Connection:
 
       # Start sending FIN, block until ACK'd
       self.client.close(remoteip, remoteport, localip, localport, retries, timeout)
-  
-      # Wait for FIN, send ACK
-      self.server.close(self.timeout * self.retries)
-      self.lock.acquire()
 
-    # Cleanup
-    stopcomm(self.conn)
-    self.conn = None
-    self.client = None
-    self.server = None
-    self.remoteip = None
-    self.remoteport = None
-    self.requestip = None
-    self.requestport = None
+      self.lock.acquire()
+      if self.server.is_closed(): # half open already
+        self._destroy() # close it fully
+      else:
+        pass # we can only recv now
+
+    else: # cut out
+      self._destroy()
+
     self.lock.release()
 
   ##############################################################
@@ -476,7 +472,7 @@ class Connection:
       to handle the packet.      
     """
     self.lock.acquire()
-    # print "recving: " + mess + " at: " + str(ip) + ":" + str(port) # DEBUG
+    #print "recving: " + mess + " at: " + str(ip) + ":" + str(port) # DEBUG
     packet = unpack(mess)
 
     # How can this happen?
@@ -542,6 +538,10 @@ class Connection:
     elif advice == OP_RCV_FIN:
       if not self.server.process(ip, packet):
 	self.state_machine.rollback() # error so rollback state_machin
+      elif not self.client: # half open connection
+        self._destroy()
+      else: # we can only send, probably call close next
+        pass
 
     elif advice == OP_RCV_ACK_FIN:
       if not self.client.process(packet):
@@ -563,7 +563,7 @@ class Connection:
     <Returns>
       A handle to the listener event.
     """
-    # print "listening on: " + str(ip) + ":" + str(port) # DEBUG
+    #print "listening on: " + str(ip) + ":" + str(port) # DEBUG
     return recvmess(ip, port, self.callback)
 
   def register_sendmess(self, destip, destport, message, srcip = None, srcport = None):
@@ -574,8 +574,22 @@ class Connection:
     <Returns>
       The bytes sent.
     """
-    # print "sending: " + message # DEBUG
+    #print "sending: " + message # DEBUG
     if srcip is None:
       return sendmess(destip, destport, message)
     else:  
       return sendmess(destip, destport, message, srcip, srcport)
+
+  def _destroy(self):
+    """
+    <Purpose>
+      Cleanup all the variables because we're done.
+    """
+    stopcomm(self.conn)
+    self.conn = None
+    self.client = None
+    self.server = None
+    self.remoteip = None
+    self.remoteport = None
+    self.requestip = None
+    self.requestport = None

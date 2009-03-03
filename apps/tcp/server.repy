@@ -12,7 +12,6 @@
   Public Methods:
     server.listen(timeout) - listen for SYN
     server.recv(maxLen) - delete and return data from buffer
-    server.close(timeout) - listen for FIN
 
     Callback:
       server.process(ip, packet) - do what's needed on receipt of payload
@@ -150,31 +149,6 @@ class TcpServer:
 
     return addr
 
-  def close(self, timeout):
-    """
-    <Purpose>
-      wait for FIN, process_payload gets FIN and sets us up
-
-    <Exceptions>
-      raise TimeoutError("timed out closing")
-    """
-    self.lock.acquire()
-    if not self.fin_rcvd:
-      self.sleep_lock.acquire()
-      self.sleep_lock.sleep(timeout)
-      self.lock.release()
-
-      # block until released
-      self.sleep_lock.acquire()
-      self.sleep_lock.release()
- 
-      self.lock.acquire()
-      if not self.fin_rcvd:
-        self.lock.release()
-        raise TimeoutError("timed out closing")
-
-    self.lock.release()
-
   #######################
   # Callback
   #######################
@@ -257,6 +231,16 @@ class TcpServer:
     self.lock.release()
     return ack
 
+
+  def is_closed(self):
+    """
+    <Purpose>
+      wait for FIN, process_payload gets FIN and sets us up
+
+    <Exceptions>
+      raise TimeoutError("timed out closing")
+    """
+    return self.fin_rcvd
 
   #############
   # Private
