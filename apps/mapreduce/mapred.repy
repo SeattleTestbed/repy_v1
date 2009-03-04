@@ -153,13 +153,14 @@ def partition(map_result):
         # this is so we don't lose track of the key if the hash_func is not
         # totally unique/reversible
         values.insert(0,key)
-        if hash in partition_hash:
-            parition_hash[hashcode].append(values)
+        if hashcode in partition_hash:
+            partition_hash[hashcode].append(values)
         else:
             partition_hash[hashcode] = [values]
 
     # we should have a grouping of elements by hash now
-    print partition_hash
+    print "partition hash:", partition_hash
+    print
 
     # attempt to partition elements based on the number of replicas,
     #   first, get all the hash values and sort them
@@ -179,6 +180,7 @@ def partition(map_result):
             peer_data[cur_replica].update(kv)
 
     index = 0
+    print "peer_data:"
     for peer in peer_data:
         print index, "->", peer
         index += 1
