@@ -17,9 +17,6 @@ import time
 # needed for sys.stderr and windows Popen hackery
 import sys
 
-# print useful info when exiting...
-import tracebackrepy
-
 # used to get information about the system we're running on
 import platform
 
@@ -1296,3 +1293,10 @@ else:
 
   # Reset elapsed time 
   elapsedtime = 0
+
+# Armon: import tracebackrepy must come after nonportable is initialized
+# because it has a chain of dependencies which calls into nonportable
+# if it is imported at the top, nanny attempts to make calls into nonportable before the module
+# has finished importing its dependencies
+# print useful info when exiting...
+import tracebackrepy  
