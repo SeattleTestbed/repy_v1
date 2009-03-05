@@ -56,17 +56,23 @@ def get_data(ip, port, socketobj, thiscommhandle, listencommhandle):
     for i in range(mycontext['num_peers']):
         mycontext['peers'].append(recv_message(socketobj))
 
-    print "got my peers: ", mycontext['peers']
-
-    # make sure each replica has the same order!
-    mycontext['peers'].sort()
-
     # parse and save data file:
     buf = recv_message(socketobj)
     print "got data, ", buf
     dataobj = open("map_data.dat", "w")
     dataobj.write(buf)
     dataobj.close()
+
+    # make sure each replica has the same order!
+    mycontext['peers'].sort()
+    print "got my peers: ", mycontext['peers']
+
+    # which peer am I?  save this for future reference..
+    address_str = mycontext['myip'] + ":" + str(mycontext['myport'])
+    mycontext['my_peer_index'] = mycontext['peers'].index(address_str)        
+
+    # start the peer_sockets 
+    mycontext['peer_sockets'] = [""] * mycontext['num_peers']
         
     # destroy the listen socket as we're done initializing
     mycontext['state'] = 'Initialized'
@@ -76,12 +82,22 @@ def get_data(ip, port, socketobj, thiscommhandle, listencommhandle):
     
 # 
 def init_replica_sockets():
-    mycontext['peer_sockets'] = []
-    for replica in mycontext['peers']:
-        addr_parts = replica.partition(":")
-        socketobj = openconn(addr_parts[0], addr_parts[2])
+    # we only want to make one socket for each link, so let's be smart about it
+    # and only make new connections to equal or higher indexed peers..
+    peer_subset = mycontext['peers'][mycontext['my_peer_index']:]
+    for peer in peer_subset:
+        addr_parts = peer.partition(":")
+        socketobj = openconn(addr_parts[0], int(addr_parts[2]))
         socketobj.send("hello")
-        mycontext['peer_sockets'].append(socketobj)
+
+        peer_index = mycontext['peers'].index(peer)
+
+        mycontext['connection_lock'].acquire()
+        mycontext['peer_sockets'][peer_index] = socketobj
+        mycontext['peer_conn_left'] -= 1
+        mycontext['connection_lock'].release()
+
+        print "succesfully communicated with", peer
 
 
 
@@ -92,9 +108,17 @@ def recv_init_replica_conn(ip, port, sockobj, thiscommhandle, listencommhandle):
         exit_prog("Received an unintelligible message from a peer %s:%d, %s" %
                   (ip, port, data))
     else:
+        # save socket obj for later
+        incoming_index = mycontext['peers'].index(ip+":"+str(port))
+
         mycontext['connection_lock'].acquire()
-        mycontext['peers_contacted'] -= 1
+        mycontext['peer_sockets'][incoming_index] = sockobj
+
+        # decrement our connection counter
+        mycontext['peer_conn_left'] -= 1
         mycontext['connection_lock'].release()
+
+        print "successfully receive init message from", ip+":"+str(port)
 
 
 # listens for incoming map data
@@ -179,24 +203,23 @@ def partition(map_result):
             kv = dict([[kv_pairs[0], kv_pairs[1:]]])
             peer_data[cur_replica].update(kv)
 
+    # print out the peer data, just for my reference
     index = 0
     print "peer_data:"
     for peer in peer_data:
         print index, "->", peer
         index += 1
 
-    # send data to replicas, each replica should have a dictionary of kv pairs
-    
+    # send data to replicas, each replica should have a dictionary of kv pairs  
     for peer_index in range(mycontext['num_peers']):
         address = mycontext['peers'][peer_index].partition(":")
         socketobj = openconn(address[0], int(address[2]))
         send_message_dict(socketobj, peer_data[peer_index])
-    
-
 
     
 def do_reduce():
-    data = open("reduce_data.dat", "r")
+    #data = open("reduce_data.dat", "r")
+    data = mycontext['reduce_data']
     
     reduce_result = []
     for line in data:
@@ -285,6 +308,9 @@ if callfunc == 'initialize':
     else:
         port = 12345
         ip = '127.0.0.1'
+
+    mycontext['myip'] = ip
+    mycontext['myport'] = port
     
     print "waiting for connection on ", ip, ":",  port
     listencommhandle = waitforconn(ip, port, get_data)
@@ -295,21 +321,24 @@ if callfunc == 'initialize':
     
     # try to open connections to all hosts
     mycontext['connection_lock'] = getlock()
-    mycontext['peers_contacted'] = mycontext['num_peers']
+    mycontext['peer_conn_left'] = mycontext['num_peers']
 
     # listen for connections from peers
-    #listen_replica_init = waitforconn(ip, port, recv_init_replica_conn)    
+    listen_replica_init = waitforconn(ip, port, recv_init_replica_conn)    
     # open connections to peers
-    #init_replica_sockets()
+    init_replica_sockets()
 
-    #while mycontext['peers_contacted'] != 0:
-    #    sleep(0.1)
+    while mycontext['peer_conn_left'] != 0:
+        sleep(0.1)
+
     
     # stop listening to initialization connections
     #stopcomm(listen_replica_init)
     mycontext['state'] = 'Connected'
 
     # start listening for map data from peers
+    # !! CAN'T DO IT LIKE THIS: use the sockettimeout thing?
+    listencommhandle = waitforconn(ip, port, recv_peer_map_data)
 
     # start mapping, synchronous call
     map_result = do_map()
@@ -319,10 +348,14 @@ if callfunc == 'initialize':
     
     # block until 
     while mycontext['state'] != 'ReducerWaiting':
-        sleep(1)
-        
+        sleep(0.1)
+
     # start reducing, synchronous call (wait for all data to come in, 
     # then start)
     reduce_result = do_reduce()
 
     report_results(reduce_result)
+
+
+
+    
