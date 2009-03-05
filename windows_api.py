@@ -107,7 +107,7 @@ _terminateProcess = kerneldll.TerminateProcess # Kills a process
 _closeHandle = kerneldll.CloseHandle # Closes any(?) handle object
 _getLastError = kerneldll.GetLastError # Gets last error number of last error
 _waitForSingleObject = kerneldll.WaitForSingleObject # Waits to acquire mutex
-_createMutex = kerneldll.CreateMutexW # Creates a Mutex, Unicode version
+_createMutex = kerneldll.CreateMutexA # Creates a Mutex, ANSI version
 _releaseMutex = kerneldll.ReleaseMutex # Releases mutex
 
 try:
@@ -165,7 +165,7 @@ else:
   _createSnapshot = kerneldll.CreateToolhelp32Snapshot # Makes snapshot of threads 
   _firstThread = kerneldll.Thread32First # Reads from Thread from snapshot
   _nextThread = kerneldll.Thread32Next # Reads next Thread from snapshot
-  _openMutex = kerneldll.OpenMutexW # Opens an existing Mutex, Unicode Version
+  _openMutex = kerneldll.OpenMutexA # Opens an existing Mutex, Unicode Version
   _globalMemoryStatus = kerneldll.GlobalMemoryStatusEx # Gets global memory info
   _currentThreadId = kerneldll.GetCurrentThreadId # Returns the ThreadID of the current thread
   
@@ -995,14 +995,21 @@ def createMutex(name):
   <Returns>
     handle to the mutex.
   """
-  
   # Attempt to create Mutex
   handle = _createMutex(None, 0, name)
   
   # Check for a successful handle
   if not handle == False: 
+    # Try to acquire the mutex for 200 milliseconds, check if it is abandoned
+    val = _waitForSingleObject(handle, 200)
+    
+    # If the mutex is signaled, or abandoned release it
+    # If it was abandoned, it will become normal now
+    if (val == WAIT_OBJECT_0) or (val == WAIT_ABANDONED):
+      _releaseMutex(handle)
+    
     # Set the lock count to 1
-    _MutexLockCount[handle] = 1
+    _MutexLockCount[handle] = 0
     return handle
   else: # Raise exception on failure
     raise FailedMutex, (_getLastError(), "Error creating mutex! Mutex name: " + str(name) + " Error Str: " + str(ctypes.WinError()))
