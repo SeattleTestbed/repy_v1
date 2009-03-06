@@ -5,6 +5,300 @@
 - more space between functions, 3-4 space lines
 '''
 
+#begin include timeout_socket.repy
+"""
+<Description>
+  A socket that recv's messages always.   Raises TimeoutError after a given timeout.
+  If actually recv's a message, returns the message and continues.
+
+<Usage>
+  Text-replacable for Repy Sockets:
+    timeout_openconn(desthost, destport, localip=None, localport=None, timeout = 5)
+    timeout_waitforconn(localip, localport, function)
+    timeout_stopcomm(sockobj)
+
+  Object:
+    sockobj.send(data)
+    sockobj.recv(bytes)
+
+<Date>
+  Sun Mar  1 10:27:35 PST 2009
+
+<Example>
+  # hello world
+  include sockettimer.repy
+
+  def callback(ip, port, sockobj, commhandle, listenhandle):
+    hw_message =sockobj.recv(1047)
+    timeout_stopcomm(sockobj)
+    timeout_stopcomm(listenhandle)
+    print hw_message # => "hello world!"
+  
+  def server():
+    sockobj = timeout_waitforconn(getmyip(), 12345, callback)
+
+  def client():
+    sockobj = timeout_openconn(getmyip(), 12345)
+    sockobj.send("hello world!")
+
+  def main():
+    server()
+    client()
+    exitall()
+
+  if callfunc == 'initialize':
+    main() 
+"""
+
+class TimeoutError(Exception):
+  """The socket timed out before receiving a response"""
+
+def timeout_openconn(desthost, destport, localip=None, localport=None, timeout = 5):
+  """
+  <Purpose> 
+    Wrapper for Repy like socket interface
+
+  <Args>
+    Same as Repy openconn
+
+  <Exception>
+    Timeout exception if the dest address doesnt respond.
+
+  <Returns>
+    socket obj on success
+  """
+
+  tsock = TimeoutSocket()
+  tsock.settimeout(timeout)
+  if localip and localport:
+    tsock.bind((localip, localport))
+  tsock.connect((desthost, destport))
+  return tsock
+
+def timeout_waitforconn(localip, localport, function):
+  """
+  <Purpose> 
+    Wrapper for Repy like socket interface
+
+  <Args>
+    Same as Repy waitforconn
+
+  <Side Effects>
+    Sets up event listener which calls function on messages.
+
+  <Returns>
+    Handle to listener.
+  """
+
+  tsock = TimeoutSocket()
+  tsock.bind((localip, localport))
+  tsock.setcallback(function)
+  return tsock.listen()
+
+def timeout_stopcomm(sockobj):
+  sockobj.close()
+
+class TimeoutSocket:
+  """
+  <Purpose>
+    Provide an socket object like the Repy usual one.
+
+  <Side Effects>
+    Uses a getlock() to watch for a timeout
+    Uses waitforconn and openconn to simulate socket
+  """
+
+  ################
+  # Constructors
+  ################
+
+  def __init__(self):
+    """ Constructor for socket """
+    self.lock = getlock() # general lock
+    self.timeout_lock = getlock() # special lock for Timeout condition
+    self.timeout = 5 # seconds to wait
+
+    # user vars   
+    self.local_address = None # ip, port
+    self.remote_address = None # ip, port
+    self.callback = None # the user's function to call
+
+    # repy socket vars
+    self.sockobj = None #  the Repy socket
+    self.commhandle = None # the current comm
+    self.listencommhandle = None # the listener comm
+
+  ################
+  # Mutator methods
+  #################
+
+  def settimeout(self, value):
+    """ Setter for timeout"""
+    self.timeout = value
+
+  def setcallback(self, function):
+    """ Setter for callback function"""
+    self.callback = function
+
+  ####################
+  # Public Methods
+  ####################
+
+  def bind(self, local_address = None):
+    """
+    <Purpose>
+      Set local address
+
+    <Args>
+      Tuple of (ip, port) local.
+    """
+    self.local_address = local_address
+
+  def listen(self):
+    """
+    <Purpose>
+      Listen for peer
+    
+    <Side Effects>
+      Calls Repy waitforconn()
+    """
+    return self._waitforconn()
+
+  def connect(self, remote_address):
+    """
+    <Purpose>
+      Connect to peer.
+
+    <Args>
+      Tuple of (ip, port) remote.
+   
+    <Side Effects>
+      Calls Repy openconn.
+    """
+    self.remote_address = remote_address
+    self._openconn()
+
+  def recv(self, maxLen, timeout=None):
+    """
+    <Purpose>
+      If it fails to finish within the timeout, I close the socket and raise a
+      TimeoutError exception. I.e. if there's no message, we call it an error
+      and raise it.
+      
+    <Arguments>
+      maxLen - bytes to recv
+      timeout - time to wait before checking to see if 
+
+    <Exception>
+      Raises TimeoutError exception if the recv times out
+      without receiving a message.
+
+    <Side Effects>
+      Closes the connection if times out.
+
+    <Returns>
+      The message.
+    """
+    return self.sockobj.recv(maxLen)
+
+  def send(self, data):
+    """
+    <Purpose>
+      Just like normal Repy socket.  Sends messages.
+      
+    <Arguments>
+      data - the string message
+
+    <Exception>
+      Same as Repy socket.
+ 
+    <Returns>
+      The bytes sent.
+    """
+    return self.sockobj.send(data)
+
+  def close(self):
+    self.local_address = None # ip, port
+    self.remote_address = None # ip, port
+    self.callback = None # the user's function to call
+
+    stopcomm(self.sockobj)
+    self.sockobj = None #  the Repy socket
+    stopcomm(self.commhandle)
+    self.commhandle = None # the current comm
+    stopcomm(self.listencommhandle)
+    self.listencommhandle = None # the listener comm
+
+
+  ########################
+  # Private
+  #########################
+
+  def _openconn(self):
+    """Handle current state variables and call Repy openconn."""
+
+    destip, destport = self.remote_address
+    if self.local_address:
+      srcip, srcport = self.local_address
+      self.sockobj = openconn(destip, destport, srcip, srcport, self.timeout)
+    else:
+      self.sockobj = openconn(destip, destport)
+
+  def _waitforconn(self):
+    """Setup way between Repy waitforconn event"""
+    localip, localport = self.local_address
+    self.listencommhandle = waitforconn(localip, localport, self._callback)
+    return self.listencommhandle
+
+  def _callback(self, ip, port, sockobj, ch, lh):
+    """Pass on through to user callback"""
+    self.sockobj = sockobj
+    self.listencommhandle = lh # same as the 1st from wait for comm, right?
+    self.commhandle = ch # should we care?
+    
+    if not self.remote_address:
+      self.remote_address = (ip, port)
+    else: 
+      raise Exception("what! peer does not match?")
+
+    self.callback(ip, port, self, ch, lh)
+
+
+############################
+# Old functions
+##############################
+
+# private function...
+def sockettimeout_clobbersocket(sockobj,mylock):
+  # if I can acquire the lock without blocking, then close the socket to abort
+  if mylock.acquire(False):
+    sockobj.close()
+
+# if it fails to finish within the timeout, I close the socket and raise a
+# SocketTimeout exception...
+def sockettimeout_recv_or_close(sockobj, amount, timeout):
+  # A lock I'll use for this attempt
+  mylock = getlock()
+  timerhandle = settimer(timeout,clobbersocket, (sockobj, mylock))
+  try:
+    retdata = sockobj.recv(amount)
+  except Exception, e:
+    # if it's not the timeout, reraise...
+    if mylock.acquire(False):
+      raise
+    raise SocketTimeout
+    
+  # I acquired the lock, I should stop the timer because I succeeded...
+  if mylock.acquire(False):
+    # even if this isn't in time, the lock prevents a race condition 
+    # this is merely an optimization to prevent the timer from ever firing...
+    canceltimer(timerhandle)
+    return retdata
+  else:
+    raise SocketTimeout
+
+
+#end include timeout_socket.repy
 
 # MapReduce for python/repy!
 #
@@ -87,7 +381,7 @@ def init_replica_sockets():
     peer_subset = mycontext['peers'][mycontext['my_peer_index']:]
     for peer in peer_subset:
         addr_parts = peer.partition(":")
-        socketobj = openconn(addr_parts[0], int(addr_parts[2]))
+        socketobj = timeout_openconn(addr_parts[0], int(addr_parts[2]))
         socketobj.send("hello")
 
         peer_index = mycontext['peers'].index(peer)
@@ -118,14 +412,35 @@ def recv_init_replica_conn(ip, port, sockobj, thiscommhandle, listencommhandle):
         mycontext['peer_conn_left'] -= 1
         mycontext['connection_lock'].release()
 
-        print "successfully receive init message from", ip+":"+str(port)
+        print "successfully received init message from", ip+":"+str(port)
 
 
-# listens for incoming map data
-def recv_peer_map_data(ip, port, socketobj, thiscommhandle, listencommhandle):
-    mycontext['connection_lock'].acquire()
-    mycontext['reduce_data'].update(recv_message_dict(socketobj))
-    mycontext['connection_lock'].release()
+# listens for incoming map data (this is run asynchronously)
+def recv_peer_map_data():
+    peer_socket_recvd = []    
+    while len(peer_socket_recvd) != mycontext['num_peers']:
+
+        # cycle through all the sockets, trying to receive
+        for socket in mycontext['peer_sockets']:
+
+            # pass over the socket if we've received data alreadyx
+            if socket in peer_socket_recvd:
+                continue
+
+            # try to receive
+            recv_data = {}
+            try:
+                recv_data = recv_message_dict(socket, timeout=5)
+            except TimeoutError:
+                print "timed out on socket", socket, "... continuing"
+                continue
+            else:
+                mycontext['connection_lock'].acquire()
+                mycontext['reduce_data'].update(recv_data)
+                peer_socket_recvd.append(socket)
+                mycontext['connection_lock'].release()
+            
+    mycontext['state'] = "ReducerWaiting"
 
 
 
@@ -258,8 +573,8 @@ def send_message_dict(socketobj, data_dict):
 
 
 
-def recv_message_dict(socketobj, initialread=2):
-    serialized_dict = recv_message(socketobj, initialread)
+def recv_message_dict(socketobj, initialread=2, timeout=None):
+    serialized_dict = recv_timeout_message(socketobj, initialread, timeout)
 
     data_dict = {} 
     
@@ -276,11 +591,15 @@ def recv_message_dict(socketobj, initialread=2):
     return data_dict
 
 
-
-def recv_message(socketobj, initialread=2):
+def recv_message(socketobj, initialread=2, timeout=None):
     buf = ""
     found = False
     
+    # if timeout, we have a timeout_socket object; try recving, but can throw
+    # TimeoutError here.
+    if timeout:
+        buf += socketobj.recv(1,timeout)
+
     while not found:
         buf += socketobj.recv(initialread)
         if "*" in buf:
@@ -324,21 +643,23 @@ if callfunc == 'initialize':
     mycontext['peer_conn_left'] = mycontext['num_peers']
 
     # listen for connections from peers
-    listen_replica_init = waitforconn(ip, port, recv_init_replica_conn)    
+    listen_replica_init = timeout_waitforconn(ip, port, recv_init_replica_conn)
     # open connections to peers
     init_replica_sockets()
 
     while mycontext['peer_conn_left'] != 0:
         sleep(0.1)
 
-    
-    # stop listening to initialization connections
-    #stopcomm(listen_replica_init)
+    # destroy the listener
+    timeout_stopcomm(listen_replica_init)
     mycontext['state'] = 'Connected'
 
     # start listening for map data from peers
     # !! CAN'T DO IT LIKE THIS: use the sockettimeout thing?
-    listencommhandle = waitforconn(ip, port, recv_peer_map_data)
+    # listencommhandle = waitforconn(ip, port, recv_peer_map_data)
+    
+    # this is the better way to do it... sockettimeout.repy
+    recv_handle = settimer(0, recv_peer_map_data)
 
     # start mapping, synchronous call
     map_result = do_map()
