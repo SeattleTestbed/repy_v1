@@ -203,3 +203,20 @@ def unpack(data):
   res = data.split("~")
   return TcpPacket(res[0], res[1], res[2], res[3], \
                    res[4], res[5], ''.join(res[6:]))
+
+def tcup_destport(data):
+  """
+  <Purpose>
+    Decode a TCUP packet message and
+    only return the destport.
+
+  <Arguments>
+    Encoded packet as string    
+    
+  <Side Effects>
+    Relies on tildas delimiters.
+     
+  <Returns>
+    Just the port number
+  """
+  return unpack(data).destport
