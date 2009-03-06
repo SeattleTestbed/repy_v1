@@ -16,6 +16,8 @@
 
   Cosmin Barsan 1-5-09 - Added the ability to run node manager tests by specifying the -n flag when running the script.
   
+  Armon Dadgar 3-5-09 - Added new flag "-cpu" that runs a special set of tests to check CPU throttling
+   
 <Usage>
   To run the repy unit tests locally, first navigate to trunk, then 
   use these commands:
@@ -24,6 +26,11 @@
   2.  cd <directory>
   3.  python run_tests.py
 
+
+  To run the CPU throttling checks, use these commands:
+  1.  python preparetest.py -t <directory>
+  2.  cd <directory>
+  3.  python run_tests.py -cpu
 
   To run the node manager unit tests locally, open two shells (or command prompts). Navigate to trunk in each.
   
@@ -493,6 +500,60 @@ if len(sys.argv) > 1 and sys.argv[1] == '-ce':
   sys.argv = sys.argv[2:]
   setup_test_capture()
   
+
+# Check for the CPU flag
+# This is a constant for the benchmark interval, how many seconds are used to
+# determine the maximum number of iterations at full CPU
+CPU_TEST_TIME = 10 
+if len(sys.argv) > 1 and sys.argv[1] == "-cpu":
+  # Define mini helper function to run the CPU test
+  def run_cpu_test(suffix, flag, num):
+    if not mobileNoSubprocess:
+      (testout, testerr) = exec_command('python repy.py restrictions.'+suffix+" special_testcputhrottle.py "+flag+" "+num)
+    else:
+      #TODO, make this compatible with WinCE, I don't have a way to pass in my arguments to the test
+      (testout, testerr) = exec_repy_script("special_testcputhrottle.py", "restrictions."+suffix, "")
+    return testout.rstrip("\n")
+  
+  # Get the max iterations
+  logstream.write("Running test %-50s [" % ("100% CPU, Determine cycles, "+str(CPU_TEST_TIME)+" sec"))
+  logstream.flush()
+  iterations_at_fullcpu = run_cpu_test("fullcpu","-t",str(CPU_TEST_TIME))
+  logstream.write(iterations_at_fullcpu.rjust(6)+"]\n")
+  
+  # Run test at 10% cpu
+  logstream.write("Running test %-50s [" % "10%  CPU, Run Cycles")
+  logstream.flush()  
+  time_at_10percent = round(float(run_cpu_test("default","-n",iterations_at_fullcpu)), 2)
+  logstream.write(str(time_at_10percent).rjust(6)+"s]\n")
+  
+  # Run test at 25% cpu
+  logstream.write("Running test %-50s [" % "25%  CPU, Run Cycles")
+  logstream.flush()  
+  time_at_25percent = round(float(run_cpu_test("quartercpu","-n",iterations_at_fullcpu)),2)
+  logstream.write(str(time_at_25percent).rjust(6)+"s]\n")
+  
+  # Run test at 50% cpu  
+  logstream.write("Running test %-50s [" % "50%  CPU, Run Cycles")
+  logstream.flush()
+  time_at_50percent = round(float(run_cpu_test("halfcpu","-n",iterations_at_fullcpu)),2)
+  logstream.write(str(time_at_50percent).rjust(6)+"s]\n")
+
+  # Run test at 100% cpu
+  logstream.write("Running test %-50s [" % "100% CPU, Run Cycles")
+  logstream.flush()  
+  time_at_100percent = round(float(run_cpu_test("fullcpu","-n",iterations_at_fullcpu)), 2)
+  logstream.write(str(time_at_100percent).rjust(6)+"s]\n")
+  
+  # Print status report
+  logstream.write("Real Slow-down should be (semi-)close to Linear, and Relative should be close to 1.\nRelative is the time speedup compared to the increase in cpu from the previous test.\n")
+  logstream.write("10% CPU, Linear: 1000% Real: "+str(round(time_at_10percent/time_at_100percent*100,2))+"%\n")
+  logstream.write("25% CPU, Linear: 400%  Real: "+str(round(time_at_25percent/time_at_100percent*100,2))+"% Relative: "+str(round((10*time_at_10percent/25)/time_at_25percent, 2))+"\n")  
+  logstream.write("50% CPU, Linear: 200%  Real: "+str(round(time_at_50percent/time_at_100percent*100,2))+"% Relative: "+str(round((25*time_at_25percent/50)/time_at_50percent, 2))+"\n")
+  logstream.write("100% CPU, Linear: 100%  Real: "+str(round(time_at_100percent/time_at_100percent*100,2))+"% Relative: "+str(round((50*time_at_50percent/100)/time_at_100percent, 2))+"\n")
+  logstream.flush()
+  exit()
+
 # these are updated in run_test
 passcount=0
 failcount=0
