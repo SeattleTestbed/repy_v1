@@ -133,10 +133,6 @@ if MobileCE:
   # Use internal ce method to handle this
   # _openThreadCE
   
-  # Opens an existing Mutex
-  # Does not exist on CE, lets just link to _createMutex since that will open regardless
-  _openMutex = _createMutex
-  
   # Gets CPU time data for a thread
   # This is used by _processTimesCE
   _threadTimes = kerneldll.GetThreadTimes 
@@ -165,7 +161,6 @@ else:
   _createSnapshot = kerneldll.CreateToolhelp32Snapshot # Makes snapshot of threads 
   _firstThread = kerneldll.Thread32First # Reads from Thread from snapshot
   _nextThread = kerneldll.Thread32Next # Reads next Thread from snapshot
-  _openMutex = kerneldll.OpenMutexA # Opens an existing Mutex, Unicode Version
   _globalMemoryStatus = kerneldll.GlobalMemoryStatusEx # Gets global memory info
   _currentThreadId = kerneldll.GetCurrentThreadId # Returns the ThreadID of the current thread
   
@@ -974,6 +969,13 @@ def processMemoryInfo(PID):
           'PagefileUsage':meminfo.PagefileUsage,
           'PeakPagefileUsage':meminfo.PeakPagefileUsage}  
 
+
+# INFO: Pertaining to _MutexLockCount:
+# With Mutexes, each time they are acquired, they must be released the same number of times.
+# For this reason we account for the number of times a mutex has been acquired, and releaseMutex
+# will call the underlying release enough that the mutex will actually be released.
+# The entry for _MutexLockCount is initialized in createMutex, incremented in acquireMutex
+# and zero'd out in releaseMutex
           
 
 # Creates and returns a handle to a Mutex
@@ -1008,41 +1010,11 @@ def createMutex(name):
     if (val == WAIT_OBJECT_0) or (val == WAIT_ABANDONED):
       _releaseMutex(handle)
     
-    # Set the lock count to 1
+    # Initialize the lock count to 0, since it has not been signaled yet.
     _MutexLockCount[handle] = 0
     return handle
   else: # Raise exception on failure
     raise FailedMutex, (_getLastError(), "Error creating mutex! Mutex name: " + str(name) + " Error Str: " + str(ctypes.WinError()))
-
-
-
-# Opens and returns a handle to a Mutex
-def openMutex(name):
-  """
-  <Purpose>
-    Opens a pre-existing mutex. Does not get control of it.
-  
-  <Arguments>
-    name:
-      The name of the mutex to open.
-  
-  <Exceptions>
-    FailedMutex on bad parameters or failure to open the mutex.
-  
-  <Returns>
-    Handle to the mutex
-  """
-  
-  # Attempt to create Mutex
-  handle = _openMutex(SYNCHRONIZE, 0, name)
-  
-  # Check for a successful handle
-  if not handle == False: 
-    # Set the lock count to 1
-    _MutexLockCount[handle] = 1
-    return handle
-  else: # Raise exception on failure
-    raise FailedMutex, (_getLastError(), "Error opening mutex! Mutex name: " + str(name) + " Error Str: " + str(ctypes.WinError()))
 
 
 
