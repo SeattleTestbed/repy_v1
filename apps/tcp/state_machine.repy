@@ -41,6 +41,7 @@
       OP_RCV_PAYLOAD - receive a PAYLOAD
       OP_RCV_NONE - please ignore
       OP_RCV_FIN - receive the FIN
+      OP_RCV_FINACK - receive the FINACK
       OP_RCV_ACK_FIN - receive the ACK of FIN
 
   <State Diagram>
@@ -241,6 +242,11 @@ class TcpStateMachine:
       elif packet.is_fin():
         self.state = self.STATE_CLOSING
         advice = OP_RCV_FIN
+      # send ACK of FIN and close
+      elif packet.is_finack():
+        self.state = self.STATE_TIME_WAIT
+        advice = OP_RCV_FINACK
+        self.state = self.STATE_CLOSED # BUG: need to timeout wait
       else:
 	pass
 

@@ -151,6 +151,17 @@ class TcpPacket:
     """
     return self.control_bits == "FIN"
 
+  def is_finack(self):
+    """
+    <Purpose>
+      What type of packet is this one?      
+
+    <Returns>
+      Returns true if this packet has control bits of a FINACK packet.
+      Otherwise, false.
+    """
+    return self.control_bits == "FINACK"
+
 
   def pack(self):
     """

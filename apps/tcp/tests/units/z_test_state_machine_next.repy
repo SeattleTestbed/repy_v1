@@ -110,6 +110,11 @@ def test_fin_wait_1_next_fin():
   mycontext['tps'].send("FIN")
   assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSING
 
+def test_fin_wait_1_next_finack():
+  mycontext['sm'].state = mycontext['sm'].STATE_FIN_WAIT_1
+  mycontext['tps'].send("FINACK")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSED
+
 def test_fin_wait_1_next_ack():
   mycontext['sm'].state = mycontext['sm'].STATE_FIN_WAIT_1
   mycontext['tps'].send("ACK")
@@ -227,6 +232,7 @@ if callfunc == 'initialize':
   test_estab_next_fin()
   test_estab_next_else()
   test_fin_wait_1_next_fin()
+  test_fin_wait_1_next_finack()
   test_fin_wait_1_next_ack()
   test_fin_wait_1_next_else()
   test_fin_wait_2_next_fin()
