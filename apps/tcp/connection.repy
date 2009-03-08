@@ -97,6 +97,7 @@ class Connection:
     self.maxdgramsize = DEFAULT_MAXDGRAMSIZE
     self.retries = DEFAULT_RETRIES
     self.timeout = DEFAULT_TIMEOUT
+    self.way_to_close = FOUR_WAY
 
     # undefined
     self.localip = None
@@ -406,7 +407,8 @@ class Connection:
 #      self.lock.acquire()
 #      message = self.server.recv(maxLen)
 
-    self.client.set_recv_window(self.server.get_recv_window())
+    if self.client:  # could be half open?
+      self.client.set_recv_window(self.server.get_recv_window())
     self.lock.release()
 
     return message
@@ -448,6 +450,8 @@ class Connection:
       self.client.close(remoteip, remoteport, localip, localport, retries, timeout)
 
       self.lock.acquire()
+      self.client = None
+
       if self.server.is_closed(): # half open already
         self._destroy() # close it fully
       else:
@@ -472,7 +476,7 @@ class Connection:
       to handle the packet.      
     """
     self.lock.acquire()
-    #print "recving: " + mess + " at: " + str(ip) + ":" + str(port) # DEBUG
+    # print "recving: " + mess + " at: " + str(ip) + ":" + str(port) # DEBUG
     packet = unpack(mess)
 
     # How can this happen?
@@ -532,10 +536,15 @@ class Connection:
     # payload estab
     elif advice == OP_RCV_PAYLOAD:  
       self.server.process(ip, packet) # send ack?
-      self.client.set_recv_window(self.server.get_recv_window())
+      if self.client: # could be half-open
+         self.client.set_recv_window(self.server.get_recv_window())
 
     # closing handshake
     elif advice == OP_RCV_FIN:
+      if self.way_to_close == THREE_WAY:
+        seq_num = self.client.get_seq_num()
+        self.server.set_fin_num(seq_num) # send FINACK
+     
       if not self.server.process(ip, packet):
 	self.state_machine.rollback() # error so rollback state_machin
       elif not self.client: # half open connection
@@ -546,6 +555,18 @@ class Connection:
     elif advice == OP_RCV_ACK_FIN:
       if not self.client.process(packet):
 	self.state_machine.rollback() # not so fast, let's try again
+
+    # three way close
+    elif advice == OP_RCV_FINACK:
+
+      packet.control_bits = "ACK"
+      if not self.client.process(packet):
+	self.state_machine.rollback() # not so fast, let's try again
+
+      # then do FIN as well        
+      packet.control_bits = "FIN"
+      if not self.server.process(ip, packet):
+	self.state_machine.rollback() # error so rollback state_machine
 
     # ignore
     else:
@@ -563,7 +584,7 @@ class Connection:
     <Returns>
       A handle to the listener event.
     """
-    #print "listening on: " + str(ip) + ":" + str(port) # DEBUG
+    # print "listening on: " + str(ip) + ":" + str(port) # DEBUG
     return recvmess(ip, port, self.callback)
 
   def register_sendmess(self, destip, destport, message, srcip = None, srcport = None):
@@ -574,7 +595,7 @@ class Connection:
     <Returns>
       The bytes sent.
     """
-    #print "sending: " + message # DEBUG
+    # print "sending: " + message # DEBUG
     if srcip is None:
       return sendmess(destip, destport, message)
     else:  

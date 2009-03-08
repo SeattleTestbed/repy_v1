@@ -22,3 +22,8 @@ WINDOW_SIZE = AD_WINDOW_SIZE # alias
  OP_RCV_ACK, OP_RCV_PAYLOAD, \
  OP_RCV_NONE, OP_RCV_FIN, \
  OP_RCV_ACK_FIN, OP_RCV_FINACK) = range(0, 10)
+
+
+# config contants
+THREE_WAY = 0
+FOUR_WAY = 1

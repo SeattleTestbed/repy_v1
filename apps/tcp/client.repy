@@ -327,9 +327,19 @@ class TcpClient:
     return valid
 
   ##########
-  # Getters
+  # Getters/Setters
   ##########
- 
+
+  def get_seq_num(self):
+    """
+    <Purpose>
+      atomic getter for Server to know seq num
+    """
+    self.lock.acquire()
+    seq_num = mod_add(self.last_seq_sent, 1)
+    self.lock.release() 
+    return seq_num
+
   def set_recv_window(self, size):
     """
     <Purpose>

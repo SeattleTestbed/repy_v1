@@ -24,7 +24,7 @@ def server():
       break
     else:
       retries -= 1
-      sleep(.01)
+      sleep(.1)
 
   if mess != MESSAGE:
     print "%s != " % mess

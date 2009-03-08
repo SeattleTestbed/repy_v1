@@ -93,6 +93,7 @@ class TcpServer:
 
     # fin
     self.fin_rcvd = False # Set to True at FIN
+    self.fin_num = None	# for three way FINACK
 
   def recv(self, maxLen):
     """
@@ -232,6 +233,19 @@ class TcpServer:
     return ack
 
 
+  def set_fin_num(self, num):
+    """
+    <Purpose>
+      atomic setter for fin num from Client
+      used for FINACK to send corrent seq
+    
+    <Argument>
+      the seq num to send of the FINACK
+    """
+    self.lock.acquire()
+    self.fin_num = num
+    self.lock.release()
+
   def is_closed(self):
     """
     <Purpose>
@@ -350,7 +364,12 @@ class TcpServer:
 
       # Ask for the next missing one
       self.last_ack_sent = seq_num
-      self.send_function(ip, packet.srcport, TcpPacket(packet.destport, packet.srcport, 0, self.last_ack_sent, \
+      if packet.is_fin() and not self.fin_num is None: # FINACK
+        self.send_function(ip, packet.srcport, TcpPacket(packet.destport, packet.srcport, self.fin_num, self.last_ack_sent, \
+                 "FINACK", self.recv_window_size, "ack...").pack())    
+	self.fin_num = None # Reset it?
+      else:
+        self.send_function(ip, packet.srcport, TcpPacket(packet.destport, packet.srcport, 0, self.last_ack_sent, \
                  "ACK", self.recv_window_size, "ack...").pack())
       return True
 
