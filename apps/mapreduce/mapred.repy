@@ -5,7 +5,7 @@
 - more space between functions, 3-4 space lines
 '''
 
- #begin include timeout_socket.repy
+#begin include timeout_socket.repy
 """
 <Description>
   A socket that guarentees the receipt of a message.   Raises TimeoutError if it does not
@@ -372,6 +372,9 @@ def hash_func(data):
 def get_data(ip, port, socketobj, thiscommhandle, listencommhandle):
     """ Listens for connections on a well-defined port, imports data files """
     
+    print "opening socket obj:", socketobj
+    socketobj.settimeout(100)
+
     # get a list of all of our neighbors!
     mycontext['primary'] = recv_message(socketobj)
     print "got primary loc: ", mycontext['primary']
@@ -392,7 +395,7 @@ def get_data(ip, port, socketobj, thiscommhandle, listencommhandle):
     dataobj.close()
 
     # make sure each replica has the same order!
-    mycontext['peers'].sort()
+    # this line isn't needed --> mycontext['peers'].sort()
     print "got my peers: ", mycontext['peers']
 
     # which peer am I?  save this for future reference..
@@ -403,13 +406,32 @@ def get_data(ip, port, socketobj, thiscommhandle, listencommhandle):
     # start the peer_sockets variable
     mycontext['peer_sockets'] = [""] * mycontext['num_peers']
         
+    # save the primary socket for heartbeats
+    mycontext['primary_socket'] = socketobj
+
+    # try responding:
+    socketobj.send("i")
+
     # destroy the listen socket as we're done initializing
     mycontext['state'] = 'Initialized'
     stopcomm(listencommhandle)
 
 
     
-# 
+# respond to any queries from the primary
+def heartbeat_response():
+    msg = ""
+    while True:
+        try:
+            msg = recv_message(mycontext['primary_socket'], timeout=10)
+        except SocketTimeoutError:
+            pass
+        else:
+            if msg == "heartbeat":
+                send_message(mycontext['primary_socket'], mycontext['state'])
+
+
+
 def init_replica_sockets():
     # we only want to make one socket for each link, so let's be smart about it
     # and only make new connections to equal or higher indexed peers..
@@ -622,7 +644,7 @@ def recv_message_dict(socketobj, initialread=2, timeout=None):
         elif line == "":
             cur_key = ""
         else:
-            data_dict[cur_key].add(line)
+            data_dict[cur_key].append(line)
 
     return data_dict
 
@@ -632,8 +654,9 @@ def recv_message(socketobj, initialread=2, timeout=None):
     found = False
 
     # if timeout, we have a timeout_socket object; try recving, but can throw
-    # TimeoutError here.
+    # a SocketTimeoutError here.
     if timeout:
+        print "timeout was set to", timeout, "- entered timeout recv section"
         socketobj.settimeout(timeout)
         buf += socketobj.recv(1)
 
@@ -669,11 +692,14 @@ if callfunc == 'initialize':
     mycontext['myport'] = port
     
     print "waiting for connection on ", ip, ":",  port
-    listencommhandle = waitforconn(ip, port, get_data)
+    listencommhandle = timeout_waitforconn(ip, port, get_data)
     
     # block until we've been initialized with data/methods
     while mycontext['state'] == 'Ready':
         sleep(.1)
+
+    # maintain connection with primary
+    settimer(0, heartbeat_response, ())
     
     # try to open connections to all hosts
     mycontext['connection_lock'] = getlock()
@@ -712,6 +738,8 @@ if callfunc == 'initialize':
     # start reducing, synchronous call (wait for all data to come in, 
     # then start)
     reduce_result = do_reduce()
+
+    mycontext['state'] = "ReducerDone"
 
     report_results(reduce_result)
 
