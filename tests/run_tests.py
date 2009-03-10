@@ -168,7 +168,7 @@ def run_test(fulltestname):
 
 
 def exec_command(command):
-# Windows does not like close_fds and we shouldn't need it so...
+  # Windows does not like close_fds and we shouldn't need it so...
   p =  subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
   # get the output and close
@@ -201,17 +201,30 @@ def exec_command(command):
 
   return (theout, theerr)
   
-def exec_repy_script(filename, restrictionsfile, arguments):
+def exec_repy_script(filename, restrictionsfile, arguments={}, script_args=''):
   global mobileNoSubprocess
   
+  if script_args != '':
+    script_args = ' ' + script_args
+  
   if not mobileNoSubprocess:
-    return exec_command('python repy.py ' + arguments + ' ' + restrictionsfile + ' ' + filename)
+    # Convert arguments
+    arg_string = arguments_to_string(arguments)
+    
+    return exec_command('python repy.py ' + arg_string + restrictionsfile + ' ' + filename + script_args)
   else:
     if os.path.isfile(repy_constants.PATH_SEATTLE_INSTALL + "execlog.out.old"):
       os.remove(repy_constants.PATH_SEATTLE_INSTALL + "execlog.out.old")
+
+    # Set default values
+    arguments.setdefault("logfile", "execlog.out")
+    arguments.setdefault("cwd", "\"" + repy_constants.PATH_SEATTLE_INSTALL + "\"")
+    
+    # Convert arguments
+    arg_string = arguments_to_string(arguments)
       
     repy_path =  "\"" + repy_constants.PATH_SEATTLE_INSTALL + "repy.py" + "\""
-    cmd = "--logfile execlog.out " + arguments + " --cwd \""+ repy_constants.PATH_SEATTLE_INSTALL + "\" " + restrictionsfile + " \"" + repy_constants.PATH_SEATTLE_INSTALL + filename + "\""
+    cmd = arg_string + restrictionsfile + " \"" + repy_constants.PATH_SEATTLE_INSTALL + filename + "\"" + script_args
     #print cmd
     childpid = windowsAPI.launchPythonScript(repy_path, cmd)
     
@@ -225,6 +238,29 @@ def exec_repy_script(filename, restrictionsfile, arguments):
     theout.close()
     
     return (output, '')
+    
+def arguments_to_string(arguments):
+  order = ['simple', 'ip', 'logfile', 'stop', 'status', 'cwd', 'servicelog']
+  argument_string = ""
+  
+  for key in order:
+    try:
+      value = arguments.pop(key)
+      if value != '':
+        value += ' '
+      argument_string += "--" + key + " " + value
+    except KeyError:
+      pass
+      
+  # If there are still items left then just append them
+  if len(arguments) > 0:
+    for name in arguments:
+      value = arguments[name]
+      if value != '':
+        value += ' '
+      argument_string += name + " " + value
+
+  return argument_string
   
 def do_actual_test(testtype, restrictionfn, testname, is_python_test):
   global endput
@@ -234,10 +270,10 @@ def do_actual_test(testtype, restrictionfn, testname, is_python_test):
   if testtype == 's':
     if not mobileNoSubprocess:
       (pyout, pyerr) = exec_command('python '+testname)
-      (testout, testerr) = exec_command('python repy.py --simple '+restrictionfn+" "+testname)
+      (testout, testerr) = exec_repy_script(testname, restrictionfn, {'simple':''})
     else:
       # TODO: Read in captured tests and compare with exec repy script output?
-      (testout, testerr) = exec_repy_script(testname, restrictionfn, "--simple ")
+      (testout, testerr) = exec_repy_script(testname, restrictionfn, {'simple':''})
       pyout = testout
       pyerr = testerr
     
@@ -261,9 +297,9 @@ def do_actual_test(testtype, restrictionfn, testname, is_python_test):
   # any out, no err...
   elif testtype == 'n':
     if is_python_test:
-      (testout, testerr) = exec_command("python " + testname)
+      (testout, testerr) = exec_repy_script(testname, '')
     else:
-      (testout, testerr) = exec_repy_script(testname, restrictionfn, "--status foo")
+      (testout, testerr) = exec_repy_script(testname, restrictionfn, {'status':'foo'})
     
     capture_test_result(testname, testout, testerr, ".repy")
     
@@ -278,9 +314,9 @@ def do_actual_test(testtype, restrictionfn, testname, is_python_test):
   # any err, no out...
   elif testtype == 'e':
     if is_python_test:
-      (testout, testerr) = exec_command("python " + testname)
+      (testout, testerr) = exec_repy_script(testname, '')
     else:
-      (testout, testerr) = exec_repy_script(testname, restrictionfn, '--status foo')
+      (testout, testerr) = exec_repy_script(testname, restrictionfn, {'status':'foo'})
     
     capture_test_result(testname, testout, testerr, ".repy")
     
@@ -297,7 +333,7 @@ def do_actual_test(testtype, restrictionfn, testname, is_python_test):
     if is_python_test:
       (testout, testerr) = exec_command("python " + testname)
     else:
-      (testout, testerr) = exec_repy_script(testname, restrictionfn, '--status foo')
+      (testout, testerr) = exec_repy_script(testname, restrictionfn, {'status':'foo'})
     
     capture_test_result(testname, testout, testerr, ".repy")
     
@@ -310,9 +346,9 @@ def do_actual_test(testtype, restrictionfn, testname, is_python_test):
   # any err, any out...
   elif testtype == 'b':
     if is_python_test:
-      (testout, testerr) = exec_command("python " + testname)
+      (testout, testerr) = exec_repy_script(testname, '')
     else:
-      (testout, testerr) = exec_repy_script(testname, restrictionfn, '--status foo')
+      (testout, testerr) = exec_repy_script(testname, restrictionfn, {'status':'foo'})
     
     capture_test_result(testname, testout, testerr, ".repy")
     
@@ -335,9 +371,9 @@ def do_actual_test(testtype, restrictionfn, testname, is_python_test):
 
     # run the experiment
     if not mobileNoSubprocess:
-      (testout, testerr) = exec_command('python repy.py --logfile experiment.log --status foo '+restrictionfn+" "+testname)
+      (testout, testerr) = exec_repy_script(testname, restrictionfn, {'logfile':'experiment.log', 'status':'foo'})
     else:
-      (testout, testerr) = exec_repy_script(testname, restrictionfn, "--status foo")
+      (testout, testerr) = exec_repy_script(testname, restrictionfn, {'status':'foo'})
       
     capture_test_result(testname, testout, testerr, ".repy")
 
@@ -389,7 +425,7 @@ def do_oddballtests():
   logstream.write("Running test %-50s [" % "Stop Test 1")
   logstream.flush()
 
-  (testout, testerr) = exec_repy_script("stop_testsleep.py", "restrictions.default", "--stop nonexist --status foo")
+  (testout, testerr) = exec_repy_script("stop_testsleep.py", "restrictions.default", {'stop':'nonexist', 'status':'foo'})
   if testout == '' and testerr == '':
     passcount = passcount + 1
     logstream.write(" PASS ]\n")
@@ -404,7 +440,7 @@ def do_oddballtests():
   logstream.write("Running test %-50s [" % "Stop Test 2")
   logstream.flush()
 
-  (testout, testerr) = exec_repy_script("stop_testsleep.py", "restrictions.default", '--stop repy.py --status foo')
+  (testout, testerr) = exec_repy_script("stop_testsleep.py", "restrictions.default", {'stop':'repy.py', 'status':'foo'})
   if (not mobileNoSubprocess) and testout == '' and testerr != '':
     passcount = passcount + 1
     logstream.write(" PASS ]\n")
@@ -428,7 +464,7 @@ def do_oddballtests():
   logstream.write("Running test %-50s [" % "Stop Test 3")
   logstream.flush()
 
-  (testout, testerr) = exec_repy_script('stop_testsleepwrite.py', "restrictions.default", '--stop junk_test.out --status foo')
+  (testout, testerr) = exec_repy_script('stop_testsleepwrite.py', "restrictions.default", {'stop':'junk_test.out','status':'foo'})
   if testout == '' and testerr == '':
     passcount = passcount + 1
     logstream.write(" PASS ]\n")
@@ -500,7 +536,6 @@ if len(sys.argv) > 1 and sys.argv[1] == '-ce':
   sys.argv = sys.argv[2:]
   setup_test_capture()
   
-
 # Check for the CPU flag
 # This is a constant for the benchmark interval, how many seconds are used to
 # determine the maximum number of iterations at full CPU
@@ -508,11 +543,7 @@ CPU_TEST_TIME = 10
 if len(sys.argv) > 1 and sys.argv[1] == "-cpu":
   # Define mini helper function to run the CPU test
   def run_cpu_test(suffix, flag, num):
-    if not mobileNoSubprocess:
-      (testout, testerr) = exec_command('python repy.py restrictions.'+suffix+" special_testcputhrottle.py "+flag+" "+num)
-    else:
-      #TODO, make this compatible with WinCE, I don't have a way to pass in my arguments to the test
-      (testout, testerr) = exec_repy_script("special_testcputhrottle.py", "restrictions."+suffix, "")
+    (testout, testerr) = exec_repy_script('special_testcputhrottle.py', 'restrictions.'+suffix, {}, flag + " " + num)
     return testout.rstrip("\n")
   
   # Get the max iterations
