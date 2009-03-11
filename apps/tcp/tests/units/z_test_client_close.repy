@@ -49,7 +49,7 @@ def test_close():
 ####################
 # Test Helper Functions
 ####################
-def fin_register(destip, destport, message, srcip = None, srcport = None):
+def fin_register(message):
     mycontext['packet_count'] +=1
     pack = unpack(message)
     mycontext['packets'][pack.seq_num] = pack

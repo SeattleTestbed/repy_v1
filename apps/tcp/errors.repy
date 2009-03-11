@@ -27,3 +27,22 @@ class NotRequestedError(Exception):
 
 class AlreadyClosingError(Exception):
   """This exception indicates our connection is already closing"""
+
+
+##### Controller Specific Errors ######
+
+class PortAlreadyBoundError(Exception):
+  """ A port was attempted to be bound but was previously bound by another 
+  Connection """
+
+class PortNotOwnedError(Exception):
+  """ A Connection tried to use a port it didn't own """
+
+class ControllerAlreadyStartedError(Exception):
+  """ A Controller was started multiple times without being stopped """
+  
+class ControllerStoppedError(Exception):
+  """ A Controller was used without being started """
+  
+class ControllerHasConnections(Exception):
+  """ Tried to stop a controller which still has connections registered """

@@ -21,7 +21,7 @@
 
   Private Methods:
     connection.callback(ip, port, mess, ch) - single inlet for receiving
-    connection.register_recvmess(ip, port, callback) - single point for setting up listener
+    connection.register_recvmess() - single point for setting up listener
     connection.register_sendmess(destip, destport, message,
 				 srcip = None, srcport = None) - single outlet for sending
 
@@ -33,11 +33,13 @@
 
 include client.repy
 include constants.repy
+include controller.repy
 include errors.repy
 include packet.repy
 include server.repy
 include state_machine.repy
 include utilities.repy
+
 ##############################################################
 # Public Interface
 ##############################################################
@@ -121,6 +123,7 @@ class Connection:
     # need lock for race conditions
     self.lock = getlock() # general
 
+
   def bind(self, localip, localport):
     """
     <Purpose>
@@ -154,6 +157,7 @@ class Connection:
     self.localport = localport
     self.lock.release()
 
+
   def listen(self):
     """
     <Purpose>
@@ -186,7 +190,7 @@ class Connection:
       self.lock.release()
       raise AlreadyConnectedError("cannot listen with an active connection")
 
-    self.conn = self.register_recvmess(self.localip, self.localport, self.callback)
+    self.conn = self.register_recvmess()
     self.state_machine.listen() # do any state accounting
 
     self.server = TcpServer(self.register_sendmess)
@@ -308,7 +312,7 @@ class Connection:
     self.remoteport = remoteport
 
     # listen for responses
-    self.conn = self.register_recvmess(self.localip, self.localport, self.callback)
+    self.conn = self.register_recvmess()
     self.client = TcpClient(self.register_sendmess)
     self.server = TcpServer(self.register_sendmess)
 
@@ -358,9 +362,7 @@ class Connection:
 
     self.lock.release()
     # send them
-    bytes = self.client.send(data, self.remoteip, self.remoteport, \
-					self.localip, self.localport, \
-					self.retries, self.timeout)
+    bytes = self.client.send(data, self.remoteport, self.localport, self.retries, self.timeout)
     return bytes
 
   def recv(self, maxLen):
@@ -476,7 +478,7 @@ class Connection:
       to handle the packet.      
     """
     self.lock.acquire()
-    # print "recving: " + mess + " at: " + str(ip) + ":" + str(port) # DEBUG
+    #print "recving: " + mess + " at: " + str(ip) + ":" + str(port) # DEBUG
     packet = unpack(mess)
 
     # How can this happen?
@@ -573,7 +575,7 @@ class Connection:
       pass 
     self.lock.release()
 
-  def register_recvmess(self, ip, port, callback):
+  def register_recvmess(self):
     """
     <Purpose>
       Provides a single point for setting up a listener.
@@ -584,10 +586,13 @@ class Connection:
     <Returns>
       A handle to the listener event.
     """
-    # print "listening on: " + str(ip) + ":" + str(port) # DEBUG
-    return recvmess(ip, port, self.callback)
+    if self.localip is None or self.localport is None:
+      raise NotBoundError("Unable to register listener if not bound")
+    #print "listening on: " + str(self.localip) + ":" + str(self.localport) # DEBUG
+    return recvmess(self.localip, self.localport, self.callback)
 
-  def register_sendmess(self, destip, destport, message, srcip = None, srcport = None):
+
+  def register_sendmess(self, message):
     """
     <Purpose>
       Provides a single outlet for tracking sent messages.
@@ -595,11 +600,14 @@ class Connection:
     <Returns>
       The bytes sent.
     """
+    if self.localip is None or self.localport is None:
+      raise NotConnectedError("Must be bound before sending!")
+    if self.remoteip is None or self.remoteport is None:
+      raise NotConnectedError("must be connected to send messages!")
+
     # print "sending: " + message # DEBUG
-    if srcip is None:
-      return sendmess(destip, destport, message)
-    else:  
-      return sendmess(destip, destport, message, srcip, srcport)
+    return sendmess(self.remoteip, self.remoteport, message, )
+    
 
   def _destroy(self):
     """

@@ -261,7 +261,7 @@ def test_pp_fin_three_way():
 # Test Helper Functions
 ####################
 
-def send_it(destip, destport, message, srcip = None, srcport = None):
+def send_it(message):
   pack = unpack(message)
   mycontext['packets'][pack.ack_num] = pack
 

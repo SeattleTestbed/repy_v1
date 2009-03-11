@@ -3,7 +3,7 @@
   Encapsilates the sending structure of a connection.
 
 <Usage>
-  TcpClient(send_function=None) - constructor, takes optional function to send through
+  TcpClient() - constructor, takes function to send through
 
   Handshakers:
     client.connect(...) - send SYN
@@ -23,8 +23,7 @@
     client.process(packet)
 
   client = TcpClient()
-  client.send("hello world", '123.4.5.6', 12345, \
-                srcip, srcport, retries, timeout):
+  client.send("hello world", retries, timeout):
 """
 
 include congestion_controller.repy
@@ -44,7 +43,7 @@ class TcpClient:
     This class is the active-sender-client.
   """
 
-  def __init__(self, send_function=None):
+  def __init__(self, send_function):
     """
     <Purpose>
       Initializes varibles.
@@ -64,11 +63,8 @@ class TcpClient:
     <Returns>
       New client object.
     """
-    if send_function:
-      self.send_function = send_function
-    else:
-      self.send_function = self._send
-    
+    self.send_function = send_function
+        
     self.packet_cache = {} # holds currently sent, unacked packets
 
     # kept track of + updated by Server
@@ -86,8 +82,7 @@ class TcpClient:
     self.sleep_lock = SleepLock()
 
 
-  def send(self, data, destip, destport, \
-                srcip, srcport, retries, timeout):
+  def send(self, data, destport, srcport, retries, timeout):
     """
     <Purpose>
       Actually sends data!  The most complex piece and
@@ -97,8 +92,8 @@ class TcpClient:
 
     <Arguments>
       data - string of data
-      (destip, destport) - address to send to
-      (srcip, srcport) - who am i?
+      srcport - the source port to put into the packet headers
+      destport - the destination port to put into the packet headers
       retries - send this many times after initial try
       timeout - wait time for an ACK, then retry
     
@@ -160,8 +155,7 @@ class TcpClient:
           if len(self.packet_cache[seq_num].payload) <= free_window:
             free_window -= len(self.packet_cache[seq_num].payload)
             bytes_sent += len(self.packet_cache[seq_num].payload)
-	    self.send_function(destip, destport, \
-                self.packet_cache[seq_num].pack(), srcip, srcport)
+	    self.send_function(self.packet_cache[seq_num].pack())
           else: # can't send anymore
             free_window = 0
             break
@@ -179,7 +173,7 @@ class TcpClient:
 
             # send it as well
             bytes_sent += len(packet.payload)
-            self.send_function(destip, destport, packet.pack(), srcip, srcport)
+            self.send_function(packet.pack())
 
 	    # go around again?
             del data[0:payload_size]
@@ -223,7 +217,7 @@ class TcpClient:
     self.lock.release()
     # allow an interrupt here if you want.
 
-    return self._send_packet(synack, start_ack, destip, destport, srcip, srcport, retries, timeout)
+    return self._send_packet(synack, start_ack, retries, timeout)
 
   def connect(self, destip, destport, \
                 srcip, srcport, retries, timeout):
@@ -251,7 +245,7 @@ class TcpClient:
     self.lock.release()
     # allow an interrupt here if you want.
 
-    return self._send_packet(syn, start_ack, destip, destport, srcip, srcport, retries, timeout)
+    return self._send_packet(syn, start_ack, retries, timeout)
 
 
   def close(self, destip, destport, srcip, srcport, retries, timeout):
@@ -277,7 +271,7 @@ class TcpClient:
     self.lock.release()
     # allow an interrupt here if you want.
 
-    return self._send_packet(fin, start_ack, destip, destport, srcip, srcport, retries, timeout)
+    return self._send_packet(fin, start_ack, retries, timeout)
 
 
   ###########################
@@ -488,7 +482,7 @@ class TcpClient:
       return False #ignore it
 
 
-  def _send_packet(self, packet, start_ack, destip, destport, srcip, srcport, retries, timeout):
+  def _send_packet(self, packet, start_ack, retries, timeout):
     """ 
     <Purpose>
       Send a FIN, SYN, SYNACK, etc. packet again and again until ACK'd.
@@ -514,8 +508,7 @@ class TcpClient:
         self.sleep_lock.release()
         raise TimeoutError("tried %d times" % times_sent)
 
-      bytes_sent += self.send_function(destip, destport, \
-                	packet.pack(), srcip, srcport)
+      bytes_sent += self.send_function(packet.pack())
 
       times_sent += 1
       self.sleep_lock.sleep(timeout)
@@ -524,16 +517,3 @@ class TcpClient:
     return bytes_sent
 
 
-  def _send(self, destip, destport, data, srcip=None, srcport=None):    
-    """
-    <Purpose>
-        Gives a default wrapper for send calls.  Just forwards to
-        Repy's UDP sendmess function.
-
-    <Arguments>
-        Same as Repy sendmess.
- 
-    <Returns>
-        Same as Repy sendmess.
-    """
-    return sendmess(destip, destport, data, srcip, srcport)

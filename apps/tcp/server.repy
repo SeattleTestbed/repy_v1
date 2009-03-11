@@ -71,11 +71,8 @@ class TcpServer:
     <Returns>
       New server object.
     """
-    if send_function:
-      self.send_function = send_function
-    else:
-      self.send_function = self._send
-
+    self.send_function = send_function
+    
     self.buffer = [] # Receiver buffer of payloads
     self.packet_cache = {} # holds received, out-of-order packets
 
@@ -288,12 +285,12 @@ class TcpServer:
     # New SYACK
     if self.last_ack_sent is None:
       self.last_ack_sent = mod_add(packet.seq_num, 1)
-      self.send_function(ip, packet.srcport, TcpPacket(packet.destport, packet.srcport, 0, self.last_ack_sent, \
+      self.send_function(TcpPacket(packet.destport, packet.srcport, 0, self.last_ack_sent, \
                  "ACK", self.recv_window_size, "ack of synack...").pack())
 
     # Old one, resend ack
     elif not self.last_ack_sent is None and mod_add(packet.seq_num, 1) == self.last_ack_sent:
-      self.send_function(ip, packet.srcport, TcpPacket(packet.destport, packet.srcport, 0, self.last_ack_sent, \
+      self.send_function(TcpPacket(packet.destport, packet.srcport, 0, self.last_ack_sent, \
                  "ACK", self.recv_window_size, "re-ack of synack...").pack())
 
     # whoa, you can't change the SYN seq_num now?  You already sent a different one before.
@@ -365,11 +362,11 @@ class TcpServer:
       # Ask for the next missing one
       self.last_ack_sent = seq_num
       if packet.is_fin() and not self.fin_num is None: # FINACK
-        self.send_function(ip, packet.srcport, TcpPacket(packet.destport, packet.srcport, self.fin_num, self.last_ack_sent, \
+        self.send_function(TcpPacket(packet.destport, packet.srcport, self.fin_num, self.last_ack_sent, \
                  "FINACK", self.recv_window_size, "ack...").pack())    
 	self.fin_num = None # Reset it?
       else:
-        self.send_function(ip, packet.srcport, TcpPacket(packet.destport, packet.srcport, 0, self.last_ack_sent, \
+        self.send_function(TcpPacket(packet.destport, packet.srcport, 0, self.last_ack_sent, \
                  "ACK", self.recv_window_size, "ack...").pack())
       return True
 
@@ -384,22 +381,7 @@ class TcpServer:
 
     # Send back an ack again for the payload we really want.
     else: 
-      self.send_function(ip, packet.srcport, TcpPacket(packet.destport, packet.srcport, 0, self.last_ack_sent, "ACK", self.recv_window_size, \
+      self.send_function(TcpPacket(packet.destport, packet.srcport, 0, self.last_ack_sent, "ACK", self.recv_window_size, \
                 "resending ack...").pack())
 
     return False
-
-  def _send(self, destip, destport, data, srcip=None, srcport=None):
-    """
-    <Purpose>
-        Gives a default wrapper for send calls.  Just forwards to
-        Repy's UDP sendmess function.
-
-    <Arguments>
-        Same as Repy sendmess. 
-
-    <Returns>            
-        Same as Repy sendmess.
-    """
-    return sendmess(destip, destport, data, srcip, srcport)
-
