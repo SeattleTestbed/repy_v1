@@ -288,6 +288,7 @@ class TimeoutSocket:
       # even if this isn't in time, the lock prevents a race condition 
       # this is merely an optimization to prevent the timer from ever firing...
       canceltimer(timerhandle)
+      self.timeout_lock.release() # Alper's bug 3/10/09
       return retdata
     else:
       raise SocketTimeoutError
@@ -344,14 +345,16 @@ def initalize_replicas(data):
     prim_str = format_message(mycontext['my_addr'])
 
     # generate replica list to send
-    replica_str = pad_int_to_str(len(mycontext['replica_list']), 4)
+    replica_str = pad_int_to_str(len(mycontext['scoreboard'].keys()), 4)
     replica_str += mycontext['replica_str']
+
+    print "replica_str:", replica_str
 
     # generate data string to send - size limited to 1e6-1 bytes
     data = format_message(data)
     
     # prepare socket array
-    mycontext['peer_sockets'] = [""] * len(mycontext['replica_list'].keys())
+    mycontext['peer_sockets'] = [""] * len(mycontext['scoreboard'].keys())
 
     # send data to each replica
     replicas = mycontext['scoreboard'].keys()
@@ -360,10 +363,12 @@ def initalize_replicas(data):
         addr_parts = replica.partition(":")
         print "opening connection to", replica
         socketobj = timeout_openconn(addr_parts[0], int(addr_parts[2]), 
-                                     timeout=100)
+                                     timeout=10)
         socketobj.send(prim_str)
         socketobj.send(replica_str)
         socketobj.send(data)
+
+        socketobj.settimeout(5)
 
         mycontext['scoreboard'][replica]["socket"] = socketobj
 
@@ -384,6 +389,8 @@ def construct_scoreboard(replica_list):
     for replica in replica_list:
         mycontext['scoreboard'][replica] = active_entry
 
+    
+
 
 def keep_scoreboard():
     
@@ -395,25 +402,31 @@ def keep_scoreboard():
 
     scoreboard = mycontext['scoreboard']
 
+    print "active_replicas:", active_replicas
+
     while finished_replicas < len(active_replicas):
 
         for replica in active_replicas:
-            
+            print "scoreboard:", scoreboard
             # if this replica says it's done, skip it
             if scoreboard[replica]['state'] == "Done":
                 continue
 
-            scoreboard[replica]['socket'].send("heartbeat")
+            print "current replica:", replica
+            send_message(scoreboard[replica]['socket'],"heartbeat")
             
             cur_state = ""
             try:
+                print "recving:"
                 cur_state = recv_message(scoreboard[replica]['socket'],
                                          timeout=3)
             except SocketTimeoutError:
+                print "timed out!"
                 scoreboard[replica]['heartbeat_failed'] += 1
                 if scoreboard[replica]['heartbeat_failed'] >= 3:
                     pass # add activating an inactive node here!
             else:
+                print "recving state (%s for %s).." % (cur_state, replica)
                 scoreboard[replica]['state'] = cur_state
                 if scoreboard[replica]['heartbeat_failed'] != 0:
                     scoreboard[replica]["heartbeat_failed"] -= 1
@@ -424,13 +437,17 @@ def keep_scoreboard():
                                                  timeout=5)
                     mycontext['final_output'].update(red_data)
                     scoreboard[replica]['state'] = "Done"
-                    finished_replica += 1
+                    finished_replicas += 1
+                    print "received mapred data:", mycontext['final_output']
+
+            # give the replicas a bit of a break!
+            sleep(0.5)
         
             
     # if we've reached this point, we've received all data
     buf = ""
-    for key, value in mycontext['final_output']:
-        buf = key + "\t" + value + "\n"
+    for key, value in mycontext['final_output'].iteritems():
+        buf += key + "\t" + value + "\n"
                     
     fileobj = open("final_data.dat", "w")
     fileobj.write(buf)
@@ -456,11 +473,10 @@ def recv_message_dict(socketobj, initialread=2, timeout=None):
     for line in serialized_dict.split("\n"):
         if cur_key == "":
             cur_key = line
-            data_dict[cur_key] = []
         elif line == "":
             cur_key = ""
         else:
-            data_dict[cur_key].append(line)
+            data_dict[cur_key] = line
 
     return data_dict
 

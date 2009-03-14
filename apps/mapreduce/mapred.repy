@@ -288,6 +288,7 @@ class TimeoutSocket:
       # even if this isn't in time, the lock prevents a race condition 
       # this is merely an optimization to prevent the timer from ever firing...
       canceltimer(timerhandle)
+      self.timeout_lock.release() # Alper's bug 3/10/09
       return retdata
     else:
       raise SocketTimeoutError
@@ -371,9 +372,6 @@ def hash_func(data):
 
 def get_data(ip, port, socketobj, thiscommhandle, listencommhandle):
     """ Listens for connections on a well-defined port, imports data files """
-    
-    print "opening socket obj:", socketobj
-    socketobj.settimeout(100)
 
     # get a list of all of our neighbors!
     mycontext['primary'] = recv_message(socketobj)
@@ -423,19 +421,35 @@ def heartbeat_response():
     msg = ""
     while True:
         try:
-            msg = recv_message(mycontext['primary_socket'], timeout=10)
+            msg = recv_message(mycontext['primary_socket'], timeout=5)
         except SocketTimeoutError:
-            pass
+            print "timed out waiting for heartbeat"
         else:
             if msg == "heartbeat":
-                send_message(mycontext['primary_socket'], mycontext['state'])
+                state = mycontext['state']
+                print "sent state %s to primary" % state
+                send_message(mycontext['primary_socket'], state)
+
+                if state == "ReducerDone":
+                    print "sending datadict:", mycontext['reduce_result']
+                    send_message_dict(mycontext['primary_socket'], mycontext['reduce_result'])
+                break
 
 
 
 def init_replica_sockets():
     # we only want to make one socket for each link, so let's be smart about it
     # and only make new connections to equal or higher indexed peers..
-    peer_subset = mycontext['peers'][mycontext['my_peer_index']:]
+
+    # put a fake socket into mycontext['peer_sockets'] for self
+    mycontext['peer_sockets'][mycontext['my_peer_index']] = "self"
+
+    # if we're the last peer, just skip this.  we'll listen for all sockets.
+    if mycontext['my_peer_index'] + 1 >= len(mycontext['peers']):
+        return
+
+    # + 1 is added to skip creating self-socket
+    peer_subset = mycontext['peers'][mycontext['my_peer_index'] + 1:]
     for peer in peer_subset:
         addr_parts = peer.partition(":")
         socketobj = timeout_openconn(addr_parts[0], int(addr_parts[2]))
@@ -475,18 +489,34 @@ def recv_init_replica_conn(ip, port, sockobj, thiscommhandle, listencommhandle):
 # listens for incoming map data (this is run asynchronously)
 def recv_peer_map_data():
     peer_socket_recvd = []    
+
+    print "peer_sockets:", mycontext['peer_sockets']
+
     while len(peer_socket_recvd) != mycontext['num_peers']:
 
         # cycle through all the sockets, trying to receive
         for socket in mycontext['peer_sockets']:
 
-            # pass over the socket if we've received data alreadyx
+            print "trying to receive on socket", socket
+            print "received from", peer_socket_recvd
+
+            # pass over the socket if we've received data already
             if socket in peer_socket_recvd:
+                continue
+
+            # pass over our own socket
+            if socket == "self":
+                continue
+            
+            # add socket if we've added data to ourself in partition
+            if socket == "selfrecvd":
+                peer_socket_recvd.append(socket)
                 continue
 
             # try to receive
             recv_data = {}
             try:
+                print "recving on socket", socket
                 recv_data = recv_message_dict(socket, timeout=5)
             except SocketTimeoutError:
                 print "timed out on socket", socket, "... continuing"
@@ -498,6 +528,7 @@ def recv_peer_map_data():
                 peer_socket_recvd.append(socket)
                 mycontext['connection_lock'].release()
             
+    print "finished recving data"
     mycontext['state'] = "ReducerWaiting"
 
 
@@ -585,24 +616,30 @@ def partition(map_result):
 
     # send data to replicas, each replica should have a dictionary of kv pairs  
     for peer_index in range(mycontext['num_peers']):
-        address = mycontext['peers'][peer_index].partition(":")
-        socketobj = openconn(address[0], int(address[2]))
-        send_message_dict(socketobj, peer_data[peer_index])
+        if peer_index == mycontext['my_peer_index']:
+            print "sending data to self"
+            mycontext['connection_lock'].acquire()
+            mycontext['reduce_data'].update(peer_data[peer_index])
+            mycontext['peer_sockets'][mycontext['my_peer_index']] = "selfrecvd"
+            mycontext['connection_lock'].release()
+        else:
+            address = mycontext['peers'][peer_index].partition(":")
+            socketobj = openconn(address[0], int(address[2]))
+            send_message_dict(socketobj, peer_data[peer_index])
 
     
 def do_reduce():
     #data = open("reduce_data.dat", "r")
     data = mycontext['reduce_data']
-    
-    reduce_result = []
-    for line in data:
-        line_parts = line.partition('\t')
-        # I assume that results are returned in the form "<key>\t<value>"
-        # reduce.reducer takes key, value as two separate arguments
-        reduce_result.append(reduce_func(line_parts[0], line_parts[2]))
-                          
-    return reduce_result.sort()
 
+    print "reduce_data", mycontext['reduce_data']
+    
+    reduce_result = {}
+    for key, values in data.iteritems():
+        print "reducing..."
+        reduce_result.update(reduce_func(key, values))
+                          
+    mycontext['reduce_result'] = reduce_result
 
 
 # TODO...
@@ -621,8 +658,11 @@ def send_message_dict(socketobj, data_dict):
     buf = ""
     for key,values in data_dict.iteritems():
         buf += str(key) + "\n"
-        for value in values:
-            buf += str(value) + "\n"
+        if isinstance(values, list):
+            for value in values:
+                buf += str(value) + "\n"
+        else:
+            buf += str(values) + "\n"
         
         # after last value, add another return to close key
         buf += "\n"
@@ -710,7 +750,7 @@ if callfunc == 'initialize':
     # open connections to peers
     init_replica_sockets()
 
-    while mycontext['peer_conn_left'] != 0:
+    while mycontext['peer_conn_left'] > 1:
         sleep(0.1)
 
     # destroy the listener
@@ -722,6 +762,7 @@ if callfunc == 'initialize':
     # listencommhandle = waitforconn(ip, port, recv_peer_map_data)
     
     # this is the better way to do it... sockettimeout.repy
+    mycontext['reduce_data'] = {}
     recv_handle = settimer(0, recv_peer_map_data, ())
 
     # start mapping, synchronous call
@@ -737,11 +778,9 @@ if callfunc == 'initialize':
 
     # start reducing, synchronous call (wait for all data to come in, 
     # then start)
-    reduce_result = do_reduce()
-
+    do_reduce()
     mycontext['state'] = "ReducerDone"
 
-    report_results(reduce_result)
 
 
 
