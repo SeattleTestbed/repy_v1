@@ -21,14 +21,17 @@ if callfunc == "initialize":
   PORT = 12345
 
 def test_accept():
-  conn = Connection()
-  conn.localip = IP
-  conn.localport = PORT
-  conn.requestip = IP
-  conn.requestport = PORT
-  conn.server = TcpServer(None)
-  conn.conn = True
-  conn.accept() 
+  sock = Connection()
+  sock.localip = IP
+  sock.localport = PORT
+  sock.requestip = IP
+  sock.requestport = PORT
+  sock.server = TcpServer(None)
+  sock.conn = True
+
+  # Spawn new TCUP
+  conn, addr = sock.accept() 
+
   # should put request address into remote addr
   # and zero request
   assert conn.localip == IP
@@ -38,7 +41,17 @@ def test_accept():
   assert conn.client
   assert not conn.requestip
   assert not conn.requestport
-  assert conn.conn == True
+  assert conn.conn
+
+  # should be ready to listen again
+  assert sock.localip == IP
+  assert sock.localport == PORT
+  assert not sock.remoteip
+  assert not sock.remoteport 
+  assert not sock.client
+  assert not sock.requestip
+  assert not sock.requestport
+  assert not sock.conn
   
 def test_accept_not_bound():
   conn = Connection()

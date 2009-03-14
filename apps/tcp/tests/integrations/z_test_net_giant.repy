@@ -15,21 +15,15 @@ def server():
   socket = Connection()
   socket.bind(IP, PORT_TWO)
   socket.listen()
-  socket.accept()
+  tcup, addr = socket.accept()
 
-  tries = 100
-  while tries:
-    mycontext['mess'] += socket.recv(MAXLEN)
-    if mycontext['mess'] == MESSAGE:
-      break
-    else:
-      tries -= 1
-      sleep(.01)
+  sleep(10)
+  mycontext['mess'] += tcup.recv(MAXLEN)
 
-  socket.disconnect()
+  tcup.disconnect()
   if mycontext['mess'] != MESSAGE:
     print "%s != " % mycontext['mess']
-    print "%s" % MESSAGE
+    print MESSAGE
     fobj = open(fnout, "w")
     fobj.write(mycontext['mess'])
     fobj.close()

@@ -13,13 +13,13 @@ def server():
   socket = Connection()
   socket.bind(IP, PORT_TWO)
   socket.listen()
-  socket.accept()
-  socket.disconnect()
+  tcup, addr = socket.accept()
+  tcup.disconnect()
 
   retries = 100
   mess = ""
   while retries:
-    mess += socket.recv(MAXLEN)
+    mess += tcup.recv(MAXLEN)
     if mess == MESSAGE:
       break
     else:

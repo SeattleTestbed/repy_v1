@@ -12,7 +12,7 @@ DEFAULT_TIMEOUT = 1 # seconds to wait
 
 MSS = 1000 # bytes maximum payload                
 CONG_WINDOW_SIZE = MSS  #  increment up to ad window
-AD_WINDOW_SIZE = 5 * MSS # start out free buffer space
+AD_WINDOW_SIZE = 1000 * MSS # start out free buffer space
 WINDOW_SIZE = AD_WINDOW_SIZE # alias
 
 

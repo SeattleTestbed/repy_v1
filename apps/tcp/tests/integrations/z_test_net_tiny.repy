@@ -12,13 +12,13 @@ def server():
   socket.bind(IP, PORT_TWO)
   
   socket.listen()
-  socket.accept()
+  tcup, addr = socket.accept()
 
-  bytes = socket.send(MESSAGE)
+  bytes = tcup.send(MESSAGE)
   if bytes == 0:
     print "Expected some bytes"
   
-  socket.disconnect()
+  tcup.disconnect()
 
 def client():
   socket = Connection()

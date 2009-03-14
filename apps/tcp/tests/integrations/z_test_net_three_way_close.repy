@@ -13,8 +13,8 @@ def server():
   socket = Connection()
   socket.bind(IP, PORT_TWO)
   socket.listen()
-  socket.accept()
-  socket.disconnect()
+  tcup, addr = socket.accept()
+  tcup.disconnect()
 
 def client():
   socket = Connection()
