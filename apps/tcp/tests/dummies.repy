@@ -26,6 +26,8 @@ class TcpStateMachine:
   def send(*args): return 10
   def recv(*args): return "hi"
   def close(*args): pass
+  def timeout_close(*args): pass
+  def time_waiting(*args): pass
 
 class TcpClient:
   """

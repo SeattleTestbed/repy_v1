@@ -709,6 +709,12 @@ class Connection:
     <Purpose>
       Cleanup all the variables because we're done.
     """
+    # timewait
+    self.lock.release()
+    if self.state_machine.time_waiting():
+      self.state_machine.timeout_close()
+    self.lock.acquire()
+
     stopcomm(self.conn)
     self.conn = None
     self.client = None

@@ -52,6 +52,8 @@ def test_active():
   mycontext['sm'].close()
   mycontext['tps'].send("ACK")
   mycontext['tps'].send("FIN")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_TIME_WAIT
+  mycontext['sm'].timeout_close()
   assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSED
 
 def test_active_loopback():
@@ -64,6 +66,8 @@ def test_active_loopback():
   mycontext['sm'].close()
   mycontext['tps'].send("ACK")
   mycontext['tps'].send("FIN")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_TIME_WAIT
+  mycontext['sm'].timeout_close()
   assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSED 
 
 def test_active_loopback_pshack():
@@ -76,6 +80,8 @@ def test_active_loopback_pshack():
   mycontext['sm'].close()
   mycontext['tps'].send("ACK")
   mycontext['tps'].send("FIN")
+  assert mycontext['sm'].state == mycontext['sm'].STATE_TIME_WAIT
+  mycontext['sm'].timeout_close()
   assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSED 
 
 def test_active_finfin():

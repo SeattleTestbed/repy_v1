@@ -113,7 +113,7 @@ def test_fin_wait_1_next_fin():
 def test_fin_wait_1_next_finack():
   mycontext['sm'].state = mycontext['sm'].STATE_FIN_WAIT_1
   mycontext['tps'].send("FINACK")
-  assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSED
+  assert mycontext['sm'].state == mycontext['sm'].STATE_TIME_WAIT
 
 def test_fin_wait_1_next_ack():
   mycontext['sm'].state = mycontext['sm'].STATE_FIN_WAIT_1
@@ -133,7 +133,7 @@ def test_fin_wait_1_next_else():
 def test_fin_wait_2_next_fin():
   mycontext['sm'].state = mycontext['sm'].STATE_FIN_WAIT_2
   mycontext['tps'].send("FIN")
-  assert mycontext['sm'].state == mycontext['sm'].STATE_CLOSED
+  assert mycontext['sm'].state == mycontext['sm'].STATE_TIME_WAIT
 
 def test_fin_wait_2_next_else():
   mycontext['sm'].state = mycontext['sm'].STATE_FIN_WAIT_2

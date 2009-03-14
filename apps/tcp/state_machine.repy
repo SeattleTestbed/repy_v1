@@ -219,7 +219,7 @@ class TcpStateMachine:
       # Send back an ack or reack.
       elif packet.is_payload():
         advice = OP_RCV_PAYLOAD
-      # old handshake? # BUG: how about old SYN's
+      # old handshake? how about old syn?
       elif packet.is_synack():
         advice = OP_RCV_SYNACK
       # close
@@ -246,7 +246,7 @@ class TcpStateMachine:
       elif packet.is_finack():
         self.state = self.STATE_TIME_WAIT
         advice = OP_RCV_FINACK
-        self.state = self.STATE_CLOSED # BUG: need to timeout wait
+        # self.state = self.STATE_CLOSED # need to timeout wait
       else:
 	pass
 
@@ -255,7 +255,7 @@ class TcpStateMachine:
       if packet.is_fin():
         self.state = self.STATE_TIME_WAIT
         advice = OP_RCV_FIN
-        self.state = self.STATE_CLOSED # BUG: need to timeout wait
+ 	# self.state = self.STATE_CLOSED # need to timeout wait
       elif packet.is_payload(): # Half-open estab
         advice = OP_RCV_PAYLOAD
       else:
@@ -264,9 +264,9 @@ class TcpStateMachine:
     elif(self.state == self.STATE_CLOSING):
       # rcv ACK of FIN
       if packet.is_ack():
-        self.state = self.STATE_TIME_WAIT
         advice = OP_RCV_ACK_FIN
-        self.state = self.STATE_CLOSED # BUG: need to timeout wait
+	# self.state = self.STATE_TIME_WAIT
+        self.state = self.STATE_CLOSED # Do I need to timeout wait?
       if packet.is_fin(): # reack fin
         advice = OP_RCV_FIN
       else:
@@ -288,6 +288,8 @@ class TcpStateMachine:
 
     elif(self.state == self.STATE_TIME_WAIT):
       if packet.is_fin(): # reack fin
+        advice = OP_RCV_FIN
+      elif packet.is_fin(): # reack fin
         advice = OP_RCV_FIN
       else:
         pass
@@ -488,3 +490,20 @@ class TcpStateMachine:
     """
     self.state = self.last_state
     self.last_state = None
+
+  def timeout_close(self):
+    """Wait a little to maybe re-ACK final FIN"""
+    self.lock.acquire()
+    if self.state != self.STATE_TIME_WAIT:
+      print self.state
+      raise Exception("need to be closing to do final timewait")
+    self.lock.release()
+
+    sleep(.002)
+
+    self.lock.acquire()
+    self.state = self.state = self.STATE_CLOSED
+    self.lock.release()
+
+  def time_waiting(self):
+    return self.state == self.STATE_TIME_WAIT
