@@ -259,9 +259,8 @@ class TimeoutSocket:
     
     print "sockettimeout|remote_address:", self.remote_address
     if not self.remote_address:
-      self.remote_address = (ip, port)
-    else: 
-      raise Exception("what! peer does not match?")
+      pass
+      #raise Exception("what! peer does not match?")
 
     self.callback(ip, port, self, ch, lh)
 
@@ -403,7 +402,7 @@ def get_data(ip, port, socketobj, thiscommhandle, listencommhandle):
     print "got my peers: ", mycontext['peers']
 
     # which peer am I?  save this for future reference..
-    address_str = mycontext['myip'] + ":" + str(mycontext['myport'])
+    address_str = mycontext['myip'] + ":" + str(mycontext['myport']-1)
     mycontext['my_peer_index'] = mycontext['peers'].index(address_str)        
     print "my_peer_index is", mycontext['my_peer_index']
 
@@ -463,10 +462,12 @@ def init_replica_sockets():
     peer_subset = mycontext['peers'][mycontext['my_peer_index'] + 1:]
     for peer in peer_subset:
         addr_parts = peer.partition(":")
-        socketobj = timeout_openconn(addr_parts[0], int(addr_parts[2]))
-        socketobj.send("hello")
-
         peer_index = mycontext['peers'].index(peer)
+
+        print "attempting to connect to peer %d, (addr: %s:%d)" % (peer_index, addr_parts[0], int(addr_parts[2])+1)
+        socketobj = timeout_openconn(addr_parts[0], int(addr_parts[2])+1,
+                                     mycontext['myip'], 12347)
+        socketobj.send("hello")
 
         mycontext['connection_lock'].acquire()
         mycontext['peer_sockets'][peer_index] = socketobj
@@ -481,14 +482,14 @@ def init_replica_sockets():
 def recv_init_replica_conn(ip, port, sockobj, thiscommhandle, listencommhandle):
     data = sockobj.recv(5)
 
-    print "receiving peer_init message from %s, %s" % ip, port
+    print "receiving peer_init message from %s, %s" % (ip, port)
 
     if not data == "hello":
         exit_prog("Received an unintelligible message from a peer %s:%d, %s" %
                   (ip, port, data))
     else:
         # save socket obj for later
-        incoming_index = mycontext['peers'].index(ip+":"+str(port))
+        incoming_index = mycontext['peers'].index(ip+":12344")
 
         mycontext['connection_lock'].acquire()
         mycontext['peer_sockets'][incoming_index] = sockobj
@@ -707,6 +708,8 @@ def recv_message(socketobj, initialread=2, timeout=None):
     buf = ""
     found = False
 
+#    print "recv_message: trying to recv from " + socketobj.remote_address
+
     # if timeout, we have a timeout_socket object; try recving, but can throw
     # a SocketTimeoutError here.
     if timeout:
@@ -746,7 +749,7 @@ if callfunc == 'initialize':
     mycontext['myport'] = port
     
     print "waiting for connection on ", ip, ":",  port
-    listencommhandle = timeout_waitforconn(ip, port, get_data)
+    listencommhandle = timeout_waitforconn(ip, port-1, get_data)
     
     # block until we've been initialized with data/methods
     while mycontext['state'] == 'Ready':
@@ -759,8 +762,14 @@ if callfunc == 'initialize':
     mycontext['connection_lock'] = getlock()
     mycontext['peer_conn_left'] = mycontext['num_peers']
 
+    default_timeout = 4 * mycontext['num_peers']
+    lag = 2 * mycontext['my_peer_index']
+
+    sleep(default_timeout-lag)
+
     # listen for connections from peers
     listen_replica_init = timeout_waitforconn(ip, port, recv_init_replica_conn)
+    print "listening on %s:%d for peer connections" % (ip, port)
     # open connections to peers
     init_replica_sockets()
 
