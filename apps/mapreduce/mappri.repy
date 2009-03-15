@@ -257,6 +257,7 @@ class TimeoutSocket:
     self.listencommhandle = lh # same as the 1st from wait for comm, right?
     self.commhandle = ch # should we care?
     
+    print "sockettimeout|remote_address:", self.remote_address
     if not self.remote_address:
       self.remote_address = (ip, port)
     else: 
@@ -294,6 +295,10 @@ class TimeoutSocket:
       raise SocketTimeoutError
 
   def _clobbersocket(self):
+
+    # alpers - don't close the socket if we timeout!  It might be just an error
+    return
+
     """If I can acquire the lock without blocking, then close the socket to abort"""
     if self.timeout_lock.acquire(False):
       self.close()
@@ -441,7 +446,7 @@ def keep_scoreboard():
                     print "received mapred data:", mycontext['final_output']
 
             # give the replicas a bit of a break!
-            sleep(0.5)
+            sleep(5)
         
             
     # if we've reached this point, we've received all data
@@ -553,6 +558,7 @@ if callfunc == 'initialize':
         ip = '127.0.0.1'
 
     mycontext['my_addr'] = ip + ":" + str(port)
+    print "my_addr:", mycontext['my_addr']
 
     if callargs[argpointer] == '-n':
         # do something special here, it's a no-op atm

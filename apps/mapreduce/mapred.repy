@@ -257,6 +257,7 @@ class TimeoutSocket:
     self.listencommhandle = lh # same as the 1st from wait for comm, right?
     self.commhandle = ch # should we care?
     
+    print "sockettimeout|remote_address:", self.remote_address
     if not self.remote_address:
       self.remote_address = (ip, port)
     else: 
@@ -294,6 +295,10 @@ class TimeoutSocket:
       raise SocketTimeoutError
 
   def _clobbersocket(self):
+
+    # alpers - don't close the socket if we timeout!  It might be just an error
+    return
+
     """If I can acquire the lock without blocking, then close the socket to abort"""
     if self.timeout_lock.acquire(False):
       self.close()
@@ -347,6 +352,7 @@ def map_func(key, value):
     for word in value.split():
         output = (word, 1)
         toRet.append(output)
+    sleep(0.1)
     return toRet
 #end include mapper.repy
 
@@ -433,7 +439,8 @@ def heartbeat_response():
                 if state == "ReducerDone":
                     print "sending datadict:", mycontext['reduce_result']
                     send_message_dict(mycontext['primary_socket'], mycontext['reduce_result'])
-                break
+                    mycontext['state'] = "Done"
+                    break
 
 
 
@@ -441,13 +448,17 @@ def init_replica_sockets():
     # we only want to make one socket for each link, so let's be smart about it
     # and only make new connections to equal or higher indexed peers..
 
+    print "entered init_replica_sockets"
+
     # put a fake socket into mycontext['peer_sockets'] for self
     mycontext['peer_sockets'][mycontext['my_peer_index']] = "self"
 
     # if we're the last peer, just skip this.  we'll listen for all sockets.
     if mycontext['my_peer_index'] + 1 >= len(mycontext['peers']):
+        print "quit early, i'm last in list."
         return
 
+    print "continuing init_replica_sockets()"
     # + 1 is added to skip creating self-socket
     peer_subset = mycontext['peers'][mycontext['my_peer_index'] + 1:]
     for peer in peer_subset:
@@ -469,6 +480,9 @@ def init_replica_sockets():
 # listens for incoming tcp connections, establishes a port
 def recv_init_replica_conn(ip, port, sockobj, thiscommhandle, listencommhandle):
     data = sockobj.recv(5)
+
+    print "receiving peer_init message from %s, %s" % ip, port
+
     if not data == "hello":
         exit_prog("Received an unintelligible message from a peer %s:%d, %s" %
                   (ip, port, data))
@@ -751,9 +765,11 @@ if callfunc == 'initialize':
     init_replica_sockets()
 
     while mycontext['peer_conn_left'] > 1:
+        print "sleeping for peer_conn_left ("+str(mycontext['peer_conn_left'])+")"
         sleep(0.1)
 
     # destroy the listener
+    print "destroyed listener"
     stopcomm(listen_replica_init)
     mycontext['state'] = 'Connected'
 
@@ -773,6 +789,7 @@ if callfunc == 'initialize':
     
     # block until 
     while mycontext['state'] != 'ReducerWaiting':
+        print "sleeping for state ReducerWaiting (state: %s)" % mycontext['state']
         sleep(0.1)
 
 
@@ -780,6 +797,10 @@ if callfunc == 'initialize':
     # then start)
     do_reduce()
     mycontext['state'] = "ReducerDone"
+
+    while mycontext['state'] != "Done":
+        print "sleeping for state Done (state: %s)" % mycontext['state']
+        sleep(0.1)
 
 
 
