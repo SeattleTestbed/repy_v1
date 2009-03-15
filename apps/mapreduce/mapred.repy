@@ -638,8 +638,7 @@ def partition(map_result):
             mycontext['peer_sockets'][mycontext['my_peer_index']] = "selfrecvd"
             mycontext['connection_lock'].release()
         else:
-            address = mycontext['peers'][peer_index].partition(":")
-            socketobj = openconn(address[0], int(address[2]))
+            socketobj = mycontext['peer_sockets'][peer_index]
             send_message_dict(socketobj, peer_data[peer_index])
 
     
