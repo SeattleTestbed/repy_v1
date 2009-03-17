@@ -380,11 +380,11 @@ def get_data(ip, port, socketobj, thiscommhandle, listencommhandle):
 
     # get a list of all of our neighbors!
     mycontext['primary'] = recv_message(socketobj)
-    print "got primary loc: ", mycontext['primary']
+    print "Primary init thread: got primary loc: ", mycontext['primary']
 
     # we need to know how many peers we have..
     mycontext['num_peers'] = int(socketobj.recv(4))
-    print "got num_peers: ", mycontext['num_peers']
+    print "Primary init thread: got num_peers: ", mycontext['num_peers']
 
     mycontext['peers'] = []
     for i in range(mycontext['num_peers']):
@@ -392,19 +392,19 @@ def get_data(ip, port, socketobj, thiscommhandle, listencommhandle):
 
     # parse and save data file:
     buf = recv_message(socketobj)
-    print "got data, ", buf
+    print "Primary init thread: got file data"
     dataobj = open("map_data.dat", "w")
     dataobj.write(buf)
     dataobj.close()
 
     # make sure each replica has the same order!
     # this line isn't needed --> mycontext['peers'].sort()
-    print "got my peers: ", mycontext['peers']
+    print "Primary init thread: got my peers: ", mycontext['peers']
 
     # which peer am I?  save this for future reference..
     address_str = mycontext['myip'] + ":" + str(mycontext['myport']-1)
     mycontext['my_peer_index'] = mycontext['peers'].index(address_str)        
-    print "my_peer_index is", mycontext['my_peer_index']
+    print "Primary init thread: my_peer_index is", mycontext['my_peer_index']
 
     # start the peer_sockets variable
     mycontext['peer_sockets'] = [""] * mycontext['num_peers']
@@ -412,7 +412,7 @@ def get_data(ip, port, socketobj, thiscommhandle, listencommhandle):
     # save the primary socket for heartbeats
     mycontext['primary_socket'] = socketobj
 
-    # try responding:
+    # try ACKing
     socketobj.send("i")
 
     # destroy the listen socket as we're done initializing
@@ -428,16 +428,19 @@ def heartbeat_response():
         try:
             msg = recv_message(mycontext['primary_socket'], timeout=5)
         except SocketTimeoutError:
-            print "timed out waiting for heartbeat"
+            print "Primary control thread: timed out waiting for heartbeat"
         else:
-            if msg == "heartbeat":
+            if "control" in msg:
+                pass
+            elif msg == "heartbeat":
                 state = mycontext['state']
-                print "sent state %s to primary" % state
+                print "Primary control thread: sent state %s to primary" % state
                 send_message(mycontext['primary_socket'], state)
 
                 if state == "ReducerDone":
-                    print "sending datadict:", mycontext['reduce_result']
-                    send_message_dict(mycontext['primary_socket'], mycontext['reduce_result'])
+                    print "Primary control thread: sending datadict:", mycontext['reduce_result']
+                    send_message_dict(mycontext['primary_socket'], 
+                                      mycontext['reduce_result'])
                     mycontext['state'] = "Done"
                     break
 
@@ -454,17 +457,17 @@ def init_replica_sockets():
 
     # if we're the last peer, just skip this.  we'll listen for all sockets.
     if mycontext['my_peer_index'] + 1 >= len(mycontext['peers']):
-        print "quit early, i'm last in list."
+        print "Main thread: quit early, I'm last in list."
         return
 
-    print "continuing init_replica_sockets()"
+    print "Main thread: continuing init_replica_sockets()"
     # + 1 is added to skip creating self-socket
     peer_subset = mycontext['peers'][mycontext['my_peer_index'] + 1:]
     for peer in peer_subset:
         addr_parts = peer.partition(":")
         peer_index = mycontext['peers'].index(peer)
 
-        print "attempting to connect to peer %d, (addr: %s:%d)" % (peer_index, addr_parts[0], int(addr_parts[2])+1)
+        print "Main thread: attempting to connect to peer %d, (addr: %s:%d)" % (peer_index, addr_parts[0], int(addr_parts[2])+1)
         socketobj = timeout_openconn(addr_parts[0], int(addr_parts[2])+1,
                                      mycontext['myip'], 12347)
         socketobj.send("hello")
@@ -481,8 +484,8 @@ def init_replica_sockets():
 # listens for incoming tcp connections, establishes a port
 def recv_init_replica_conn(ip, port, sockobj, thiscommhandle, listencommhandle):
     data = sockobj.recv(5)
-
-    print "receiving peer_init message from %s, %s" % (ip, port)
+    
+    print "Peer init thread: receiving peer_init message from %s, %s" % (ip, port)
 
     if not data == "hello":
         exit_prog("Received an unintelligible message from a peer %s:%d, %s" %
@@ -498,22 +501,22 @@ def recv_init_replica_conn(ip, port, sockobj, thiscommhandle, listencommhandle):
         mycontext['peer_conn_left'] -= 1
         mycontext['connection_lock'].release()
 
-        print "successfully received init message from", ip+":"+str(port)
+        print "Peer init thread: successfully received init message from", ip+":"+str(port)
 
 
 # listens for incoming map data (this is run asynchronously)
 def recv_peer_map_data():
     peer_socket_recvd = []    
 
-    print "peer_sockets:", mycontext['peer_sockets']
+    print "Peer datarecv thread: peer_sockets:", mycontext['peer_sockets']
 
     while len(peer_socket_recvd) != mycontext['num_peers']:
 
         # cycle through all the sockets, trying to receive
         for socket in mycontext['peer_sockets']:
 
-            print "trying to receive on socket", socket
-            print "received from", peer_socket_recvd
+            print "Peer datarecv thread: trying to receive on socket", socket
+            print "Peer datarecv thread: received from", peer_socket_recvd
 
             # pass over the socket if we've received data already
             if socket in peer_socket_recvd:
@@ -531,19 +534,19 @@ def recv_peer_map_data():
             # try to receive
             recv_data = {}
             try:
-                print "recving on socket", socket
+                print "Peer datarecv thread: recving on socket", socket
                 recv_data = recv_message_dict(socket, timeout=5)
             except SocketTimeoutError:
-                print "timed out on socket", socket, "... continuing"
+                print "Peer datarecv thread: timed out on socket", socket, "... continuing"
                 continue
             else:
                 mycontext['connection_lock'].acquire()
                 mycontext['reduce_data'].update(recv_data)
-                print "received data"
+                print "Peer datarecv thread: received data"
                 peer_socket_recvd.append(socket)
                 mycontext['connection_lock'].release()
             
-    print "finished recving data"
+    print "Peer datarecv thread: finished recving data"
     mycontext['state'] = "ReducerWaiting"
 
 
@@ -570,6 +573,8 @@ def do_map():
     
 # the user must define their own partition function (hash_func)
 def partition(map_result):
+    mycontext['state'] = "Partitioning"
+
     key_value = {}
 
     # generate a key-value dict
@@ -611,9 +616,9 @@ def partition(map_result):
     hash_list.sort()
 
     # initialize the peer_data list
-    peer_data = []
-    for index in range(mycontext['num_peers']):
-        peer_data.append({})
+    peer_data = [{}] * mycontext['num_peers']
+    #for index in range(mycontext['num_peers']):
+    #    peer_data.append({})
 
     for hashcode in hash_list:
         cur_replica = hashcode % mycontext['num_peers']
@@ -632,12 +637,13 @@ def partition(map_result):
     # send data to replicas, each replica should have a dictionary of kv pairs  
     for peer_index in range(mycontext['num_peers']):
         if peer_index == mycontext['my_peer_index']:
-            print "sending data to self"
+            print "Main thread: sending data to self"
             mycontext['connection_lock'].acquire()
             mycontext['reduce_data'].update(peer_data[peer_index])
             mycontext['peer_sockets'][mycontext['my_peer_index']] = "selfrecvd"
             mycontext['connection_lock'].release()
         else:
+            print "Main thread: sending data to peer %d..." % peer_index
             socketobj = mycontext['peer_sockets'][peer_index]
             send_message_dict(socketobj, peer_data[peer_index])
 
@@ -744,40 +750,47 @@ if callfunc == 'initialize':
         port = 12345
         ip = '127.0.0.1'
 
+    # save my ip/port for future reference
     mycontext['myip'] = ip
     mycontext['myport'] = port
     
-    print "waiting for connection on ", ip, ":",  port
+    # wait for primary initialization data
+    print "Main thread: waiting for connection on ", ip, ":",  port
     listencommhandle = timeout_waitforconn(ip, port-1, get_data)
     
-    # block until we've been initialized with data/methods
+    # block until we've been initialized
     while mycontext['state'] == 'Ready':
         sleep(.1)
 
-    # maintain connection with primary
+    # maintain connection with primary, keep scoreboard updated
+    # this is the main channel of communication with the primary
     settimer(0, heartbeat_response, ())
     
     # try to open connections to all hosts
     mycontext['connection_lock'] = getlock()
     mycontext['peer_conn_left'] = mycontext['num_peers']
 
-    default_timeout = 4 * mycontext['num_peers']
-    lag = 2 * mycontext['my_peer_index']
-
-    sleep(default_timeout-lag)
-
     # listen for connections from peers
     listen_replica_init = timeout_waitforconn(ip, port, recv_init_replica_conn)
-    print "listening on %s:%d for peer connections" % (ip, port)
+    print "Main thread: listening on %s:%d for peer connections" % (ip, port)
+
+    # sleep to slow the socket thing down, we're working over WAN so it's tricky
+    default_timeout = 4 * mycontext['num_peers']
+    lag = 4 * mycontext['my_peer_index']
+    sleeptime = default_timeout - lag
+
+    print "Main thread: sleeping for %d seconds to allow listeners to catch up" % sleeptime
+    sleep(sleeptime)
+
     # open connections to peers
     init_replica_sockets()
 
     while mycontext['peer_conn_left'] > 1:
-        print "sleeping for peer_conn_left ("+str(mycontext['peer_conn_left'])+")"
+        print "Main thread: sleeping for peer_conn_left (%d)" % mycontext['peer_conn_left']
         sleep(0.1)
 
     # destroy the listener
-    print "destroyed listener"
+    print "Main thread: destroyed peer-peer initialization listener"
     stopcomm(listen_replica_init)
     mycontext['state'] = 'Connected'
 
@@ -795,20 +808,21 @@ if callfunc == 'initialize':
     # send map results to all reducers, split as necessary
     partition(map_result)
     
-    # block until 
+    # block until all partition data is acquired
     while mycontext['state'] != 'ReducerWaiting':
-        print "sleeping for state ReducerWaiting (state: %s)" % mycontext['state']
-        sleep(0.1)
+        print "Main thread: sleeping for state ReducerWaiting (state: %s)" % mycontext['state']
+        sleep(0.5)
 
 
-    # start reducing, synchronous call (wait for all data to come in, 
-    # then start)
+    # start reducing, synchronous call 
     do_reduce()
     mycontext['state'] = "ReducerDone"
 
+    # wait for a primary heartbeat to come in, then return data, change state
+    # and terminate
     while mycontext['state'] != "Done":
-        print "sleeping for state Done (state: %s)" % mycontext['state']
-        sleep(0.1)
+        print "Main thread: sleeping for state Done (state: %s)" % mycontext['state']
+        sleep(0.5)
 
 
 
