@@ -233,7 +233,7 @@ def exec_repy_script(filename, restrictionsfile, arguments={}, script_args=''):
     
     time.sleep(5)
     
-    theout = file(repy_constants.PATH_SEATTLE_INSTALL + "execlog.out.old", "r")
+    theout = file(repy_constants.PATH_SEATTLE_INSTALL + "execlog.out", "r")
     output = theout.read()
     theout.close()
     
