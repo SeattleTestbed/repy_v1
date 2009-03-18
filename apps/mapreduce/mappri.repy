@@ -353,25 +353,51 @@ def initalize_replicas(data):
     replica_str = pad_int_to_str(len(mycontext['scoreboard'].keys()), 4)
     replica_str += mycontext['replica_str']
 
-    print "replica_str:", replica_str
+#    print "replica_str:", replica_str
 
-    # generate data string to send - size limited to 1e6-1 bytes
-    data = format_message(data)
+    replicas = mycontext['scoreboard'].keys()
+    replicas.sort()
+
+    # split up the data
+    data_lines = data.split("\n")
+    chunk_size = len(data_lines) / len(replicas)
+    if len(data_lines) % len(replicas) != 0:
+        chunk_size + 1
+
+    data_dist = []
+    for i in xrange(0, len(data_lines), chunk_size):
+        data_dist.append(data_lines[i:i+chunk_size])
+
+    split_data = []
+    for single_data in data_dist:
+        split_data.append("\n".join(single_data))
+
+   
+#     for i in range(len(split_data)):
+#         print str(i) + "->", split_data[i]
+            
+
+    # generate data strings to send - size limited to 1e6-1 bytes
+    for i in range(len(split_data)):
+        split_data[i] = format_message(split_data[i])
+
     
     # prepare socket array
     mycontext['peer_sockets'] = [""] * len(mycontext['scoreboard'].keys())
 
     # send data to each replica
-    replicas = mycontext['scoreboard'].keys()
-    replicas.sort()
-    for replica in replicas:
+    for i in range(len(replicas)):
+        replica = replicas[i]
+
         addr_parts = replica.partition(":")
+        replica_ip = addr_parts[0]
+        replica_port = int(addr_parts[2])
+
         print "opening connection to", replica
-        socketobj = timeout_openconn(addr_parts[0], int(addr_parts[2]), 
-                                     timeout=10)
+        socketobj = timeout_openconn(replica_ip, replica_port, timeout=10)
         socketobj.send(prim_str)
         socketobj.send(replica_str)
-        socketobj.send(data)
+        socketobj.send(split_data[i])
 
         socketobj.settimeout(5)
 
@@ -430,6 +456,9 @@ def keep_scoreboard():
                 scoreboard[replica]['heartbeat_failed'] += 1
                 if scoreboard[replica]['heartbeat_failed'] >= 3:
                     pass # add activating an inactive node here!
+            except Exception, e:
+                if "refused" not in str(e):
+                    raise
             else:
                 print "recving state (%s for %s).." % (cur_state, replica)
                 scoreboard[replica]['state'] = cur_state
@@ -558,7 +587,7 @@ if callfunc == 'initialize':
         ip = '127.0.0.1'
 
     mycontext['my_addr'] = ip + ":" + str(port)
-    print "my_addr:", mycontext['my_addr']
+#    print "my_addr:", mycontext['my_addr']
 
     if callargs[argpointer] == '-n':
         # do something special here, it's a no-op atm

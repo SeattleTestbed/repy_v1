@@ -431,7 +431,7 @@ def heartbeat_response():
             print "Primary control thread: timed out waiting for heartbeat"
         else:
             if "control" in msg:
-                pass
+                pass  # change peers in here
             elif msg == "heartbeat":
                 state = mycontext['state']
                 print "Primary control thread: sent state %s to primary" % state
@@ -471,6 +471,7 @@ def init_replica_sockets():
         socketobj = timeout_openconn(addr_parts[0], int(addr_parts[2])+1,
                                      mycontext['myip'], 12347)
         socketobj.send("hello")
+        socketobj.recv(1)
 
         mycontext['connection_lock'].acquire()
         mycontext['peer_sockets'][peer_index] = socketobj
@@ -488,9 +489,11 @@ def recv_init_replica_conn(ip, port, sockobj, thiscommhandle, listencommhandle):
     print "Peer init thread: receiving peer_init message from %s, %s" % (ip, port)
 
     if not data == "hello":
-        exit_prog("Received an unintelligible message from a peer %s:%d, %s" %
-                  (ip, port, data))
+        print "Received an unintelligible message from a peer %s:%d, %s" % (ip, port, data)
+        exitall()
     else:
+        sockobj.send("i")
+
         # save socket obj for later
         incoming_index = mycontext['peers'].index(ip+":12344")
 
@@ -499,6 +502,10 @@ def recv_init_replica_conn(ip, port, sockobj, thiscommhandle, listencommhandle):
 
         # decrement our connection counter
         mycontext['peer_conn_left'] -= 1
+
+        print "Peer init thread: adding new socket to index " + str(incoming_index)
+        print "Peer init thread: peer_sockets:", mycontext['peer_sockets']
+
         mycontext['connection_lock'].release()
 
         print "Peer init thread: successfully received init message from", ip+":"+str(port)
@@ -517,6 +524,7 @@ def recv_peer_map_data():
 
             print "Peer datarecv thread: trying to receive on socket", socket
             print "Peer datarecv thread: received from", peer_socket_recvd
+            print "Wanted %d receptions, only got %d" % (len(mycontext['peer_sockets']), len(peer_socket_recvd))
 
             # pass over the socket if we've received data already
             if socket in peer_socket_recvd:
@@ -621,11 +629,32 @@ def partition(map_result):
     #    peer_data.append({})
 
     for hashcode in hash_list:
-        cur_replica = hashcode % mycontext['num_peers']
-        
-        for kv_pairs in partition_hash[hashcode]:
-            kv = dict([[kv_pairs[0], kv_pairs[1:]]])
-            peer_data[cur_replica].update(kv)
+      cur_replica = hashcode % mycontext['num_peers']
+      cur_dict = peer_data[cur_replica]
+    
+      for kv_pairs in partition_hash[hashcode]:
+        print "kv_pairs", kv_pairs
+        kv = dict([[kv_pairs[0], kv_pairs[1:]]])
+        cur_dict.update(kv)
+            
+        print "adding %s to cur_replica %d" % (str(kv), cur_replica)
+        print peer_data[cur_replica]
+
+
+#     for hashcode in hash_list:
+#         cur_replica = hashcode % mycontext['num_peers']
+#         cur_dict = peer_data[cur_replica]
+
+#         for kv_pairs in partition_hash[hashcode]:
+#             print "kv_pairs", kv_pairs
+#             kv = {kv_pairs[0]: kv_pairs[1:]}
+
+#             cur_dict.update(kv)
+            
+#             print "adding %s to cur_replica %d" % (str(kv), cur_replica)
+#             print peer_data[cur_replica]
+
+#         peer_data[cur_replica] = cur_dict
 
     # print out the peer data, just for my reference
     index = 0
@@ -644,8 +673,10 @@ def partition(map_result):
             mycontext['connection_lock'].release()
         else:
             print "Main thread: sending data to peer %d..." % peer_index
+            mycontext['connection_lock'].acquire()
             socketobj = mycontext['peer_sockets'][peer_index]
             send_message_dict(socketobj, peer_data[peer_index])
+            mycontext['connection_lock'].release()
 
     
 def do_reduce():
