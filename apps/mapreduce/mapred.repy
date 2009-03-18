@@ -654,11 +654,28 @@ def do_reduce():
 
     print "reduce_data", mycontext['reduce_data']
     
+    print "reduce_data", mycontext['reduce_data']
+    
     reduce_result = {}
+    results_list = []
+
+
     for key, values in data.iteritems():
         print "reducing..."
-        reduce_result.update(reduce_func(key, values))
+        returned_dict = reduce_func(key, values)
+        results_list.append(returned_dict)
+
+    print "Reducing: results_list:" , results_list
+
+    for single_dict in results_list:
+        for key, value in single_dict.iteritems():
+            if key in reduce_result:
+                reduce_result[key] += " " + value
+            else:
+                reduce_result[key] = value
                           
+    print "Reducing: reduce_result:", reduce_result
+
     mycontext['reduce_result'] = reduce_result
 
 
