@@ -631,16 +631,12 @@ def partition(map_result):
 
     # go through each hash, and assign it to a replica
     for hashcode in hash_list:
-      cur_replica = hashcode % mycontext['num_peers']
-    
-      for kv_pairs in partition_hash[hashcode]:
-        print "kv_pairs", kv_pairs
-        kv = {kv_pairs[0]: kv_pairs[1:]}
-        peer_data[cur_replica].update(kv)
-            
-        print "adding %s to cur_replica %d" % (str(kv), cur_replica)
+        cur_replica = hashcode % mycontext['num_peers']
         
-      print "peer_data", peer_data
+        for kv_pairs in partition_hash[hashcode]:
+            print "kv_pairs", kv_pairs
+            kv = {kv_pairs[0]: kv_pairs[1:]}
+            peer_data[cur_replica].update(kv)
 
 
     # print out the peer data, just for my reference
@@ -671,9 +667,7 @@ def do_reduce():
     data = mycontext['reduce_data']
 
     print "reduce_data", mycontext['reduce_data']
-    
-    print "reduce_data", mycontext['reduce_data']
-    
+        
     reduce_result = {}
     results_list = []
 
@@ -682,8 +676,6 @@ def do_reduce():
         print "reducing..."
         returned_dict = reduce_func(key, values)
         results_list.append(returned_dict)
-
-    print "Reducing: results_list:" , results_list
 
     for single_dict in results_list:
         for key, value in single_dict.iteritems():

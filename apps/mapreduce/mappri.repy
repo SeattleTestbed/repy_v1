@@ -409,18 +409,14 @@ def initalize_replicas(data):
 # only worried about active replicas now, add support for inactive peers later 
 def construct_scoreboard(replica_list):
     mycontext['scoreboard'] = {}
-
-    active_entry = {}
-    active_entry["socket"] = ""
-    active_entry["active"] = 1
-    active_entry["state"] = "Initialized"
-    active_entry["heartbeat_failed"] = 0
-
     
     for replica in replica_list:
+        active_entry = {}
+        active_entry["socket"] = ""
+        active_entry["active"] = 1
+        active_entry["state"] = "Initialized"
+        active_entry["heartbeat_failed"] = 0
         mycontext['scoreboard'][replica] = active_entry
-
-    
 
 
 def keep_scoreboard():
@@ -438,6 +434,10 @@ def keep_scoreboard():
     while finished_replicas < len(active_replicas):
 
         for replica in active_replicas:
+
+            print
+            print "retrying, only got %d of %d data" % (finished_replicas, len(active_replicas))
+
             print "scoreboard:", scoreboard
             # if this replica says it's done, skip it
             if scoreboard[replica]['state'] == "Done":
@@ -473,6 +473,7 @@ def keep_scoreboard():
                     scoreboard[replica]['state'] = "Done"
                     finished_replicas += 1
                     print "received mapred data:", mycontext['final_output']
+                    continue
 
             # give the replicas a bit of a break!
             sleep(5)
