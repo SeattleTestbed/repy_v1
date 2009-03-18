@@ -5,7 +5,7 @@
 - more space between functions, 3-4 space lines
 '''
 
-#begin include timeout_socket.repy
+#begin include sockettimeout.repy
 """
 <Description>
   A socket that guarentees the receipt of a message.   Raises TimeoutError if it does not
@@ -337,12 +337,12 @@ def sockettimeout_recv_or_close(sockobj, amount, timeout):
     raise SocketTimeout
 
 
-#end include timeout_socket.repy
+#end include sockettimeout.repy
 
 # MapReduce for python/repy!
 #
 
-#begin include mapper.repy
+
 # MapReduce for python/repy!
 #
 
@@ -353,9 +353,9 @@ def map_func(key, value):
         toRet.append(output)
     sleep(0.1)
     return toRet
-#end include mapper.repy
 
-#begin include reducer.repy
+
+
 # MapReduce for python/repy!
 #
 
@@ -366,14 +366,14 @@ def reduce_func(key, values):
         sum += int(value)
 
     return {key: sum}
-#end include reducer.repy
 
-#begin include hasher.repy
+
+
 #
 
 def hash_func(data):
     return ord(data[0])/8
-#end include hasher.repy
+
 
 def get_data(ip, port, socketobj, thiscommhandle, listencommhandle):
     """ Listens for connections on a well-defined port, imports data files """
@@ -624,37 +624,24 @@ def partition(map_result):
     hash_list.sort()
 
     # initialize the peer_data list
-    peer_data = [{}] * mycontext['num_peers']
-    #for index in range(mycontext['num_peers']):
-    #    peer_data.append({})
+    peer_data = []
+    for index in range(mycontext['num_peers']):
+        peer_data.append({})
+    
 
+    # go through each hash, and assign it to a replica
     for hashcode in hash_list:
       cur_replica = hashcode % mycontext['num_peers']
-      cur_dict = peer_data[cur_replica]
     
       for kv_pairs in partition_hash[hashcode]:
         print "kv_pairs", kv_pairs
-        kv = dict([[kv_pairs[0], kv_pairs[1:]]])
-        cur_dict.update(kv)
+        kv = {kv_pairs[0]: kv_pairs[1:]}
+        peer_data[cur_replica].update(kv)
             
         print "adding %s to cur_replica %d" % (str(kv), cur_replica)
-        print peer_data[cur_replica]
+        
+      print "peer_data", peer_data
 
-
-#     for hashcode in hash_list:
-#         cur_replica = hashcode % mycontext['num_peers']
-#         cur_dict = peer_data[cur_replica]
-
-#         for kv_pairs in partition_hash[hashcode]:
-#             print "kv_pairs", kv_pairs
-#             kv = {kv_pairs[0]: kv_pairs[1:]}
-
-#             cur_dict.update(kv)
-            
-#             print "adding %s to cur_replica %d" % (str(kv), cur_replica)
-#             print peer_data[cur_replica]
-
-#         peer_data[cur_replica] = cur_dict
 
     # print out the peer data, just for my reference
     index = 0
