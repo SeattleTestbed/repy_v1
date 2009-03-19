@@ -107,7 +107,7 @@ _terminateProcess = kerneldll.TerminateProcess # Kills a process
 _closeHandle = kerneldll.CloseHandle # Closes any(?) handle object
 _getLastError = kerneldll.GetLastError # Gets last error number of last error
 _waitForSingleObject = kerneldll.WaitForSingleObject # Waits to acquire mutex
-_createMutex = kerneldll.CreateMutexA # Creates a Mutex, ANSI version
+_createMutex = kerneldll.CreateMutexW # Creates a Mutex, Unicode version
 _releaseMutex = kerneldll.ReleaseMutex # Releases mutex
 
 try:
@@ -998,7 +998,7 @@ def createMutex(name):
     handle to the mutex.
   """
   # Attempt to create Mutex
-  handle = _createMutex(None, 0, name)
+  handle = _createMutex(None, 0, unicode(name))
   
   # Check for a successful handle
   if not handle == False: 
