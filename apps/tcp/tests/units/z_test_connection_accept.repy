@@ -24,10 +24,11 @@ def test_accept():
   sock = Connection()
   sock.localip = IP
   sock.localport = PORT
-  sock.requestip = IP
-  sock.requestport = PORT
-  sock.server = TcpServer(None)
-  sock.conn = True
+  sock.tcup = Connection()
+  sock.tcup.localip = IP
+  sock.tcup.localport = PORT
+  sock.tcup.server = TcpServer(None)
+  sock.tcup.conn = True
 
   # Spawn new TCUP
   conn, addr = sock.accept() 
@@ -39,8 +40,6 @@ def test_accept():
   assert conn.remoteip == IP
   assert conn.remoteport == PORT
   assert conn.client
-  assert not conn.requestip
-  assert not conn.requestport
   assert conn.conn
 
   # should be ready to listen again
@@ -49,9 +48,9 @@ def test_accept():
   assert not sock.remoteip
   assert not sock.remoteport 
   assert not sock.client
-  assert not sock.requestip
-  assert not sock.requestport
   assert not sock.conn
+  assert not sock.tcup
+  
   
 def test_accept_not_bound():
   conn = Connection()
@@ -73,23 +72,12 @@ def test_accept_not_connected():
   else:
     raise Exception("should raise not connected")
 
-def test_accept_not_requested():
-  conn = Connection()
-  conn.localip = IP
-  conn.localport = PORT
-  conn.conn = True
-  try:
-    conn.accept()
-  except NotRequestedError:
-    pass
-  else:
-    raise Exception("should raise not requested")
-
 def test_accept_already_connected():
   conn = Connection()
   conn.localip = IP
   conn.localport = PORT
   # bound
+  conn.tcup = True
   conn.remoteip = IP
   conn.remoteport = PORT
   conn.conn = True
@@ -114,7 +102,6 @@ def main():
   test_accept() 
   test_accept_not_bound()
   test_accept_not_connected()
-  test_accept_not_requested()
   test_accept_already_connected()
 
   # teardown

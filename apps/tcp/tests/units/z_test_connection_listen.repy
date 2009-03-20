@@ -26,17 +26,14 @@ def test_listen():
   conn.state_machine.next = mynext
   conn.localip = IP
   conn.localport = PORT
-  (ip, port) = conn.listen()
-  assert conn.conn
-  stopcomm(conn.conn)
-  assert conn.server
-  assert not conn.client
-  assert conn.requestip
-  assert conn.requestport
-  assert not conn.remoteip
-  assert not conn.remoteport
-  assert conn.requestip == ip
-  assert conn.requestport == port
+  conn.listen()
+  assert conn.tcup.conn
+  stopcomm(conn.tcup.conn)
+  assert conn.tcup
+  assert conn.tcup.server
+  assert not conn.tcup.client
+  assert not conn.tcup.remoteip
+  assert not conn.tcup.remoteport
 
 def test_listen_not_bound():
   conn = Connection()

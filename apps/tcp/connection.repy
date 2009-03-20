@@ -109,9 +109,8 @@ class Connection:
 
     self.conn = None
 
-    # temporary for listen - accept transition
-    self.requestip = None
-    self.requestport = None
+    # temporary for listen - accept transition and spawn
+    self.tcup = None
 
     # Let's put all the protocol details in a state machine
     self.state_machine = TcpStateMachine()
@@ -122,87 +121,6 @@ class Connection:
 
     # need lock for race conditions
     self.lock = getlock() # general
-
-  def reinit(self):
-    """
-    <Purpose>
-      Re-initializes an object back to beginning state.
-
-    <Side Effects>
-      Same as init.
-
-    <Returns>
-      None
-    """
-
-    # Let's assign some constants
-    self.DEFAULT_MAXLEN = 4096 # 4 kilo bytes ??
-
-    # Configuration  
-    self.maxdgramsize = DEFAULT_MAXDGRAMSIZE
-    self.retries = DEFAULT_RETRIES
-    self.timeout = DEFAULT_TIMEOUT
-    self.way_to_close = FOUR_WAY
-
-    # undefined
-    self.localip = None
-    self.localport = None
-    self.remoteip = None
-    self.remoteport = None
-
-    self.conn = None
-
-    # temporary for listen - accept transition
-    self.requestip = None
-    self.requestport = None
-
-    # Let's put all the protocol details in a state machine
-    self.state_machine = TcpStateMachine()
-
-    # also let's logically separate tasks
-    self.client = None
-    self.server = None
-
-    # need lock for race conditions
-    self.lock = getlock() # general
-
-  def copy(self):
-    """
-    <Purpose>
-      Spawn a new TCUP by making a shallow copy.
-      The state_machine, client, server are not copies.
-      
-    <Returns>
-      Copy of self.
-    """
-    tcup = Connection()
-    tcup.localip = self.localip
-    tcup.localport = self.localport
-    tcup.remoteip = self.remoteip
-    tcup.remoteport = self.remoteport
-
-    tcup.conn = tcup.register_recvmess()
-
-    # temporary for listen - accept transition
-    tcup.requestip = self.requestip
-    tcup.requestport = self.requestport
-
-    # Let's put all the protocol details in a state machine
-    tcup.state_machine = self.state_machine
-
-    # also let's logically separate tasks
-    tcup.client = self.client
-    tcup.client.send_function = tcup.register_sendmess
-    tcup.server = self.server
-    tcup.server.send_function = tcup.register_sendmess
-
-
-    # need lock for race conditions
-    tcup.lock = self.lock
-  
-    return tcup
-
-
 
   ###########################
   # Bind
@@ -241,13 +159,10 @@ class Connection:
     self.localport = localport
     self.lock.release()
 
-
   def listen(self):
     """
     <Purpose>
       Allows the local connection to receive messages.
-      Blocks until it receives a connection request.
-      Then returns for the application to call accept().
 
     <Arguments>
       None
@@ -255,14 +170,13 @@ class Connection:
     <Exceptions>
       raise NotBoundError("need to bind before listening")
       raise AlreadyConnectedError("cannot listen with an active connection")
-      raise TimeoutError("timed out listening")
 
     <Side Effects>
       Sets up a UDP callback.
       Initializes server.
 
     <Returns>
-      Tuple address(ip, port) of remote party.
+      None
     """
 
     self.lock.acquire()
@@ -274,33 +188,20 @@ class Connection:
       self.lock.release()
       raise AlreadyConnectedError("cannot listen with an active connection")
 
-    self.conn = self.register_recvmess()
-    self.state_machine.listen() # do any state accounting
-
-    self.server = TcpServer(self.register_sendmess)
+    tcup = Connection()
+    tcup.bind(self.localip, self.localport)
+    tcup.conn = tcup.register_recvmess()
+    tcup.state_machine.listen() # do any state accounting
+    tcup.server = TcpServer(tcup.register_sendmess)
+    
+    self.tcup = tcup
     self.lock.release()
-
-    # block until syn request or timeout
-    (self.requestip, self.requestport) = self.server.listen(self.timeout * self.retries)
-
-    # fill in what we have
-    self.lock.acquire()
-
-    # guarenteed to never happen here (timeout is in server)
-    if not self.requestip or not self.requestport:
-      self.lock.release()
-      raise TimeoutError("timed out listening")
-    addr = (self.requestip, self.requestport)
-    self.lock.release()
-    return addr
 
   def accept(self):
     """
     <Purpose>
-      Called by application after a call to listen() receives
-      a request by connect().  Continues the process of connecting
-      with the remote host.
-      Blocks until the remote host responds or times out.
+      Blocks until a peer requests a conn or it times out.
+      Responds to request with SYN ACK and returns established.
     
     <Arguments>
       None      
@@ -309,7 +210,6 @@ class Connection:
       raise NotBoundError("need to bind and listen before accepting")
       raise NotConnectedError("cannot accept without a connection")
       raise AlreadyConnectedError("cannot accept when already connected")
-      raise NotRequestedError("cannot accept without a request")
       TimeoutError if the request host does not acknowledge.    
 
     <Side Effects>
@@ -323,7 +223,7 @@ class Connection:
       self.lock.release()
       raise NotBoundError("need to bind and listen before accepting")
 
-    if self.conn == None:
+    if self.tcup == None:
       self.lock.release()
       raise NotConnectedError("cannot accept without a connection")
 
@@ -331,37 +231,41 @@ class Connection:
       self.lock.release()
       raise AlreadyConnectedError("cannot accept when already connected")
 
-    if not self.requestip or not self.requestport:
+    tcup = self.tcup
+    self.lock.release()
+
+    # block until syn request or timeout
+    request_addr = tcup.server.listen(self.timeout * self.retries)
+
+    # fill in what we have
+    self.lock.acquire()
+
+    # guarenteed to never happen here (timeout is in server)
+    if not request_addr:
       self.lock.release()
-      raise NotRequestedError("cannot accept without a request")
+      raise TimeoutError("timed out listening")
 
     # change states
-    self.state_machine.accept()
+    tcup.state_machine.accept()
 
     # change to estab
-    self.remoteip = self.requestip
-    self.remoteport = self.requestport
-    self.requestip = None
-    self.requestport = None
+    tcup.remoteip, tcup.remoteport = request_addr
 
     # setup out client
-    self.client = TcpClient(self.register_sendmess)
-    self.client.set_recv_window(self.server.get_recv_window())
-    ack_num = self.server.get_ack_num()
+    tcup.client = TcpClient(tcup.register_sendmess)
+    tcup.client.set_recv_window(tcup.server.get_recv_window())
+    ack_num = tcup.server.get_ack_num()
     self.lock.release()
 
     # actually complete it, blocks for final ACK
-    self.client.accept(ack_num, self.remoteip, self.remoteport, \
-				self.localip, self.localport, \
-					self.retries, self.timeout)
+    tcup.client.accept(ack_num, tcup.remoteip, tcup.remoteport, \
+				tcup.localip, tcup.localport, \
+					tcup.retries, tcup.timeout)
 
     # spawn
     self.lock.acquire()
-    stopcomm(self.conn)
-    tcup = self.copy()
-    self.reinit()
-    self.bind(tcup.localip, tcup.localport)
-    tcup.lock.release()
+    self.tcup = None
+    self.lock.release()
 
     return (tcup, (tcup.remoteip, tcup.remoteport))
 
