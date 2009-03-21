@@ -21,29 +21,14 @@ RESTR=restrictions.default
 # args 
 PORT_A=12345 
 PORT_B=12346
-DESTIP=`hostname -i`
-TOT=10000
-CHUNK=100
+DESTIP=127.0.0.1
+TOT=1000000
+CHUNK=10000
 
 DIST=tcpdemo
-
 DEMO=demo
 
-all: download demo
-
 download: repy tcp benchmarks restrictions
-
-demo: tcup pytcp repytcp 
-
-# run it
-tcup2: repy tcp restrictions
-	# Running TCUP Benchmark...
-	python ${REPYPP} ${DEMO}.repy ${DEMO}
-        # Arguments required: (-s or -c) LocalPort [DestinationIP DestinationPort TotalBytes ChunkSize]
-	python ${REPY} ${RESTR} ${DEMO} -s ${PORT_B} &
-	python ${REPY} ${RESTR} ${DEMO} -c ${PORT_A} ${DESTIP} ${PORT_B} ${TOT} ${CHUNK}
-        # done.
-	rm ${DEMO}
 
 tcup: download
 	# Running TCUP Benchmark...
@@ -107,6 +92,6 @@ repy:
 # download tcp/udp
 tcp:
 	# Dowloading TCP over UDP...
-	if [ ! -e ${TCP} ]; then wget --no-check-certificate https://seattle.cs.washington.edu/raw-attachment/wiki/TopSecretReadme/${TCP}; fi
+	if [ ! -e ${TCP} ]; then wget --no-check-certificate https://seattle.cs.washington.edu/raw-attachment/wiki/TCUP/${TCP}; fi
 	# done.
 	#
