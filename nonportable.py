@@ -67,6 +67,11 @@ except:
   windowsAPI = None
   pass
 
+
+# This gives us our restrictions information
+import nanny
+
+
 # this indicates if we are exiting.   Wrapping in a list to prevent needing a
 # global   (the purpose of this is described below)
 statusexiting = [False]
@@ -159,33 +164,24 @@ def harshexit(val):
   
 
 
-def monitor_cpu_disk_and_mem(cpuallowed, diskallowed, memallowed):
+def monitor_cpu_disk_and_mem():
   if ostype == 'Linux' or ostype == 'Darwin':  
     # Startup a CPU monitoring thread/process
-    do_forked_cpu_monitor(repy_constants.CPU_POLLING_FREQ_LINUX, cpuallowed)
-    
-    # Setup a disk and memory thread to enforce the quota
-    LinuxResourceNannyThread(repy_constants.RESOURCE_POLLING_FREQ_LINUX, diskallowed, memallowed).start()
+    do_forked_resource_monitor()
     
   elif ostype == 'Windows' or ostype == 'WindowsCE':
-    if (ostype == 'WindowsCE'):
-      frequency = repy_constants.RESOURCE_POLLING_FREQ_WINCE
-      frequencyCPU = repy_constants.CPU_POLLING_FREQ_WINCE
-    else:
-      frequency = repy_constants.RESOURCE_POLLING_FREQ_WIN
-      frequencyCPU = repy_constants.CPU_POLLING_FREQ_WIN
-      
-    # now we set up a cpu and memory / disk thread nanny...
+    
+    # Now we set up a cpu nanny...
     # Use an external CPU monitor for WinCE
     if ostype == 'WindowsCE':
       nannypath = "\"" + repy_constants.PATH_SEATTLE_INSTALL + 'win_cpu_nanny.py' + "\""
-      cmdline = str(os.getpid())+" "+str(cpuallowed)+" "+str(frequencyCPU)
+      cmdline = str(os.getpid())+" "+str(nanny.resource_limit("cpu"))+" "+str(repy_constants.CPU_POLLING_FREQ_WINCE)
       windowsAPI.launchPythonScript(nannypath, cmdline)
     else:
-      WinCPUNannyThread(frequencyCPU,cpuallowed).start()
+      WinCPUNannyThread().start()
     
     # Launch mem./disk resource nanny
-    WindowsNannyThread(frequency,diskallowed, memallowed).start()
+    WindowsNannyThread().start()
      
   else:
     raise UnsupportedSystemException, "Unsupported system type: '"+osrealtype+"' (alias: "+ostype+")"
@@ -243,78 +239,6 @@ def portablekill(pid):
     raise UnsupportedSystemException, "Unsupported system type: '"+osrealtype+"' (alias: "+ostype+")"
 
 
-# Data structures and functions for a cross platform CPU limiter
-
-# Intervals to retain for rolling average
-ROLLING_PERIOD = 1
-rollingCPU = []
-rollingIntervals = []
-
-# Debug purposes: Calculate real average
-#appstart = time.time()
-#rawcpu = 0.0
-#totaltime = 0.0
-
-def calculate_cpu_sleep_interval(cpulimit,percentused,elapsedtime):
-  """
-  <Purpose>
-    Calculates proper CPU sleep interval to best achieve target cpulimit.
-  
-  <Arguments>
-    cpulimit:
-      The target cpu usage limit
-    percentused:
-      The percentage of cpu used in the interval between the last sample of the process
-    elapsedtime:
-      The amount of time elapsed between last sampling the process
-  
-  <Returns>
-    Time period the process should sleep
-  """
-  global rollingCPU, rollingIntervals
-  # Debug: Used to calculate averages
-  #global totaltime, rawcpu, appstart
-
-  # Return 0 if elapsedtime is non-positive
-  if elapsedtime <= 0:
-    return 0
-    
-  # Update rolling info
-  # Use the *moded version of elapsedtime and percentused
-  # To account for segmented intervals
-  if len(rollingCPU) == ROLLING_PERIOD:
-    rollingCPU.pop(0) # Remove oldest CPU data
-    rollingIntervals.pop(0) # Remove oldest Elapsed time data
-  rollingCPU.append(percentused*elapsedtime) # Add new CPU data
-  rollingIntervals.append(elapsedtime) # Add new time data
-
-  # Caclulate Averages
-  # Sum up cpu data
-  rollingTotalCPU = 0.0
-  for i in rollingCPU:
-    rollingTotalCPU += i
-
-  # Sum up time data
-  rollingTotalTime = 0.0
-  for i in rollingIntervals:
-    rollingTotalTime += i
-
-  rollingAvg = rollingTotalCPU/rollingTotalTime
-
-  # Calculate Stoptime
-  #  Mathematically Derived from:
-  #  (PercentUsed * TotalTime) / ( TotalTime + StopTime) = CPULimit
-  stoptime = max(((rollingAvg * rollingTotalTime) / cpulimit) - rollingTotalTime , 0)
-
-  # Print debug info
-  #rawcpu += percentused*elapsedtime
-  #totaltime = time.time() - appstart
-  #print totaltime , "," , (rawcpu/totaltime) , "," ,elapsedtime , "," ,percentused
-  #print percentused, elapsedtime
-  #print "Stopping: ", stoptime
-
-  # Return amount of time to sleep for
-  return stoptime
 
 # Elapsed time
 elapsedtime = 0
@@ -432,7 +356,7 @@ def getruntime():
 ###################     Windows specific functions   #######################
 
 
-def win_check_memory_use(pid, memlimit):
+def win_memory_used(pid):
   # use the process handle to get the memory info
   meminfo = windowsAPI.processMemoryInfo(pid)
 
@@ -447,30 +371,13 @@ def win_check_memory_use(pid, memlimit):
   # (http://msdn.microsoft.com/en-us/library/ms684877(VS.85).aspx) is 
   # amazingly useless...
 
-  if meminfo['WorkingSetSize'] > memlimit:
-    # We will be killed by the other thread...
-    raise Exception, "Memory use '"+str(meminfo['WorkingSetSize'])+"' over limit '"+str(memlimit)+"'"
-  
+  return meminfo['WorkingSetSize']
 
- 
-# see if the process is over quota and if so raise an exception
-def win_check_disk_use(disklimit):
-  diskused = misc.compute_disk_use(repy_constants.REPY_CURRENT_DIR)
-  
-  if diskused > disklimit:
-    # We will be killed by the other thread...
-    raise Exception, "Disk use '"+str(diskused)+"' over limit '"+str(disklimit)+"'"
 
 
 class WindowsNannyThread(threading.Thread):
-  frequency = None
-  memallowed = None
-  diskallowed = None
-  
-  def __init__(self,f,d,m):
-    self.frequency = f
-    self.diskallowed = d
-    self.memallowed = m
+
+  def __init__(self):
     threading.Thread.__init__(self,name="NannyThread")
 
   def run(self):
@@ -480,9 +387,17 @@ class WindowsNannyThread(threading.Thread):
     # run forever (only exit if an error occurs)
     while True:
       try:
-        win_check_disk_use(self.diskallowed)
-        win_check_memory_use(mypid, self.memallowed)
-	      
+        # Check diskused
+        diskused = misc.compute_disk_use(repy_constants.REPY_CURRENT_DIR)
+        if diskused > nanny.resource_limit("diskused"):
+          raise Exception, "Disk use '"+str(diskused)+"' over limit '"+str(nanny.resource_limit("diskused"))+"'"
+        
+        # Check memory use
+        memused = win_memory_used(mypid)
+        if memused > nanny.resource_limit("memory"):
+          # We will be killed by the other thread...
+          raise Exception, "Memory use '"+str(memused)+"' over limit '"+str(nanny.resource_limit("memory"))+"'"
+        
         # prevent concurrent status file writes.   
         statuslock.acquire()
         try: 
@@ -492,8 +407,11 @@ class WindowsNannyThread(threading.Thread):
         finally:
           # must release before harshexit...
           statuslock.release()
-
-        time.sleep(self.frequency)
+        
+        if ostype == 'WindowsCE':
+          time.sleep(repy_constants.RESOURCE_POLLING_FREQ_WINCE)
+        else:
+          time.sleep(repy_constants.RESOURCE_POLLING_FREQ_WIN)
         
       except windowsAPI.DeadProcess:
         #  Process may be dead, or die while checking memory use
@@ -504,6 +422,7 @@ class WindowsNannyThread(threading.Thread):
         tracebackrepy.handle_exception()
         print >> sys.stderr, "Nanny died!   Trying to kill everything else"
         harshexit(20)
+
 
 # Windows specific CPU Nanny Stuff
 winlastcpuinfo = [0,0]
@@ -544,7 +463,7 @@ def win_check_cpu_use(cpulim, pid):
   percentused = (usertime - oldusertime) / elapsedtime
 
   # Calculate amount of time to sleep for
-  stoptime = calculate_cpu_sleep_interval(cpulim, percentused,elapsedtime)
+  stoptime = nanny.calculate_cpu_sleep_interval(cpulim, percentused,elapsedtime)
 
   # Call new api to suspend/resume process and sleep for specified time
   if windowsAPI.timeoutProcess(pid, stoptime):
@@ -558,13 +477,9 @@ def win_check_cpu_use(cpulim, pid):
 # Dedicated Thread for monitoring CPU, this is run as a part of repy
 class WinCPUNannyThread(threading.Thread):
   # Thread variables
-  frequency = 0.1 # Sampling frequency
-  cpuLimit = 0.1 # CPU % used limit
   pid = 0 # Process pid
   
-  def __init__(self,freq,cpulimit):
-    self.frequency = freq
-    self.cpuLimit = cpulimit
+  def __init__(self):
     self.pid = os.getpid()
     threading.Thread.__init__(self,name="CPUNannyThread")
       
@@ -572,16 +487,18 @@ class WinCPUNannyThread(threading.Thread):
     # Run while the process is running
     while True:
       try:
+        # Get the frequency
+        frequency = repy_constants.CPU_POLLING_FREQ_WIN
+        
         # Base amount of sleeping on return value of 
     	  # win_check_cpu_use to prevent under/over sleeping
-        slept = win_check_cpu_use(self.cpuLimit, self.pid)
+        slept = win_check_cpu_use(nanny.resource_limit("cpu"), self.pid)
+        
         if slept == -1:
           # Something went wrong, try again
           pass
-        elif slept == 0:
-          time.sleep(self.frequency)
-        elif (slept < self.frequency):
-          time.sleep(self.frequency-slept)
+        elif (slept < frequency):
+          time.sleep(frequency-slept)
 
       except windowsAPI.DeadProcess:
         #  Process may be dead
@@ -876,7 +793,7 @@ def enforce_cpu_quota(readfobj, cpulimit, frequency, childpid):
     percentusedmod = percentused
   
   #Calculate stop time
-  stoptime = calculate_cpu_sleep_interval(cpulimit, percentusedmod, elapsedtimemod)  
+  stoptime = nanny.calculate_cpu_sleep_interval(cpulimit, percentusedmod, elapsedtimemod)  
 
   if not stoptime == 0.0:
     # They must be punished by stopping
@@ -1068,16 +985,10 @@ def enforce_memory_quota(memorylimit, childpid):
     
 # Monitors and restricts disk and memory usage
 class LinuxResourceNannyThread(threading.Thread):
-  frequency = None
-  disklimit = None
-  memlimit = None
   pid = None
 
-  def __init__(self, frequency, disk, mem):
-    self.frequency = frequency
-    self.disklimit = disk
-    self.memlimit = mem
-    self.pid = os.getpid()
+  def __init__(self, pid):
+    self.pid = pid
     threading.Thread.__init__(self,name="LinuxResourceNannyThread")
 
   def run(self):
@@ -1088,25 +999,41 @@ class LinuxResourceNannyThread(threading.Thread):
         diskused = misc.compute_disk_use(".")
 
         # Raise exception if we are over limit
-        if diskused > self.disklimit:
-          raise Exception, "Disk use '"+str(diskused)+"' over limit '"+str(self.disklimit)+"'"
+        if diskused > nanny.resource_limit("diskused"):
+          raise Exception, "Disk use '"+str(diskused)+"' over limit '"+str(nanny.resource_limit("diskused"))+"'"
 
         # let's check the process and make sure it's not over quota.
-        enforce_memory_quota(self.memlimit, self.pid)
+        enforce_memory_quota(nanny.resource_limit("memory"), self.pid)
         
         # Sleep for a while
-        time.sleep(self.frequency)
+        time.sleep(repy_constants.RESOURCE_POLLING_FREQ_LINUX)
+        
       except:
-        tracebackrepy.handle_exception()
-        print >> sys.stderr, "Resource Nanny died! Trying to exit repy!"
-        harshexit(28)
+        try:
+          print >> sys.stderr, "Resource Nanny died! Trying to kill child!"
+          sys.stderr.flush()
+        except:
+          pass  
+          
+        # Kill the child
+        try:
+          os.kill(self.pid, signal.SIGKILL)
+        except:
+          pass
+
+        # Re-raise the exception
+        raise
         
         
 # Creates a thread to pass CPU info to a process which
 # Suspends and resumes the process to maintain CPU throttling
-def do_forked_cpu_monitor(frequency, cpulimit):
+# Also includes a thread to monitor Memory and Disk usage
+def do_forked_resource_monitor():
   # get a pipe for communication
   readpipefd,writepipefd = os.pipe()
+
+  # Determine the frequency of CPU monitoring
+  frequency = repy_constants.CPU_POLLING_FREQ_LINUX
 
   # I'll fork a copy of myself
   childpid = os.fork()
@@ -1121,7 +1048,10 @@ def do_forked_cpu_monitor(frequency, cpulimit):
     return
 
   
-  # close the write pipe
+  # Armon: Start the LinuxResourceNanny thread to monitor memory and Disk
+  LinuxResourceNannyThread(childpid).start()
+  
+  # Close the write pipe
   os.close(writepipefd)
 
   # Needed to setup non-blocking IO operations
@@ -1153,7 +1083,7 @@ def do_forked_cpu_monitor(frequency, cpulimit):
 
         try:
           # let's check the process and make sure it's not over quota.  
-          enforce_cpu_quota(myreadpipe, cpulimit, frequency, childpid)
+          enforce_cpu_quota(myreadpipe, nanny.resource_limit("cpu"), frequency, childpid)
         except EnvironmentError:
           # This means that the CPU info pipe is broken, lets figure out why
           # If the process is dead, exit silently

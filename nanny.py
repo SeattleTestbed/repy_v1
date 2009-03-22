@@ -180,9 +180,31 @@ def start_resource_nanny():
     resource_consumption_table[resource] = set()
 
 
-  nonportable.monitor_cpu_disk_and_mem(resource_restriction_table['cpu'], resource_restriction_table['diskused'], resource_restriction_table['memory'])
+  nonportable.monitor_cpu_disk_and_mem()
 
 
+# Armon: This is an extremely basic wrapper function, that just allows
+# for pre/post processing if required in the future
+def resource_limit(resource):
+  """
+  <Purpose>
+    Returns the limit or availability of a resource.
+    
+  <Arguments>
+    resource:
+      The resource about which information is being requested.
+  
+  <Exceptions>
+    KeyError if the resource does not exist.
+    
+  <Side Effects>
+    None
+  
+  <Returns>
+    The resource availability or limit.
+  """
+  
+  return resource_restriction_table[resource]
 
 
 # let the nanny know that the process is consuming some resource
@@ -278,6 +300,7 @@ def tattle_add_item(resource, item):
     resource_consumption_table[resource].add(item)
 
   if len(resource_consumption_table[resource]) > resource_restriction_table[resource]:
+    
     # it's clobberin time!
     raise Exception, "Resource '"+resource+"' limit exceeded!!"
 
@@ -342,4 +365,84 @@ def tattle_check(resource, item):
     raise Exception, "Resource '"+resource+" "+str(item)+"' not allowed!!!"
 
   resource_consumption_table[resource].add(item)
+
+
+
+
+########################## Used Internally for resource monitoring and metering #########
+
+# Data structures and functions for a cross platform CPU limiter
+
+# Intervals to retain for rolling average
+ROLLING_PERIOD = 1
+rollingCPU = []
+rollingIntervals = []
+
+# Debug purposes: Calculate real average
+#appstart = time.time()
+#rawcpu = 0.0
+#totaltime = 0.0
+
+def calculate_cpu_sleep_interval(cpulimit,percentused,elapsedtime):
+  """
+  <Purpose>
+    Calculates proper CPU sleep interval to best achieve target cpulimit.
+  
+  <Arguments>
+    cpulimit:
+      The target cpu usage limit
+    percentused:
+      The percentage of cpu used in the interval between the last sample of the process
+    elapsedtime:
+      The amount of time elapsed between last sampling the process
+  
+  <Exceptions>
+    ZeroDivisionError if elapsedtime is 0.
+  
+  <Returns>
+    Time period the process should sleep
+  """
+  global rollingCPU, rollingIntervals
+  # Debug: Used to calculate averages
+  #global totaltime, rawcpu, appstart
+
+  # Return 0 if elapsedtime is non-positive
+  if elapsedtime <= 0:
+    return 0
+    
+  # Update rolling info
+  if len(rollingCPU) == ROLLING_PERIOD:
+    rollingCPU.pop(0) # Remove oldest CPU data
+    rollingIntervals.pop(0) # Remove oldest Elapsed time data
+  rollingCPU.append(percentused*elapsedtime) # Add new CPU data
+  rollingIntervals.append(elapsedtime) # Add new time data
+
+  # Caclulate Averages
+  # Sum up cpu data
+  rollingTotalCPU = 0.0
+  for i in rollingCPU:
+    rollingTotalCPU += i
+
+  # Sum up time data
+  rollingTotalTime = 0.0
+  for i in rollingIntervals:
+    rollingTotalTime += i
+
+  rollingAvg = rollingTotalCPU/rollingTotalTime
+
+  # Calculate Stoptime
+  #  Mathematically Derived from:
+  #  (PercentUsed * TotalTime) / ( TotalTime + StopTime) = CPULimit
+  stoptime = max(((rollingAvg * rollingTotalTime) / cpulimit) - rollingTotalTime , 0)
+
+  # Print debug info
+  #rawcpu += percentused*elapsedtime
+  #totaltime = time.time() - appstart
+  #print totaltime , "," , (rawcpu/totaltime) , "," ,elapsedtime , "," ,percentused
+  #print percentused, elapsedtime
+  #print "Stopping: ", stoptime
+
+  # Return amount of time to sleep for
+  return stoptime
+  
 
