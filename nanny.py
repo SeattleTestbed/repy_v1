@@ -300,6 +300,8 @@ def tattle_add_item(resource, item):
     resource_consumption_table[resource].add(item)
 
   if len(resource_consumption_table[resource]) > resource_restriction_table[resource]:
+    # Since the length was exceeded, discard this item
+    resource_consumption_table[resource].discard(item)
     
     # it's clobberin time!
     raise Exception, "Resource '"+resource+"' limit exceeded!!"

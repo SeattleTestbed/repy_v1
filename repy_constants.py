@@ -4,18 +4,19 @@
 
 # Holds the path to a python installation
 #PATH_PYTHON_INSTALL = "\\Storage Card\\Program Files\\Python25\\python.exe"
-PATH_PYTHON_INSTALL = "\\Program Files\\Python25\\python.exe"
+#PATH_PYTHON_INSTALL = "\\Program Files\\Python25\\python.exe"
+PATH_PYTHON_INSTALL = "C:\\Python26\\python.exe"
 
 # Default Python Flags
 # e.g. The "/new" flag is necessary for PythonCE to allow multiple instances
 # The /nopcceshell disables the PythonCE window from opening and annoying the user
-PYTHON_DEFAULT_FLAGS = "/new /nopcceshell "
-#PYTHON_DEFAULT_FLAGS = ""
+#PYTHON_DEFAULT_FLAGS = "/new /nopcceshell "
+PYTHON_DEFAULT_FLAGS = ""
 
 # Repy Installation path
 #PATH_SEATTLE_INSTALL = "\\Storage Card\\Program Files\\Python25\\Lib\\SEATTLE\\"
-PATH_SEATTLE_INSTALL = "\\seattle\\"
-#PATH_SEATTLE_INSTALL = "Z:\\Projects\\seattle\\trunk\\repy\\"
+#PATH_SEATTLE_INSTALL = "\\seattle\\"
+PATH_SEATTLE_INSTALL = "Z:\\Projects\\seattle\\trunk\\repy\\"
 
 # Current Working directory
 REPY_CURRENT_DIR = "."
