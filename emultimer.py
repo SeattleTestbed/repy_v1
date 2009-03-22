@@ -97,6 +97,7 @@ def settimer(waittime, function, args):
 
   # start the timer
   tobj.start()
+  
   return eventhandle
   
 
@@ -105,10 +106,15 @@ def functionwrapper(func, timerhandle, args):
   #restrictions ?
   # call the function with the arguments
   try:
-    del timerinfo[timerhandle]
+    if timerhandle in timerinfo:
+      del timerinfo[timerhandle]
+    else:
+      # I've been "stopped" by canceltimer
+      return
   except KeyError:
     # I've been "stopped" by canceltimer
     return
+    
   try:
     func(*args)
   except:
