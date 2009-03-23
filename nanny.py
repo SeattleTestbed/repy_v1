@@ -76,6 +76,11 @@ for init_resource in renewable_resources:
   renewable_resource_lock_table[init_resource] = threading.Lock()
 
 
+# This lock is used to prevent race conditions for tattle_add_item and 
+# tattle_remove_item.   
+fungible_resource_lock_table = {}
+for init_resource in fungible_item_resources:
+  fungible_resource_lock_table[init_resource] = threading.Lock()
 
 
 # Set up renewable resources to start now...
@@ -272,6 +277,7 @@ def tattle_quantity(resource, quantity):
 
 
 
+
 def tattle_add_item(resource, item):
   """
    <Purpose>
@@ -296,15 +302,25 @@ def tattle_add_item(resource, item):
       None.
   """
 
-  if item != None:
+  fungible_resource_lock_table[resource].acquire()
+
+  # always unlock as we exit...
+  try: 
+
+    if len(resource_consumption_table[resource]) > resource_restriction_table[resource]:
+      raise InternalError, "Should not be able to exceed resource count"
+
+    if len(resource_consumption_table[resource]) == resource_restriction_table[resource]:
+      # it's clobberin time!
+      raise Exception, "Resource '"+resource+"' limit exceeded!!"
+
+    # add the item to the list.   We're done now...
     resource_consumption_table[resource].add(item)
 
-  if len(resource_consumption_table[resource]) > resource_restriction_table[resource]:
-    # Since the length was exceeded, discard this item
-    resource_consumption_table[resource].discard(item)
+  finally:
+    fungible_resource_lock_table[resource].release()
+
     
-    # it's clobberin time!
-    raise Exception, "Resource '"+resource+"' limit exceeded!!"
 
 
 
@@ -332,10 +348,19 @@ def tattle_remove_item(resource, item):
       None.
   """
 
-  try:
-    resource_consumption_table[resource].remove(item)
-  except KeyError:
-    pass
+  fungible_resource_lock_table[resource].acquire()
+
+  # always unlock as we exit...
+  try: 
+    
+    try:
+      resource_consumption_table[resource].remove(item)
+    except KeyError:
+      # may happen because removal is idempotent
+      pass
+
+  finally:
+    fungible_resource_lock_table[resource].release()
 
 
 
