@@ -29,7 +29,7 @@ import tracebackrepy
 renewable_resources = ['cpu', 'filewrite', 'fileread', 'netsend', 'netrecv',
 	'loopsend', 'looprecv', 'lograte', 'random']
 
-# These are rsources where the quantity of use may vary by use 
+# These are resources where the quantity of use may vary by use 
 quantity_resources = ["cpu", "memory", "diskused", "filewrite", "fileread", 
 	'loopsend', 'looprecv', "netsend", "netrecv", "lograte", 'random']
 
