@@ -337,6 +337,15 @@ def find_tip_entry(socktype, ip, port):
 
 
 
+# Find a commhandle, given TIPO: type, ip, port, outgoing
+def find_tipo_commhandle(socktype, ip, port, outgoing):
+  for commhandle in comminfo.keys():
+    if comminfo[commhandle]['type'] == socktype and comminfo[commhandle]['localip'] == ip and comminfo[commhandle]['localport'] == port and comminfo[commhandle]['outgoing'] == outgoing:
+      return commhandle
+  return None
+
+
+
 
 
 
@@ -726,7 +735,7 @@ def recvmess(localip, localport, function):
 
 
   # check if I'm already listening on this port / ip
-  (junkentry, oldhandle) = find_tip_entry('UDP',localip,localport)
+  oldhandle = find_tipo_commhandle('UDP', localip, localport, False)
   if oldhandle:
     # if it was already there, update the function and return
     comminfo[oldhandle]['function'] = function
@@ -914,7 +923,7 @@ def waitforconn(localip, localport,function):
     raise Exception, "IP '"+localip+"' is not allowed.   User restricts outgoing traffic to IP: '"+specificIP+"'"
 
   # check if I'm already listening on this port / ip
-  (junkentry, oldhandle) = find_tip_entry('TCP',localip,localport)
+  oldhandle = find_tipo_commhandle('TCP', localip, localport, False)
   if oldhandle:
     # if it was already there, update the function and return
     comminfo[oldhandle]['function'] = function
