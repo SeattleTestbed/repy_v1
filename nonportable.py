@@ -67,9 +67,7 @@ except:
   windowsAPI = None
   pass
 
-
-# This gives us our restrictions information
-import nanny
+# Armon: See additional imports at the bottom of the file
 
 
 # this indicates if we are exiting.   Wrapping in a list to prevent needing a
@@ -1224,9 +1222,16 @@ else:
   # Reset elapsed time 
   elapsedtime = 0
 
+
 # Armon: import tracebackrepy must come after nonportable is initialized
 # because it has a chain of dependencies which calls into nonportable
 # if it is imported at the top, nanny attempts to make calls into nonportable before the module
 # has finished importing its dependencies
 # print useful info when exiting...
 import tracebackrepy  
+
+# Armon: See above reason. (Prevents circular imports)
+# This gives us our restrictions information
+import nanny
+
+
