@@ -735,6 +735,10 @@ def recvmess(localip, localport, function):
 
 
   # check if I'm already listening on this port / ip
+  # NOTE: I check as though there might be a socket open that is sending a
+  # message.   This is nonsense since sendmess doesn't result in a socket 
+  # persisting.   This is done so that if sockets for sendmess are cached 
+  # later (as seems likely) the resulting code will not break.
   oldhandle = find_tipo_commhandle('UDP', localip, localport, False)
   if oldhandle:
     # if it was already there, update the function and return
