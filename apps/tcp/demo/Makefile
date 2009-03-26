@@ -15,7 +15,7 @@ TCUP=OurRepyTCPBenchmark#.repy
 PYTCP=PythonTCPBenchmark#.py
 REPYTCP=RepyTCPBenchmark#.repy 
 
-RESTR=restrictions.tcp
+RESTR=restrictions.default
 
 DIST=tcpdemo
 DEMO=demo
@@ -69,7 +69,6 @@ restrictions:
 
 benchmarks:
 	cp ../../../../benchmarks/tcp/*py .
-	cp ../../../../benchmarks/tcp/restrictions.* .
 
 # download repy
 repy:
