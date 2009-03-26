@@ -15,15 +15,7 @@ TCUP=OurRepyTCPBenchmark#.repy
 PYTCP=PythonTCPBenchmark#.py
 REPYTCP=RepyTCPBenchmark#.repy 
 
-RESTR=restrictions.default
-
-
-# args 
-PORT_A=12345
-PORT_B=12346
-DESTIP=128.208.3.86
-TOT=100000
-CHUNK=1000
+RESTR=restrictions.tcp
 
 DIST=tcpdemo
 DEMO=demo
@@ -33,9 +25,8 @@ download: repy tcp benchmarks restrictions
 tcup: download
 	# Running TCUP Benchmark...
 	python ${REPYPP} ${TCUP}.repy ${TCUP}
-        # Arguments required: (-s or -c) LocalPort [DestinationIP DestinationPort TotalBytes ChunkSize]
-	python ${REPY} ${RESTR} ${TCUP} -s ${PORT_B} &
-	python ${REPY} ${RESTR} ${TCUP} -c ${PORT_A} ${DESTIP} ${PORT_B} ${TOT} ${CHUNK}
+	python ${REPY} ${RESTR} ${TCUP} -s &
+	python ${REPY} ${RESTR} ${TCUP} -c 
         # done.
 	#
 
@@ -43,18 +34,16 @@ tcup: download
 repytcp: download
 	# Running Repy TCP Benchmark...
 	python ${REPYPP} ${REPYTCP}.repy ${REPYTCP}
-        # Arguments required: (-s or -c) LocalPort [DestinationIP DestinationPort TotalBytes ChunkSize]
-	python ${REPY} ${RESTR} ${REPYTCP} -s ${PORT_B} &
-	python ${REPY} ${RESTR} ${REPYTCP} -c ${PORT_A} ${DESTIP} ${PORT_B} ${TOT} ${CHUNK}
+	python ${REPY} ${RESTR} ${REPYTCP} -s &
+	python ${REPY} ${RESTR} ${REPYTCP} -c
         # done.
 	#
 
 # run it
 pytcp: download
 	# Running Python TCP Benchmark...
-        # Arguments required: (-s or -c) LocalPort [DestinationIP DestinationPort TotalBytes ChunkSize]
-	python ${PYTCP}.py -s ${PORT_B} &
-	python ${PYTCP}.py -c ${PORT_A} ${DESTIP} ${PORT_B} ${TOT} ${CHUNK}
+	python ${PYTCP}.py -s &
+	python ${PYTCP}.py -c
         # done.
 	#
 
@@ -80,6 +69,7 @@ restrictions:
 
 benchmarks:
 	cp ../../../../benchmarks/tcp/*py .
+	cp ../../../../benchmarks/tcp/restrictions.* .
 
 # download repy
 repy:
