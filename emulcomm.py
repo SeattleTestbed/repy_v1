@@ -328,7 +328,7 @@ def check_selector():
 
 
 
-# return the table entry for this socketobject
+# return the table entry for this type of socket, ip, port 
 def find_tip_entry(socktype, ip, port):
   for commhandle in comminfo.keys():
     if comminfo[commhandle]['type'] == socktype and comminfo[commhandle]['localip'] == ip and comminfo[commhandle]['localport'] == port:
