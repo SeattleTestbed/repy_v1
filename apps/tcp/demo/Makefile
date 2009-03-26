@@ -35,6 +35,7 @@ repytcp: download
 	# Running Repy TCP Benchmark...
 	python ${REPYPP} ${REPYTCP}.repy ${REPYTCP}
 	python ${REPY} ${RESTR} ${REPYTCP} -s &
+	sleep 1
 	python ${REPY} ${RESTR} ${REPYTCP} -c
         # done.
 	#
@@ -43,6 +44,7 @@ repytcp: download
 pytcp: download
 	# Running Python TCP Benchmark...
 	python ${PYTCP}.py -s &
+	sleep 1
 	python ${PYTCP}.py -c
         # done.
 	#
