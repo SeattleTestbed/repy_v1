@@ -45,8 +45,8 @@ import time
 
 
 # Table of communications structures:
-# {'type':'UDP','localip':ip, 'localport':port,'function':func,'socket':s}
-# {'type':'TCP','remotehost':None, 'remoteport':None,'localip':None,'localport':None, 'socket':s, 'function':func}
+# {'type':'UDP','localip':ip, 'localport':port,'function':func,'socket':s, outgoing:True}
+# {'type':'TCP','remotehost':None, 'remoteport':None,'localip':None,'localport':None, 'socket':s, 'function':func, outgoing:False}
 
 comminfo = {}
 
