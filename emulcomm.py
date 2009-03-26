@@ -730,7 +730,7 @@ def recvmess(localip, localport, function):
   if oldhandle:
     # if it was already there, update the function and return
     comminfo[oldhandle]['function'] = function
-    return
+    return oldhandle
     
 
   handle = idhelper.getuniqueid()
@@ -918,7 +918,7 @@ def waitforconn(localip, localport,function):
   if oldhandle:
     # if it was already there, update the function and return
     comminfo[oldhandle]['function'] = function
-    return
+    return oldhandle
     
 
   handle = idhelper.getuniqueid()
