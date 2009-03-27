@@ -215,6 +215,8 @@ def exec_repy_script(filename, restrictionsfile, arguments={}, script_args=''):
   else:
     if os.path.isfile(repy_constants.PATH_SEATTLE_INSTALL + "execlog.out.old"):
       os.remove(repy_constants.PATH_SEATTLE_INSTALL + "execlog.out.old")
+    if os.path.isfile(repy_constants.PATH_SEATTLE_INSTALL + "execlog.out.new"):
+      os.remove(repy_constants.PATH_SEATTLE_INSTALL + "execlog.out.new")      
 
     # Set default values
     arguments.setdefault("logfile", "execlog.out")
@@ -233,7 +235,7 @@ def exec_repy_script(filename, restrictionsfile, arguments={}, script_args=''):
     
     time.sleep(5)
     
-    theout = file(repy_constants.PATH_SEATTLE_INSTALL + "execlog.out", "r")
+    theout = file(repy_constants.PATH_SEATTLE_INSTALL + "execlog.out.old", "r")
     output = theout.read()
     theout.close()
     
