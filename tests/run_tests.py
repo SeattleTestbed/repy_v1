@@ -234,10 +234,13 @@ def exec_repy_script(filename, restrictionsfile, arguments={}, script_args=''):
     windowsAPI.waitForProcess(childpid)
     
     time.sleep(5)
-    
-    theout = file(repy_constants.PATH_SEATTLE_INSTALL + "execlog.out.old", "r")
-    output = theout.read()
-    theout.close()
+
+    if os.path.isfile(repy_constants.PATH_SEATTLE_INSTALL + "execlog.out.old"):
+        theout = file(repy_constants.PATH_SEATTLE_INSTALL + "execlog.out.old", "r")
+        output = theout.read()
+        theout.close()
+    else:
+        output = ''
     
     return (output, '')
     
