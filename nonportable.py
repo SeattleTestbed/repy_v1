@@ -379,6 +379,9 @@ class WindowsNannyThread(threading.Thread):
     threading.Thread.__init__(self,name="NannyThread")
 
   def run(self):
+    # Elevate our priority, above normal is higher than the usercode, and is enough for disk/mem
+    windowsAPI.setCurrentThreadPriority(windowsAPI.THREAD_PRIORITY_ABOVE_NORMAL)
+    
     # need my pid to get a process handle...
     mypid = os.getpid()
 
@@ -479,9 +482,12 @@ class WinCPUNannyThread(threading.Thread):
   
   def __init__(self):
     self.pid = os.getpid()
-    threading.Thread.__init__(self,name="CPUNannyThread")
+    threading.Thread.__init__(self,name="CPUNannyThread")    
       
   def run(self):
+    # Elevate our priority, set us to the highest so that we can more effectively throttle
+    windowsAPI.setCurrentThreadPriority(windowsAPI.THREAD_PRIORITY_HIGHEST)
+    
     # Run while the process is running
     while True:
       try:
