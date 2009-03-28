@@ -46,15 +46,16 @@ def compute_disk_use(dirname):
   for filename in os.listdir(dirname):
     try:
       diskused = diskused + os.path.getsize(os.path.join(dirname, filename))
-      
-      # charge an extra 4K for each file to prevent lots of little files from 
-      # using up the disk
-      diskused = diskused + 4096
-        
     except IOError:   # They likely deleted the file in the meantime...
       pass
     except OSError:   # They likely deleted the file in the meantime...
       pass
+
+    # charge an extra 4K for each file to prevent lots of little files from 
+    # using up the disk.   I'm doing this outside of the except clause in
+    # the failure to get the size wasn't related to deletion
+    diskused = diskused + 4096
+        
   return diskused
 
 
