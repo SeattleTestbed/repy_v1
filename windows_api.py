@@ -56,7 +56,9 @@ TH32CS_SNAPTHREAD = ctypes.c_ulong(0x00000004) # Create a snapshot of all thread
 TH32CS_SNAPPROCESS = ctypes.c_ulong(0x00000002) # Create a snapshot of a process
 TH32CS_SNAPHEAPLIST = ctypes.c_ulong(0x00000001) # Create a snapshot of a processes heap
 INVALID_HANDLE_VALUE = -1
-THREAD_SUSPEND_RESUME = ctypes.c_ulong(0x0002)
+THREAD_SET_INFORMATION = 0x0020
+THREAD_SUSPEND_RESUME = 0x0002
+THREAD_SUS_RES_setINFO = THREAD_SET_INFORMATION | THREAD_SUSPEND_RESUME
 PROCESS_TERMINATE = 0x0001
 PROCESS_QUERY_INFORMATION = 0x0400
 SYNCHRONIZE = 0x00100000L
@@ -69,6 +71,9 @@ CE_FULL_PERMISSIONS = ctypes.c_ulong(0xFFFFFFFF)
 NORMAL_PRIORITY_CLASS = ctypes.c_ulong(0x00000020)
 HIGH_PRIORITY_CLASS = ctypes.c_ulong(0x00000080)
 INFINITE = 0xFFFFFFFF
+THREAD_PRIORITY_HIGHEST = 2
+THREAD_PRIORITY_ABOVE_NORMAL = 1
+THREAD_PRIORITY_NORMAL = 0
 
 # How many times to attempt sleeping/resuming thread or proces
 # before giving up with failure
@@ -101,6 +106,7 @@ def _suspendThread(handle):
 _resumeThread = kerneldll.ResumeThread # Resumes Thread execution
 _openProcess = kerneldll.OpenProcess # Returns Process Handle
 _createProcess = kerneldll.CreateProcessW # Launches new process
+_setThreadPriority = kerneldll.SetThreadPriority # Sets a threads scheduling priority
 
 _processExitCode = kerneldll.GetExitCodeProcess # Gets Process Exit code
 _terminateProcess = kerneldll.TerminateProcess # Kills a process
@@ -416,7 +422,7 @@ def getThreadHandle(ThreadID):
     handle = _openThreadCE(ThreadID)
   else:
     # Open handle to thread
-    handle = _openThread(THREAD_SUSPEND_RESUME, 0, ThreadID)
+    handle = _openThread(THREAD_SUS_RES_setINFO, 0, ThreadID)
   
   # Check for a successful handle
   if handle: 
@@ -637,6 +643,39 @@ def timeoutProcess(PID, stime):
     raise DeadProcess, "Failed to sleep or resume a thread!"
 
 
+# Sets the current threads priority level
+def setCurrentThreadPriority(priority=THREAD_PRIORITY_NORMAL):
+  """
+  <Purpose>
+    Sets the priority level of the currently executing thread.
+    
+  <Arguments>
+    Thread priority level. Must be a predefined constant.
+    See THREAD_PRIORITY_NORMAL, THREAD_PRIORITY_ABOVE_NORMAL and THREAD_PRIORITY_HIGHEST
+  
+  <Exceptions>
+    See getThreadHandle
+  
+  <Returns>
+    True on success, False on failure.
+  """
+  # Get thread identifier
+  ThreadID = _currentThreadId()
+      
+  # Open handle to thread
+  handle = getThreadHandle(ThreadID)
+  
+  # Try to change the priority
+  status = _setThreadPriority(handle, priority)
+  
+  # Close thread handle
+  closeThreadHandle(handle)
+  
+  # Return the status of this call
+  if status == 0:
+    return False
+  else:
+    return True
 
 # Gets a process handle
 def getProcessHandle(PID):
