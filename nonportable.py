@@ -168,7 +168,6 @@ def monitor_cpu_disk_and_mem():
     do_forked_resource_monitor()
     
   elif ostype == 'Windows' or ostype == 'WindowsCE':
-    
     # Now we set up a cpu nanny...
     # Use an external CPU monitor for WinCE
     if ostype == 'WindowsCE':
@@ -486,7 +485,11 @@ class WinCPUNannyThread(threading.Thread):
       
   def run(self):
     # Elevate our priority, set us to the highest so that we can more effectively throttle
-    windowsAPI.setCurrentThreadPriority(windowsAPI.THREAD_PRIORITY_HIGHEST)
+    success = windowsAPI.setCurrentThreadPriority(windowsAPI.THREAD_PRIORITY_HIGHEST)
+    
+    # If we failed to get HIGHEST priority, try above normal, else we're still at default
+    if not success:
+      windowsAPI.setCurrentThreadPriority(windowsAPI.THREAD_PRIORITY_ABOVE_NORMAL)
     
     # Run while the process is running
     while True:
