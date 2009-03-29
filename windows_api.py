@@ -62,7 +62,8 @@ THREAD_SUS_RES_setINFO = THREAD_SET_INFORMATION | THREAD_SUSPEND_RESUME
 PROCESS_TERMINATE = 0x0001
 PROCESS_QUERY_INFORMATION = 0x0400
 SYNCHRONIZE = 0x00100000L
-PROCESS_QUERY_AND_TERMINATE = PROCESS_TERMINATE | PROCESS_QUERY_INFORMATION | SYNCHRONIZE
+PROCESS_SET_INFORMATION = 0x0200
+PROCESS_SET_QUERY_AND_TERMINATE = PROCESS_SET_INFORMATION | PROCESS_TERMINATE | PROCESS_QUERY_INFORMATION | SYNCHRONIZE
 ERROR_ALREADY_EXISTS = 183
 WAIT_FAILED = 0xFFFFFFFF
 WAIT_OBJECT_0 = 0x00000000L
@@ -74,6 +75,9 @@ INFINITE = 0xFFFFFFFF
 THREAD_PRIORITY_HIGHEST = 2
 THREAD_PRIORITY_ABOVE_NORMAL = 1
 THREAD_PRIORITY_NORMAL = 0
+PROCESS_BELOW_NORMAL_PRIORITY_CLASS = 0x00004000
+PROCESS_NORMAL_PRIORITY_CLASS = 0x00000020
+PROCESS_ABOVE_NORMAL_PRIORITY_CLASS = 0x00008000
 
 # How many times to attempt sleeping/resuming thread or proces
 # before giving up with failure
@@ -173,6 +177,9 @@ else:
   # These process specific functions are only available on the desktop
   _processTimes = kerneldll.GetProcessTimes # Returns data about Process CPU use
   _processMemory = memdll.GetProcessMemoryInfo # Returns data on Process mem use
+  
+  # This is only available for desktop, sets the process wide priority
+  _setProcessPriority = kerneldll.SetPriorityClass 
   
 
 # Classes
@@ -695,7 +702,7 @@ def getProcessHandle(PID):
   """
   
   # Get handle to process
-  handle = _openProcess( PROCESS_QUERY_AND_TERMINATE, 0, PID)
+  handle = _openProcess( PROCESS_SET_QUERY_AND_TERMINATE, 0, PID)
   
   # Check if we successfully got a handle
   if handle:
@@ -806,6 +813,44 @@ def launchPythonScript(script, params=""):
   return retval
 
 
+# Sets the current process priority level
+def setCurrentProcessPriority(priority=PROCESS_NORMAL_PRIORITY_CLASS):
+  """
+  <Purpose>
+    Sets the priority level of the currently executing process.
+
+  <Arguments>
+    Process priority level. Must be a predefined constant.
+    See PROCESS_NORMAL_PRIORITY_CLASS, PROCESS_BELOW_NORMAL_PRIORITY_CLASS and PROCESS_ABOVE_NORMAL_PRIORITY_CLASS
+
+  <Exceptions>
+    See getProcessHandle
+
+  <Returns>
+    True on success, False on failure.
+  """
+  # This is not supported, just return True
+  if MobileCE:
+    return True
+    
+  # Get our PID
+  PID = os.getpid()
+  
+  # Get process handle
+  handle = getProcessHandle(PID)
+
+  # Try to change the priority
+  status = _setProcessPriority(handle, priority)
+
+  # Close Process Handle
+  _closeHandle(handle)
+
+  # Return the status of this call
+  if status == 0:
+    return False
+  else:
+    return True
+    
 # Kill a process with specified PID
 def killProcess(PID):
   """
