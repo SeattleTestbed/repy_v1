@@ -605,7 +605,7 @@ class Connection:
       raise NotConnectedError("must be connected to send messages!")
 
     #print "sending: " + message # DEBUG
-    return sendmess(self.remoteip, self.remoteport, message, )
+    return sendmess(self.remoteip, self.remoteport, message, self.localip, self.localport)
     
 
   def _destroy(self):
