@@ -10,6 +10,7 @@
 """
 
 import threading
+import thread # Armon: this is to catch thread.error
 import time
 import restrictions
 import nanny
@@ -94,9 +95,15 @@ def settimer(waittime, function, args):
   tobj = threading.Timer(waittime,functionwrapper,[function] + [eventhandle] + [args])
 
   timerinfo[eventhandle] = {'timer':tobj}
-
-  # start the timer
-  tobj.start()
+  
+  # Check if we get an exception trying to create a new thread
+  try:
+    # start the timer
+    tobj.start()
+  except thread.error, exp:
+    # Set exit code 56, which stands for a Threading Error
+    # The Node manager will detect this and handle it
+    nonportable.harshexit(56)
   
   return eventhandle
   
