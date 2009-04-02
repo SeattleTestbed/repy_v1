@@ -135,6 +135,11 @@ def harshexit(val):
     if val == 4:
       # we were stopped by another thread.   Let's exit
       pass
+    
+    # Special Termination signal to notify the NM of excessive threads
+    elif val == 56:
+      statusstorage.write_status("ThreadErr")
+      
     elif val == 44:
       statusstorage.write_status("Stopped")
 
