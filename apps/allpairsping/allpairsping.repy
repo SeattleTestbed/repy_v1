@@ -1,3 +1,7 @@
+# Get the webserver
+include webserver.repy
+
+
 # send a probe message to each neighbor
 def probe_neighbors(port):
 
@@ -51,7 +55,7 @@ def encode_row(rowip, neighborlist, latencylist):
 
 
 # Displays a web page with the latency information
-def show_status(srcip,srcport,connobj, ch, mainch): 
+def show_status(): 
 
   webpage = "<html><head><title>Latency Information</title></head><body><h1>Latency information from "+getmyip()+' </h1><table border="1">'
 
@@ -69,11 +73,7 @@ def show_status(srcip,srcport,connobj, ch, mainch):
   # now the footer...
   webpage = webpage + '</table></html>'
 
-  # send the header and page
-  connobj.send('HTTP/1.0 200 OK\nContent-Length: '+str(len(webpage))+'\nDate: Fri, 31 Dec 1999 23:59:59 GMT\nContent-Type: text/html\n\n'+webpage) 
-
-  # and we're done, so let's close this connection...
-  connobj.close()
+  return webpage
 
 
 
@@ -103,7 +103,8 @@ if callfunc == 'initialize':
 
   probe_neighbors(pingport)
 
+  # Setup the webserver
   # we want to register a function to show a status webpage (TCP port)
   pageport = int(callargs[0])
-  waitforconn(ip,pageport,show_status)  
-
+  mycontext['lock'] = getlock()
+  listencommhandle = waitforconn(ip, pageport, process_client)
