@@ -1032,7 +1032,13 @@ class LinuxResourceNannyThread(threading.Thread):
           os.kill(self.pid, signal.SIGKILL)
         except:
           pass
-
+        
+        try:
+          # Write out status information, repy was Stopped
+          statusstorage.write_status("Terminated")  
+        except:
+          pass  
+          
         # Re-raise the exception
         raise
         
