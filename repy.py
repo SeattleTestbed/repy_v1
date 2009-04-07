@@ -24,6 +24,8 @@
   --simple               : Simple execution mode -- execute and exit
   --logfile filename.txt : Set up a circular log buffer and output to logfilename.txt
   --stop filename        : Repy will watch for the creation of this file and abort when it happens
+                         : File can have format EXITCODE;EXITMESG. Code 44 is Stopped and is the default.
+                         : EXITMESG will be printed prior to exiting if it is non-null.
   --status filename.txt  : Write status information into this file
   --cwd dir              : Set Current working directory
   --servicelog           : Enable usage of the servicelogger for internal errors
@@ -244,6 +246,8 @@ Where [options] are some combination of the following:
 --ip IP                : IP address that repy should use (default: allow any)
 --logfile filename.txt : Set up a circular log buffer and output to logfilename.txt
 --stop filename        : Repy will watch for the creation of this file and abort when it happens
+                       : File can have format EXITCODE;EXITMESG. Code 44 is Stopped and is the default.
+                       : EXITMESG will be printed prior to exiting if it is non-null.
 --status filename.txt  : Write status information into this file
 --cwd dir              : Set Current working directory
 --servicelog           : Enable usage of the servicelogger for internal errors
