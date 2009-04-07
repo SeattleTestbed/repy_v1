@@ -17,6 +17,9 @@
   Cosmin Barsan 1-5-09 - Added the ability to run node manager tests by specifying the -n flag when running the script.
   
   Armon Dadgar 3-5-09 - Added new flag "-cpu" that runs a special set of tests to check CPU throttling
+  
+  Armon Dadgar 4-6-9- Added new flag "-threaderr" that runs a special test to check for the proper behavior of 
+  repy when the system thead limit is reached. This may destabilize some systems, so save everything!
    
 <Usage>
   To run the repy unit tests locally, first navigate to trunk, then 
@@ -31,6 +34,11 @@
   1.  python preparetest.py -t <directory>
   2.  cd <directory>
   3.  python run_tests.py -cpu
+  
+  To run the Threading error checks, use these commands:
+  1.  python preparetest.py -t <directory>
+  2.  cd <directory>
+  3.  python run_tests.py -threaderr
 
   To run the node manager unit tests locally, open two shells (or command prompts). Navigate to trunk in each.
   
@@ -588,6 +596,39 @@ if len(sys.argv) > 1 and sys.argv[1] == "-cpu":
   logstream.write("50% CPU, Linear: 200%  Real: "+str(round(time_at_50percent/time_at_100percent*100,2))+"% Relative: "+str(round((25*time_at_25percent/50)/time_at_50percent, 2))+"\n")
   logstream.write("100% CPU, Linear: 100%  Real: "+str(round(time_at_100percent/time_at_100percent*100,2))+"% Relative: "+str(round((50*time_at_50percent/100)/time_at_100percent, 2))+"\n")
   logstream.flush()
+  exit()
+
+
+# Check for the thread error flag, and if found
+# run the proper threading test, then exit
+if len(sys.argv) > 1 and sys.argv[1] == "-threaderr":
+  # Check if there are any old status files
+  files = glob.glob("threadtest_status-*")
+  for elem in files: # Remove each status file
+    os.remove(elem)
+  
+  # Print some info
+  start = time.time()
+  logstream.write("INFO: Please be patient. This may take awhile to complete. Start time: "+str(start)+"\n")
+  
+  # First, run the test
+  (testout, testerr) = exec_repy_script("testthreadingerr.repy", "restrictions.insane", {'status':'threadtest_status'})
+  
+  # Check for the status file
+  files = glob.glob("threadtest_status-*")
+  statfile = files[0] # There should only be 1 status file...
+  
+  if not "ThreadErr" in statfile:
+    logstream.write("FAILURE: Expected status file to have ThreadErr state. Statfile:  "+statfile+"\n")
+  else:
+    logstream.write("SUCCESS: Status file has ThreadErr state. Statfile:  "+statfile+"\n")
+  
+  # Print an end time
+  end = time.time()
+  diff = end-start
+  logstream.write("INFO: End Time: "+str(end)+"  Elapsed Time: "+str(diff)+"s\n")
+  
+  # Exit now
   exit()
 
 # these are updated in run_test
