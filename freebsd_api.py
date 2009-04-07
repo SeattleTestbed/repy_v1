@@ -13,6 +13,7 @@ import ctypes       # Allows us to make C calls
 import ctypes.util  # Helps to find the C library
 
 import os           # Provides some convenience functions
+import time         # Provides time.time
 
 import freebsd_kinfo  # Imports the kinfo structure, along with others
 
@@ -34,9 +35,15 @@ KERN_PROC = 14
 KERN_PROC_PID = 1
 FourIntegers = ctypes.c_int * 4 # A C array with 4 ints, used for syscalls
 PAGE_SIZE = libc.getpagesize() # Call into libc to get our page size
+KERN_BOOTTIME = 21
+TwoIntegers = ctypes.c_int * 2 # C array with 2 ints
 
 # Structures
 kinfo_proc = freebsd_kinfo.kinfo_proc # Import from the external file
+
+class timeval(ctypes.Structure):
+    _fields_ = [("tv_sec", ctypes.c_long),
+                ("tv_usec", ctypes.c_long)]
 
 # This functions helps to conveniently retrieve the errno
 # of the last call. This is a bit tedious to do, since 
@@ -169,4 +176,64 @@ def getProcessRSS(forceUpdate=False,PID=None):
   return rss_bytes
 
 
+# Return the timeval struct with our boottime
+def _getBoottimeStruct():
+  # Get an array with 2 elements, set the syscall parameters
+  mib = TwoIntegers(CTL_KERN, KERN_BOOTTIME)
 
+  # Get timeval structure, set the size
+  boottime = timeval()                
+  size = ctypes.c_size_t(ctypes.sizeof(boottime))
+
+  # Make the syscall
+  libc.sysctl(mib, 2, ctypes.pointer(boottime), ctypes.pointer(size), None, 0)
+  
+  return boottime
+
+def getSystemUptime():
+  """
+  <Purpose>
+    Returns the system uptime.
+
+  <Returns>
+    The system uptime.  
+  """
+  # Get the boot time struct
+  boottime = _getBoottimeStruct()
+
+  # Calculate uptime from current time
+  uptime = time.time() - boottime.tv_sec+boottime.tv_usec*1.0e-6
+
+  return uptime
+
+def getUptimeGranularity():
+  """
+  <Purpose>
+    Determines the granularity of the getSystemUptime call.
+
+  <Returns>
+    A numerical representation of the minimum granularity.
+    E.g. 2 digits of granularity would return 0.01
+  """
+  # Get the boot time struct
+  boottime = _getBoottimeStruct()
+  
+  # Check if the number of nano seconds is 0
+  if boottime.tv_usec == 0:
+    granularity = 0
+  
+  else:
+    # Convert nanoseconds to string
+    nanoSecStr = str(boottime.tv_usec)
+    
+    # Justify with 0's to 9 digits
+    nanoSecStr = nanoSecStr.rjust(9,"0")
+    
+    # Strip the 0's on the other side
+    nanoSecStr = nanoSecStr.rstrip("0")
+    
+    # Get granularity from the length of the string
+    granularity = len(nanoSecStr)
+
+  # Convert granularity to a number
+  return pow(10, 0-granularity)

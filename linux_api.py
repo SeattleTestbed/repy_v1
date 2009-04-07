@@ -17,6 +17,9 @@ import os           # Provides some convenience functions
 # Get the standard library
 libc = ctypes.CDLL(ctypes.util.find_library("c"))
 
+# Functions
+myopen = open # This is an annoying restriction of repy
+
 # Globals
 lastStatData = None   # Store the last array of data from _getProcInfoByPID
 
@@ -157,3 +160,63 @@ def getProcessRSS(forceUpdate=False,PID=None):
   # Return the info
   return RSS_Bytes
 
+def getSystemUptime():
+  """
+  <Purpose>
+    Returns the system uptime.
+
+  <Exception>
+    Raises Exception if /proc/uptime is unavailable
+    
+  <Returns>
+    The system uptime.  
+  """
+  if os.path.exists("/proc/uptime"):
+    # Open the file
+    fileHandle = myopen('/proc/uptime', 'r')
+    
+    # Read in the whole file
+    data = fileHandle.read() 
+    
+    # Split the file by commas, grap the first number and convert to a float
+    uptime = float(data.split(" ")[0])
+    
+    # Close the file
+    fileHandle.close()
+    
+    return uptime
+  else:
+    raise Exception, "Could not find /proc/uptime!"
+  
+def getUptimeGranularity():
+  """
+  <Purpose>
+    Determines the granularity of the getSystemUptime call.
+  
+  <Exception>
+    Raises Exception if /proc/uptime is unavailable
+        
+  <Returns>
+    A numerical representation of the minimum granularity.
+    E.g. 2 digits of granularity would return 0.01
+  """
+  if os.path.exists("/proc/uptime"):
+    # Open the file
+    fileHandle = myopen('/proc/uptime', 'r')
+  
+    # Read in the whole file
+    data = fileHandle.read()
+  
+    # Split the file by commas, grap the first number
+    uptime = data.split(" ")[0]
+    uptimeDigits = len(uptime.split(".")[1])
+  
+    # Close the file
+    fileHandle.close()
+  
+    granularity = uptimeDigits
+    
+    # Convert granularity to a number
+    return pow(10, 0-granularity)
+  else:
+    raise Exception, "Could not find /proc/uptime!"  
