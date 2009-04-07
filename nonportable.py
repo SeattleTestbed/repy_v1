@@ -1126,8 +1126,11 @@ elif osrealtype == "Darwin":
 elif osrealtype == "FreeBSD":
   import freebsd_api as osAPI
 elif ostype == "Windows" or ostype == "WindowsCE":
-  # There is no real reason to do this, since windows is imported separatly
+  # There is no real reason to do this, since windows is imported separately
   import windows_api as osAPI
+else:
+  # This is a non-supported OS
+  raise EnvironmentError, "The current Operating System is not supported! Fatal Error."
   
 # Set granularity
 calculate_granularity()  
