@@ -220,3 +220,5 @@ def getUptimeGranularity():
     return pow(10, 0-granularity)
   else:
     raise Exception, "Could not find /proc/uptime!"  
+
+

@@ -25,9 +25,6 @@ import signal
 
 import traceback
 
-# I use this so that the safe module doesn't complain about us using open
-myopen = open
-
 # used to query status, etc.
 # This may fail on Windows CE
 try:
@@ -53,10 +50,6 @@ import misc
 # Get constants
 import repy_constants
 
-# These are used to determine uptime on BSD/Mac systems
-import ctypes
-import ctypes.util
-
 # This prevents writes to the nanny's status information after we want to stop
 statuslock = threading.Lock()
 
@@ -66,6 +59,9 @@ try:
 except:
   windowsAPI = None
   pass
+
+# Armon: This is a place holder for the module that will be imported later
+osAPI = None
 
 # Armon: See additional imports at the bottom of the file
 
@@ -289,7 +285,7 @@ def getruntime():
   
   # Check if Linux or BSD/Mac
   if ostype in ["Linux", "Darwin"]:
-    uptime = getuptime()
+    uptime = osAPI.getSystemUptime()
 
     # Check if time is going backward
     if uptime < last_uptime:
@@ -580,111 +576,7 @@ def smarter_select(inlist):
 
 
 ##############     *nix specific functions (may include Mac)  ###############
-
-# Some import constructs for getuptime
-# Constants
-CTL_KERN = 1
-KERN_BOOTTIME = 21
                 
-# Get libc
-try:
-  libc = ctypes.CDLL(ctypes.util.find_library("c"))
-except:
-  # This may fail on systems where the std C library cannot be found
-  # e.g. Windows
-  pass
-
-# struct timeval
-class timeval(ctypes.Structure):
-    _fields_ = [("tv_sec", ctypes.c_long),
-                ("tv_usec", ctypes.c_long)]
-                
-# Returns current system uptime of linux and Mac/BSD systems
-# This function returns non-decreasing values on Linux, however,
-# on Mac/BSD systems due to how the kernel stores the boot-time,
-# it is possible to see uptime decrease or increase up to 1 second in the worse conditions
-# This is triggered by the system clock being set backwards or forwards
-def getuptime():
-  # Check if we can use the uptime file
-  if os.path.exists("/proc/uptime"):
-    # Open the file
-    fileHandle = myopen('/proc/uptime', 'r')
-    
-    # Read in the whole file
-    data = fileHandle.read() 
-    
-    # Split the file by commas, grap the first number and convert to a float
-    uptime = float(data.split(" ")[0])
-    
-    # Close the file
-    fileHandle.close()
-  else:
-    # Get an array with 2 elements, set the syscall parameters
-    TwoIntegers = ctypes.c_int * 2
-    mib = TwoIntegers(CTL_KERN, KERN_BOOTTIME)
-    
-    # Get timeval structure, set the size
-    boottime = timeval()                
-    size = ctypes.c_size_t(ctypes.sizeof(boottime))
-    
-    # Make the syscall
-    libc.sysctl(mib, 2, ctypes.pointer(boottime), ctypes.pointer(size), None, 0)
-
-    # Calculate uptime from current time
-    uptime = time.time() - boottime.tv_sec+boottime.tv_usec*1.0e-6
-      
-  return uptime
-  
-# Returns the granularity of getuptime
-def getgranularity():
-  # Chck if /proc/uptime exists
-  if os.path.exists("/proc/uptime"):
-    # Open the file
-    fileHandle = myopen('/proc/uptime', 'r')
-    
-    # Read in the whole file
-    data = fileHandle.read()
-    
-    # Split the file by commas, grap the first number
-    uptime = data.split(" ")[0]
-    uptimeDigits = len(uptime.split(".")[1])
-    
-    # Close the file
-    fileHandle.close()
-    
-    granularity = uptimeDigits
-  else:
-    # Get an array with 2 elements, set the syscall parameters
-    TwoIntegers = ctypes.c_int * 2
-    mib = TwoIntegers(CTL_KERN, KERN_BOOTTIME)
-    
-    # Get timeval structure, set the size
-    boottime = timeval()                
-    size = ctypes.c_size_t(ctypes.sizeof(boottime))
-    
-    # Make the syscall
-    libc.sysctl(mib, 2, ctypes.pointer(boottime), ctypes.pointer(size), None, 0)
-    
-    # Check if the number of nano seconds is 0
-    if boottime.tv_usec == 0:
-      granularity = 0
-    
-    else:
-      # Convert nanoseconds to string
-      nanoSecStr = str(boottime.tv_usec)
-      
-      # Justify with 0's to 9 digits
-      nanoSecStr = nanoSecStr.rjust(9,"0")
-      
-      # Strip the 0's on the other side
-      nanoSecStr = nanoSecStr.rstrip("0")
-      
-      # Get granularity from the length of the string
-      granularity = len(nanoSecStr)
-    
-  # Convert granularity to a number
-  return pow(10, 0-granularity)
-    
 # needed to make the Nokia N800 actually exit on a harshexit...
 def linux_killme():
   # ask me nicely
@@ -1207,10 +1099,10 @@ def calculate_granularity():
     
     # Loop while the granularity is incorrect, up to 10 times
     while not correctGranularity and tests <= 10:
-      current_granularity = getgranularity()
-      uptime_pre = getuptime()
+      current_granularity = osAPI.getUptimeGranularity()
+      uptime_pre = osAPI.getSystemUptime()
       time.sleep(current_granularity / 10)
-      uptime_post = getuptime()
+      uptime_post = osAPI.getSystemUptime()
     
       diff = uptime_post - uptime_pre
     
@@ -1220,12 +1112,23 @@ def calculate_granularity():
     granularity = current_granularity
     
   elif ostype == "Darwin":
-    granularity = getgranularity()
+    granularity = osAPI.getUptimeGranularity()
     
     
 # Call init_ostype!!!
 init_ostype()
 
+# Import the proper system wide API
+if osrealtype == "Linux":
+  import linux_api as osAPI
+elif osrealtype == "Darwin":
+  import darwin_api as osAPI
+elif osrealtype == "FreeBSD":
+  import freebsd_api as osAPI
+elif ostype == "Windows" or ostype == "WindowsCE":
+  # There is no real reason to do this, since windows is imported separatly
+  import windows_api as osAPI
+  
 # Set granularity
 calculate_granularity()  
 
