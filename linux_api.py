@@ -104,6 +104,11 @@ def _getProcInfoByPID(PID):
   # Break the data into an array by spaces
   lastStatData = data.split(" ")
   
+  # Check the state, raise an exception if the process is a zombie
+  if "Z" in lastStatData[FIELDS["state"]]:
+    raise Exception, "Queried Process is a zombie (dead)!"
+  
+  
 def getProcessCPUTime(PID):
   """
   <Purpose>
