@@ -51,7 +51,7 @@ import misc
 import repy_constants
 
 # This prevents writes to the nanny's status information after we want to stop
-statuslock = threading.Lock()
+statuslock = statusstorage.statuslock
 
 # This will fail on non-windows systems
 try:
@@ -399,16 +399,6 @@ class WindowsNannyThread(threading.Thread):
           # We will be killed by the other thread...
           raise Exception, "Memory use '"+str(memused)+"' over limit '"+str(nanny.resource_limit("memory"))+"'"
         
-        # prevent concurrent status file writes.   
-        statuslock.acquire()
-        try: 
-          # write out status information
-          statusstorage.write_status("Started")
-
-        finally:
-          # must release before harshexit...
-          statuslock.release()
-        
         if ostype == 'WindowsCE':
           time.sleep(repy_constants.RESOURCE_POLLING_FREQ_WINCE)
         else:
@@ -591,459 +581,169 @@ def linux_killme():
 
 
 
-# This is a bit of a hack.   The problems are:
-# 1) it's really hard to get good cpu information in a portable way unless
-#    it's about you.  (ps, etc. are very coarse grained on many systems)
-# 2) it's really hard to stop an individual thread
-# 
-# So it would seem you would need to choose between bad cpu info and poor
-# ability to stop threads, unless........
-# you have a thread in the program report cpu information to a 
-# separate process and use that info to decide if you should stop the program.
-# Now you understand why this is such a strange design.
+# Use a special class of exception for when
+# resource limits are exceeded
+class ResourceException(Exception):
+  pass
 
-class LinuxCPUTattlerThread(threading.Thread):
-  fileobj = None
-  frequency = None
-
-  def __init__(self,fobj,f):
-    self.fileobj = fobj
-    self.frequency = f
-    threading.Thread.__init__(self,name="LinuxCPUTattlerThread")
-
-  def run(self):
-    # run forever (only exit if an error occurs)
-
-
-    # BUG FIX: On some weird systems, resource usage can actually be 
-    # less than for a previous time period.   We saw this on attu and
-    # were able to trigger it with the following repy code:
-    #
-    # def foo(ip,port,sockobj, ch,mainch): pass
-    # mainch = waitforconn('127.0.0.1',34352,foo)
-    # for num in xrange(10000000): pass
-    # stopcomm(mainch)
-    #
-    # to combat this problem, we will only return monotonically increasing 
-    # times.
-    
-    # set the initial values
-    lasttimesreturned = os.times()
-
-    while True:
-      try:
-        currenttimes = list(os.times())
-        # This is a fix for the os.times() goes backwards...  Return only 
-        # increasing times...
-        for pos in range(len(currenttimes)):
-          currenttimes[pos] = max(currenttimes[pos], lasttimesreturned[pos])
-
-        # tell the monitoring process about my cpu information...
-        print >> self.fileobj, repr(currenttimes+ [getruntime()])
-        self.fileobj.flush()
-
-        # remember what we returned last time
-        lasttimesreturned = currenttimes
-
-        # prevent concurrent status file writes.   
-        statuslock.acquire()
-        try:
-          # write out status information
-          statusstorage.write_status("Started")
-        finally:
-          # must release before harshexit...
-          statuslock.release()
-
-
-        # wait for some amount of time before telling again
-        time.sleep(self.frequency)
-      except:
-        tracebackrepy.handle_exception()
-        print >> sys.stderr, "LinuxCPUTattler died!   Trying to kill everything else"
-        try:
-          self.fileobj.close()
-        except:
-          pass
-        harshexit(21)
-
-# Keep track of last stoptime and resume time
-resumeTime = 0.0
-lastStoptime = 0.0
-segmentedInterval = False
-
-# this ensures that the CPU quota is actually enforced on the client
-def enforce_cpu_quota(readfobj, cpulimit, frequency, childpid):
-  global resumeTime, lastStoptime, segmentedInterval
-
-  elapsedtime, percentused = get_time_and_cpu_percent(readfobj)
-  
-  # In case of a NTP time shift, we only get thrown off a bit
-  # Also, its a sanity check, since negatime elapsed time shouldn't be possible
-  #elapsedtime = max(0, min(10 * frequency, elapsedtime))
-  
-  # They get a free pass (likely their first or last time)
-  if elapsedtime == 0.0:
-    return
-
-  # Adjust inputs if segment was interrupted
-  if segmentedInterval:
-    # Reduce elapsed time by the amount spent sleeping
-    elapsedtimemod = elapsedtime - lastStoptime 
-
-    # Recalculate percent used based on new elapsed time
-    percentusedmod = (percentused * elapsedtime) / elapsedtimemod
-  else:
-    elapsedtimemod = elapsedtime
-    percentusedmod = percentused
-  
-  #Calculate stop time
-  stoptime = nanny.calculate_cpu_sleep_interval(cpulimit, percentusedmod, elapsedtimemod)  
-
-  if not stoptime == 0.0:
-    # They must be punished by stopping
-    os.kill(childpid, signal.SIGSTOP)
-
-    # Sleep until time to resume
-    time.sleep(stoptime)
-
-    # And now they can start back up!
-    os.kill(childpid, signal.SIGCONT)
-
-    # Save information about wake time and stoptime for future adjustment
-    resumeTime = getruntime()
-    lastStoptime = stoptime
-  else:
-    resumeTime = 0.0
-
-  # If stoptime < frequency, then we would over-sample if we don't sleep
-  if (stoptime < frequency):
-    time.sleep(frequency-stoptime)
-  
-
-lastenforcedata = None
-WAIT_PERIOD = 0.01 # How long to wait for new data if there is none in the pipe
-
-def get_time_and_cpu_percent(readfobj):
-  global lastenforcedata
-  global segmentedInterval, resumeTime
-
-  # Default Data Array
-  info = [0, 0, 0, 0, 0, 0]
-  empty = False # Is the pipe empty?
-  num = 0 # How many data sets have we read?
-  while not empty or num == 0:
-    try:
-      # Read in from the Pipe  
-      cpudata = readfobj.readline().strip()
-
-      # If the Worker process dies, then the pipe is closed and an EOF is inserted
-      # readline will return an empty string on hitting the EOF, so we should detect this and die
-      if cpudata == '':
-        raise EnvironmentError, "Failed to receive CPU usage data!"
-
-      num += 1
-      info = eval(cpudata)
-
-  # This may be thrown because the file descriptor is non-blocking
-    except IOError:
-       if num == 0: # Sleep a little until data is ready
-         time.sleep(WAIT_PERIOD)
-       empty = True
-
-  # Give them a free pass the first time
-  if not lastenforcedata:
-    lastenforcedata = info
-    return (0.0, 0.0)
-
-  # The os.times() info is: (cpu, sys, child cpu, child sys, current time)
-  # I think it makes the most sense to use the combined cpu/sys time as well
-  # as the current time...
-  cputime = info[0]
-  systime = info[1]
-  childcputime = info[2]
-  childsystime = info[3]
-  clocktime = info[4] 	# processor time (it's in the wrong units...)
-  currenttime = info[5]
-
-  # Child time can be non-zero, due to the fact that subprocess uses fork
-  # And subprocess is used in the Resource Nanny
-  usertime = cputime + systime + childcputime + childsystime
-
-  oldusertime = lastenforcedata[0] + lastenforcedata[1] + lastenforcedata[2] + lastenforcedata[3]
-  oldclocktime = lastenforcedata[4]
-  oldcurrenttime = lastenforcedata[5]
-
-  # NOTE: Time is going backwards...   Is this possible?   
-  # Should do something nicer like ignore quota?
-  if currenttime < oldcurrenttime:
-    raise Exception, "Elapsed time '"+str(currenttime)+"' less than previous '"+str(oldcurrenttime)+"'"
-
-  # user time is going backwards...   I don't think this is possible
-  if usertime < oldusertime:
-    raise Exception, "User time '"+str(usertime)+"' at '"+str(currenttime)+"' (uptime) less than user time '"+str(oldusertime)+"' at '"+str(oldcurrenttime)+"' (uptime)"
-
-  # Determine if latest data points contain a segmentation caused by sleeping
-  if oldclocktime < resumeTime:
-    segmentedInterval = True
-  else:
-    segmentedInterval = False
-
-  percentused = (usertime - oldusertime) / (clocktime - oldclocktime)
-  lastenforcedata = info
-  return (currenttime - oldcurrenttime, percentused)
-
-# I use this in the planetlab /proc error case to prevent me from turning off
-# memory quotas when /proc is unmounted
-badproccount = 0
-
-# see if the process is over quota and if so terminate with extreme prejudice.
-def enforce_memory_quota(memorylimit, childpid):
-  # PlanetLab proc handling
-  global badproccount 
-
-  # issue this command to ps.   This is likely to be non-portable and a source
-  # of constant ire...
-  memorycmd = 'ps -p '+str(childpid)+' -o rss'
-  p = subprocess.Popen(memorycmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-   close_fds=True)
-    
-  cmddata = p.stdout.read()
-  p.stdout.close()
-  errdata = p.stderr.read()
-  p.stderr.close()
-  junkstatus = os.waitpid(p.pid,0)
-
-  #print "C ", cmddata, "E: ", errdata
-  # ensure the first line says RSS (i.e. it's normal output
-  if 'RSS' == cmddata.split('\n')[0].strip():
-    
-    # PlanetLab proc handling
-    badproccount = 0
-  
-    # remove the first line
-    memorydata = cmddata.split('\n',1)[1]
-
-    # they must have died
-    if not memorydata:
-      return
-
-
-    # the answer is in KB, so convert!
-    memoryused = int(memorydata)*(2**10)
-
-    if memoryused > memorylimit:
-      raise Exception, "Terminated child '"+str(childpid)+"' with memory use '"+str(memoryused)+"' with limit '"+str(memorylimit)+"'"
-  
-  
-  # Perhaps it's similar to my Nokia N800?
-  elif 'PID  Uid     VmSize Stat Command' == cmddata.split('\n')[0].strip():
-
-    # PlanetLab proc handling
-    badproccount = 0
-
-    # Unfortunately this is a little crazy.  ps prints a full listing of all
-    # processes (including threads), however threads show up separately.   
-    # furthermore, the memory listed seems to be only the memory for this
-    # process.   I have no way of telling:
-    # 1) what my threads areif two of my threads that have
-    # 4MB of memory
-
-    # walk through the lines and look for the proper pid...
-    for line in cmddata.split('\n'):
-
-      if len(line.split()) < 3:
-        continue 
-
-      # if the first element of the line is the pid
-      if line.split()[0] == str(childpid):
-        # the memory data is the third element...
-     
-        try:
-          memorydata = int(line.split()[2])
-          break
-        except ValueError:
-          # They may be a zombie process... (i.e. already exited)
-          return
-
-    else:
-      # it's not there, did they quit already?
-      return
-      
-    # the answer is in KB, so convert!
-    memoryused = int(memorydata)*(2**10)
-
-    if memoryused > memorylimit:
-      raise Exception, "Terminated child '"+str(childpid)+"' with memory use '"+str(memoryused)+"' with limit '"+str(memorylimit)+"'"
-  
-  
-
-  elif cmddata == '' and 'proc' in errdata:
-    # PlanetLab /proc error case.   May show up in other environments too...
-    # this is the number of consecutive times I've seen this error.
-    badproccount = badproccount + 1
-    if badproccount > 3:
-      raise Exception, "Memory restriction thread had three consecutive /proc errors"
- 
-  else:
-    raise Exception, "Cannot understand '"+memorycmd+"' output: '"+cmddata+"'"
-    
-# Monitors and restricts disk and memory usage
-class LinuxResourceNannyThread(threading.Thread):
-  pid = None
-
-  def __init__(self, pid):
-    self.pid = pid
-    threading.Thread.__init__(self,name="LinuxResourceNannyThread")
-
-  def run(self):
-    # Run forver, monitoring Memory and Disk usage
-    while True:
-      try:
-        # let's check the process and make sure it's not over quota.  
-        diskused = misc.compute_disk_use(".")
-
-        # Raise exception if we are over limit
-        if diskused > nanny.resource_limit("diskused"):
-          raise Exception, "Disk use '"+str(diskused)+"' over limit '"+str(nanny.resource_limit("diskused"))+"'"
-
-        # let's check the process and make sure it's not over quota.
-        enforce_memory_quota(nanny.resource_limit("memory"), self.pid)
         
-        # Sleep for a while
-        time.sleep(repy_constants.RESOURCE_POLLING_FREQ_LINUX)
-        
-      except:
-        try:
-          print >> sys.stderr, "Resource Nanny died! Trying to kill child!"
-          sys.stderr.flush()
-        except:
-          pass  
-          
-        # Kill the child
-        try:
-          os.kill(self.pid, signal.SIGKILL)
-        except:
-          pass
-        
-        try:
-          # Write out status information, repy was Stopped
-          statusstorage.write_status("Terminated")  
-        except:
-          pass  
-          
-        # Re-raise the exception
-        raise
-        
-        
-# Creates a thread to pass CPU info to a process which
-# Suspends and resumes the process to maintain CPU throttling
-# Also includes a thread to monitor Memory and Disk usage
+# Forks Repy. The child will continue execution, and the parent
+# will become a resource monitor
 def do_forked_resource_monitor():
-  # get a pipe for communication
-  readpipefd,writepipefd = os.pipe()
-
-  # Determine the frequency of CPU monitoring
-  frequency = repy_constants.CPU_POLLING_FREQ_LINUX
-
   # I'll fork a copy of myself
   childpid = os.fork()
 
   if childpid == 0:
-    # This is the child (we'll let them continue execution and monitor them).
-    os.close(readpipefd)
-    mywritepipe = os.fdopen(writepipefd,"w")
-
-    # set up a thread to give us CPU info every frequency seconds (roughly)
-    LinuxCPUTattlerThread(mywritepipe, frequency).start()
     return
-
   
-  # Armon: Start the LinuxResourceNanny thread to monitor memory and Disk
-  LinuxResourceNannyThread(childpid).start()
-  
-  # Close the write pipe
-  os.close(writepipefd)
-
-  # Needed to setup non-blocking IO operations
-  import fcntl
-
-  # Get the flags on the readpipe file descriptor
-  flags = fcntl.fcntl(readpipefd, fcntl.F_GETFL, 0)
-  # Append non blocking and change the file descriptior
-  flags = flags | os.O_NONBLOCK
-  fcntl.fcntl (readpipefd, fcntl.F_SETFL, flags)
-
-  myreadpipe = os.fdopen(readpipefd,"r")
-
-  try:	
-    #start = time.time() # Used to Determine Overhead
-    # wait for them to finish and then exit
-    while True:
-      # Determine Overhead
-      #info = os.times()
-      #cpu = info[0] + info[1]
-      #print frequency, cpu, time.time()-start, (cpu/(time.time()-start))
-	  
-      (pid, status) = os.waitpid(childpid,os.WNOHANG)
-
-      # on FreeBSD, the status is non zero when no one waits.  This is 
-      # different than the  Linux / Mac semantics
-      #if pid == 0 and status == 0:
-      if pid == 0:
-
-        try:
-          # let's check the process and make sure it's not over quota.  
-          enforce_cpu_quota(myreadpipe, nanny.resource_limit("cpu"), frequency, childpid)
-        except EnvironmentError:
-          # This means that the CPU info pipe is broken, lets figure out why
-          # If the process is dead, exit silently
-          if os.WIFEXITED(status) or os.WIFSIGNALED(status):
-            sys.exit(0)
-          # Otherwise, terminate forcefully
-          else:
-            os.kill(childpid, signal.SIGKILL)
-            harshexit(98)
-        
-        # there is no need to sleep here because we block in enforce_cpu_quota
-        # waiting for the child to give us accounting information
-
-        continue
-
-      if childpid != pid:
-        # This will cause the program to exit and log things if logging is
-        # enabled. -Brent
-        tracebackrepy.handle_internalerror("childpid is not pid given by " + 
-            "waitpid", 130)
-
-      # NOTE: there may be weirdness here...
-      # after testing, Linux doesn't seem to return from my os.wait if the 
-      # process is stopped instead of killed
-      #if os.WIFCONTINUED(status) or os.WIFSTOPPED(status):
-      #  print "Cont!!!"
-      #  continue
-
-      # This is the process exiting
-      if os.WIFEXITED(status) or os.WIFSIGNALED(status):
-        sys.exit(0)
-
-  except SystemExit:
-    raise
-  except:
-    # try to reveal why we're quitting
+  # Small internal error handler function
+  def _internal_error(message):
     try:
-      print >> sys.stderr, "Monitor death!   Impolitely killing child"
+      print >> sys.stderr, message
       sys.stderr.flush()
     except:
       pass
 
-    # try to kill the child
+    # Kill repy
+    portablekill(childpid)
+
     try:
-      os.kill(childpid, signal.SIGKILL)
+      # Write out status information, repy was Stopped
+      statusstorage.write_status("Terminated")  
     except:
       pass
+  
+  try:
+    # Some OS's require that you wait on the PID at least once
+    # before they do any accounting
+    (pid, status) = os.waitpid(childpid,os.WNOHANG)
+    
+    # Launch the resource monitor, if it fails determine why and restart if necessary
+    resource_monitor(childpid)
+    
+  except ResourceException, exp:
+    # Repy exceeded its resource limit, kill it
+    _internal_error(str(exp)+" Impolitely killing child!")
+    harshexit(98)
+    
+  except Exception, exp:
+    # There is some general error...
+    try:
+      (pid, status) = os.waitpid(childpid,os.WNOHANG)
+    except:
+      # This means that the process is dead
+      pass
+    
+    # Check if this is repy exiting
+    if os.WIFEXITED(status) or os.WIFSIGNALED(status):
+      sys.exit(0)
+    
+    else:
+      _internal_error(str(exp)+" Monitor death! Impolitely killing child!")
+      raise
+  
+def resource_monitor(childpid):
+  """
+  <Purpose>
+    Function runs in a loop forever, checking resource usage and throttling CPU.
+    Checks CPU, memory, and disk.
+    
+  <Arguments>
+    childpid:
+      The child pid, e.g. the PID of repy
+  """
+  # Get our pid
+  ourpid = os.getpid()
+  
+  # Calculate how often disk should be checked
+  diskInterval = int(repy_constants.RESOURCE_POLLING_FREQ_LINUX / repy_constants.CPU_POLLING_FREQ_LINUX)
+  currentInterval = 0 # What cycle are we on  
+  
+  # Store time of the last interval
+  lastTime = getruntime()
+  lastCPUTime = 0
+  resumeTime = 0 
+  
+  # Run forever...
+  while True:
+    ########### Check CPU ###########
+    # Get elasped time
+    currenttime = getruntime()
+    elapsedtime1 = currenttime - lastTime     # Calculate against last run
+    elapsedtime2 = currenttime - resumeTime   # Calculate since we last resumed repy
+    elapsedtime = min(elapsedtime1, elapsedtime2) # Take the minimum interval
+    lastTime = currenttime  # Save the current time
+    
+    # Safety check, prevent ZeroDivisionError
+    if elapsedtime == 0.0:
+      continue
+    
+    # Get the total cpu at this point
+    totalCPU =  osAPI.getProcessCPUTime(ourpid)   # Our own usage
+    totalCPU += osAPI.getProcessCPUTime(childpid) # Repy's usage
+    
+    # Calculate percentage of CPU used
+    percentused = (totalCPU - lastCPUTime) / elapsedtime
+    
+    # Do not throttle for the first interval, wrap around
+    # Store the totalCPU for the next cycle
+    if lastCPUTime == 0:
+      lastCPUTime = totalCPU    
+      continue
+    else:
+      lastCPUTime = totalCPU
       
-    # re-raise the exception and let the python error handler print it
-    raise
+    # Calculate stop time
+    stoptime = nanny.calculate_cpu_sleep_interval(nanny.resource_limit("cpu"), percentused, elapsedtime)
+    
+    # If we are supposed to stop repy, then suspend, sleep and resume
+    if stoptime > 0.0:
+      # They must be punished by stopping
+      os.kill(childpid, signal.SIGSTOP)
+
+      # Sleep until time to resume
+      time.sleep(stoptime)
+
+      # And now they can start back up!
+      os.kill(childpid, signal.SIGCONT)
+      
+      # Save the resume time
+      resumeTime = getruntime()
+      
+    
+    ########### End Check CPU ###########
+    # 
+    ########### Check Memory ###########
+    
+    # Get how much memory repy is using
+    memused = osAPI.getProcessRSS()
+    
+    # Check if it is using too much memory
+    if memused > nanny.resource_limit("memory"):
+      raise ResourceException, "Memory use '"+str(memused)+"' over limit '"+str(nanny.resource_limit("memory"))+"'."
+    
+    ########### End Check Memory ###########
+    # 
+    ########### Check Disk Usage ###########
+    # Increment our current cycle
+    currentInterval += 1;
+    
+    # Check if it is time to check the disk usage
+    if (currentInterval % diskInterval == 0):
+      # Reset the interval
+      currentInterval = 0
+       
+      # Calculate disk used
+      diskused = misc.compute_disk_use(".")
+
+      # Raise exception if we are over limit
+      if diskused > nanny.resource_limit("diskused"):
+        raise ResourceException, "Disk use '"+str(diskused)+"' over limit '"+str(nanny.resource_limit("diskused"))+"'."
+    
+    ########### End Check Disk ###########
+    
+    # Sleep before the next iteration
+    time.sleep(repy_constants.CPU_POLLING_FREQ_LINUX)
 
 
 ###########     functions that help me figure out the os type    ###########
@@ -1130,7 +830,7 @@ elif ostype == "Windows" or ostype == "WindowsCE":
   import windows_api as osAPI
 else:
   # This is a non-supported OS
-  raise EnvironmentError, "The current Operating System is not supported! Fatal Error."
+  raise UnsupportedSystemException, "The current Operating System is not supported! Fatal Error."
   
 # Set granularity
 calculate_granularity()  

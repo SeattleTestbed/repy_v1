@@ -144,6 +144,7 @@ def main(restrictionsfn, program, args,stopfile=None):
   global usercontext
   global usercode
   global simpleexec
+  global statusfile
 
   # start the nanny up and read the restrictions files.  
   restrictions.init_restrictions(restrictionsfn)
@@ -153,7 +154,10 @@ def main(restrictionsfn, program, args,stopfile=None):
   if stopfile:
     stopfilewatcher.init(stopfile)
 
-
+  # Armon: start the status thread if necessary
+  if statusfile != None:
+    statusstorage.launchStatusThread()
+    
   if logfile:
     # time to set up the circular logger
     loggerfo = logging.circular_logger(logfile)
