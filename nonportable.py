@@ -150,7 +150,7 @@ def harshexit(val):
   if ostype == 'Linux':
     # The Nokia N800 refuses to exit on os._exit() by a thread.   I'm going to
     # signal our pid with SIGTERM (or SIGKILL if needed)
-    linux_killme()
+    portablekill(os.getpid())
 #    os._exit(val)
   elif ostype == 'Darwin':
     os._exit(val)
@@ -567,20 +567,6 @@ def smarter_select(inlist):
 
 ##############     *nix specific functions (may include Mac)  ###############
                 
-# needed to make the Nokia N800 actually exit on a harshexit...
-def linux_killme():
-  # ask me nicely
-  try:
-    os.kill(os.getpid(), signal.SIGTERM)
-  except:
-    pass
-
-  # then nuke!
-  os.kill(os.getpid(), signal.SIGKILL)
-
-
-
-
 # Use a special class of exception for when
 # resource limits are exceeded
 class ResourceException(Exception):
@@ -729,7 +715,7 @@ def resource_monitor(childpid):
     currentInterval += 1;
     
     # Check if it is time to check the disk usage
-    if (currentInterval % diskInterval == 0):
+    if (currentInterval % diskInterval) == 0:
       # Reset the interval
       currentInterval = 0
        
