@@ -346,6 +346,10 @@ _MutexLockCount = {}
    
 # High level functions
 
+# When getProcessTheads is called, it iterates through all the
+# system threads, and this global counter stores the thead count
+_systemThreadCount = 0
+
 # Returns list with the Thread ID of all threads associated with the PID
 def getProcessThreads(PID):
   """
@@ -361,6 +365,8 @@ def getProcessThreads(PID):
   <Returns>
     Array of Thread Identifiers, these are not thread handles
   """
+  global _systemThreadCount
+  
   # Mobile requires different structuer
   if MobileCE:
     threadClass = _THREADENTRY32CE
@@ -384,9 +390,15 @@ def getProcessThreads(PID):
     _closeHandle( handle )
     return []
   
+  # Reset the global counter
+  _systemThreadCount = 0
+  
   # Loop through threads, check for threads associated with the right process
   moreThreads = True
   while (moreThreads):
+    # Increment the global counter
+    _systemThreadCount += 1
+    
     # Check if current thread belongs to the process were looking for
     if currentThread.th32OwnerProcessID == ctypes.c_ulong(PID).value: 
       threads.append(currentThread.th32ThreadID)
@@ -399,6 +411,22 @@ def getProcessThreads(PID):
     
   return threads  
 
+
+def getSystemThreadCount():
+  """
+  <Purpose>
+    Returns the number of active threads running on the system.
+
+  <Returns>
+    The thread count.
+  """
+  global _systemThreadCount
+  
+  # Call getProcessThreads to update the global counter
+  getProcessThreads(os.getpid())  # Use our own PID
+  
+  # Return the global thread count
+  return _systemThreadCount
 
 
 # Returns a handle for ThreadID  
