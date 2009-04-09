@@ -13,6 +13,7 @@ import ctypes       # Allows us to make C calls
 import ctypes.util  # Helps to find the C library
 
 import os           # Provides some convenience functions
+import subprocess
 
 # Get the standard library
 libc = ctypes.CDLL(ctypes.util.find_library("c"))
@@ -225,5 +226,34 @@ def getUptimeGranularity():
     return pow(10, 0-granularity)
   else:
     raise Exception, "Could not find /proc/uptime!"  
+
+
+def getSystemThreadCount():
+  """
+  <Purpose>
+    Returns the number of active threads running on the system.
+
+  <Returns>
+    The thread count.
+  """
+  # Use PS since it is can get the info for us
+  # Pipe into wc because I'm too lazy to do it manually
+  cmd = "ps axH | wc -l"
+
+  process = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True, close_fds=True)
+
+  # Get the output
+  threads = process.stdout.read()
+
+  # Close the pipe
+  process.stdout.close()
+
+  # Strip the whitespace
+  threads = threads.strip()
+
+  # Convert to int
+  threads = int(threads)
+
+  return threads
 
 
