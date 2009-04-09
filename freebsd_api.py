@@ -14,6 +14,7 @@ import ctypes.util  # Helps to find the C library
 
 import os           # Provides some convenience functions
 import time         # Provides time.time
+import subprocess
 
 import freebsd_kinfo  # Imports the kinfo structure, along with others
 
@@ -237,3 +238,35 @@ def getUptimeGranularity():
 
   # Convert granularity to a number
   return pow(10, 0-granularity)
+
+
+
+def getSystemThreadCount():
+  """
+  <Purpose>
+    Returns the number of active threads running on the system.
+
+  <Returns>
+    The thread count.
+  """
+  # Use PS since it is can get the info for us
+  # Pipe into wc because I'm too lazy to do it manually
+  cmd = "ps axH | wc -l"
+
+  process = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True, close_fds=True)
+
+  # Get the output
+  threads = process.stdout.read()
+
+  # Close the pipe
+  process.stdout.close()
+
+  # Strip the whitespace
+  threads = threads.strip()
+
+  # Convert to int
+  threads = int(threads)
+
+  return threads
+
+
