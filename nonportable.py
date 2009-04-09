@@ -353,32 +353,19 @@ def getruntime():
   
 ###################     Windows specific functions   #######################
 
-
-def win_memory_used(pid):
-  # use the process handle to get the memory info
-  meminfo = windowsAPI.processMemoryInfo(pid)
-
-  # There are lots of fields in the memory info data.   For example:
-  # {'QuotaPagedPoolUsage': 16100L, 'QuotaPeakPagedPoolUsage': 16560L, 
-  # 'QuotaNonPagedPoolUsage': 1400L, 'PageFaultCount': 335, 
-  # 'PeakWorkingSetSize': 1335296L, 'PeakPagefileUsage': 1486848L, 
-  # 'QuotaPeakNonPagedPoolUsage': 1936L, 'PagefileUsage': 1482752L, 
-  # 'WorkingSetSize': 45056L}
-  #
-  # I think the WorkingSetSize is what I want but the Microsoft documentation
-  # (http://msdn.microsoft.com/en-us/library/ms684877(VS.85).aspx) is 
-  # amazingly useless...
-
-  return meminfo['WorkingSetSize']
-
-
-
 class WindowsNannyThread(threading.Thread):
 
   def __init__(self):
     threading.Thread.__init__(self,name="NannyThread")
 
   def run(self):
+    # Calculate how often disk should be checked
+    if ostype == "WindowsCE":
+      diskInterval = int(repy_constants.RESOURCE_POLLING_FREQ_WINCE / repy_constants.CPU_POLLING_FREQ_WINCE)
+    else:
+      diskInterval = int(repy_constants.RESOURCE_POLLING_FREQ_WIN / repy_constants.CPU_POLLING_FREQ_WIN)
+    currentInterval = 0 # What cycle are we on  
+    
     # Elevate our priority, above normal is higher than the usercode, and is enough for disk/mem
     windowsAPI.setCurrentThreadPriority(windowsAPI.THREAD_PRIORITY_ABOVE_NORMAL)
     
@@ -388,21 +375,27 @@ class WindowsNannyThread(threading.Thread):
     # run forever (only exit if an error occurs)
     while True:
       try:
-        # Check diskused
-        diskused = misc.compute_disk_use(repy_constants.REPY_CURRENT_DIR)
-        if diskused > nanny.resource_limit("diskused"):
-          raise Exception, "Disk use '"+str(diskused)+"' over limit '"+str(nanny.resource_limit("diskused"))+"'"
+        # Check memory use, get the WorkingSetSize or RSS
+        memused = windowsAPI.processMemoryInfo(mypid)['WorkingSetSize']
         
-        # Check memory use
-        memused = win_memory_used(mypid)
         if memused > nanny.resource_limit("memory"):
           # We will be killed by the other thread...
           raise Exception, "Memory use '"+str(memused)+"' over limit '"+str(nanny.resource_limit("memory"))+"'"
         
+        # Increment the interval we are on
+        currentInterval += 1
+
+        # Check if we should check the disk
+        if (currentInterval % diskInterval) == 0:
+          # Check diskused
+          diskused = misc.compute_disk_use(repy_constants.REPY_CURRENT_DIR)
+          if diskused > nanny.resource_limit("diskused"):
+            raise Exception, "Disk use '"+str(diskused)+"' over limit '"+str(nanny.resource_limit("diskused"))+"'"
+        
         if ostype == 'WindowsCE':
-          time.sleep(repy_constants.RESOURCE_POLLING_FREQ_WINCE)
+          time.sleep(repy_constants.CPU_POLLING_FREQ_WINCE)
         else:
-          time.sleep(repy_constants.RESOURCE_POLLING_FREQ_WIN)
+          time.sleep(repy_constants.CPU_POLLING_FREQ_WIN)
         
       except windowsAPI.DeadProcess:
         #  Process may be dead, or die while checking memory use
@@ -720,7 +713,7 @@ def resource_monitor(childpid):
       currentInterval = 0
        
       # Calculate disk used
-      diskused = misc.compute_disk_use(".")
+      diskused = misc.compute_disk_use(repy_constants.REPY_CURRENT_DIR)
 
       # Raise exception if we are over limit
       if diskused > nanny.resource_limit("diskused"):
