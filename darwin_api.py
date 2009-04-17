@@ -16,6 +16,11 @@ import os           # Provides some convenience functions
 import time         # Used for time.time()
 import subprocess   # Used for the thread count
 
+import nix_common_api as nixAPI # Import the Common API
+
+# Manually import the common functions we want
+existsListeningNetworkSocket = nixAPI.existsListeningNetworkSocket
+
 # Get the standard library
 libc = ctypes.CDLL(ctypes.util.find_library("c"))
 
@@ -293,4 +298,6 @@ def cleanUp():
   if lastProcInfoStruct != None:
     _free(lastProcInfoStruct)
   
+
+
 

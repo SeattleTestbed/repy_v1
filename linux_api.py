@@ -15,6 +15,11 @@ import ctypes.util  # Helps to find the C library
 import os           # Provides some convenience functions
 import subprocess
 
+import nix_common_api as nixAPI # Import the Common API
+
+# Manually import the common functions we want
+existsListeningNetworkSocket = nixAPI.existsListeningNetworkSocket
+
 # Get the standard library
 libc = ctypes.CDLL(ctypes.util.find_library("c"))
 
