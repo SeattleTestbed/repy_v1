@@ -537,7 +537,8 @@ def stopcomm(commhandle):
 
 
 
-
+# Armon: How frequently should we check for the availability of the socket?
+RETRY_INTERVAL = 0.2 # In seconds
 
 # Private
 def cleanup(handle):
@@ -547,17 +548,26 @@ def cleanup(handle):
     pass
 
   # if it's in the table then remove the entry and tattle...
-  if handle in comminfo:
-    if comminfo[handle]['outgoing']:
+  if handle in comminfo:    
+    info = comminfo[handle]  # Store the info
+    del comminfo[handle]
+
+    if info['outgoing']:
       nanny.tattle_remove_item('outsockets', handle)
     else:
       nanny.tattle_remove_item('insockets', handle)
-    del comminfo[handle]
-
-
-
-
-
+      
+      # Armon: Block while the socket is not yet cleaned up
+      # Get the socket info
+      ip = info['localip']
+      port = info['localport']
+      socketType = info['type']
+      tcp = (socketType == 'TCP') # Check if this is a TCP typed connection
+      
+      # Loop until the socket no longer exists
+      while nonportable.osAPI.existsListeningNetworkSocket(ip,port, tcp):
+        time.sleep(RETRY_INTERVAL)
+        
 
 
 
