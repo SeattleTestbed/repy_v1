@@ -38,7 +38,7 @@ def existsListeningNetworkSocket(ip, port, tcp):
     grep = ["udp"]
   
   # Construct the command
-  cmd = 'netstat -an |grep -e "'+ip+'[:\.]'+str(port)+'" |' # Basic netstat with preliminary grep
+  cmd = 'netstat -an |grep -e "'+ip+'[:\.]'+str(port)+'[ \\t]" |' # Basic netstat with preliminary grep
   for term in grep:   # Add additional grep's
     cmd +=  'grep -i '+term+' |'
   cmd += "wc -l"  # Count up the lines
@@ -56,3 +56,4 @@ def existsListeningNetworkSocket(ip, port, tcp):
   num = int(num)
   
   return (num > 0)
+
