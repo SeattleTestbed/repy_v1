@@ -18,6 +18,11 @@ import subprocess
 
 import freebsd_kinfo  # Imports the kinfo structure, along with others
 
+import nix_common_api as nixAPI # Import the Common API
+
+# Manually import the common functions we want
+existsListeningNetworkSocket = nixAPI.existsListeningNetworkSocket
+
 # Get the standard library
 libc = ctypes.CDLL(ctypes.util.find_library("c"))
 
