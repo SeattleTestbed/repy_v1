@@ -18,6 +18,8 @@ import os
 MobileCE = False
 if os.name == 'ce':
   MobileCE = True
+else:
+  import subprocess
 
 # Main Libraries
 # Loaded depending on OS
@@ -1202,6 +1204,53 @@ def releaseMutex(handle):
       else:
         raise
 
+
+def existsListeningNetworkSocket(ip, port, tcp):
+  """
+  <Purpose>
+    Determines if there exists a network socket with the specified ip and port which is the LISTEN state.
+    *Note: Not currently supported on Windows CE. It will always return False on this platform.
+  <Arguments>
+    ip: The IP address of the listening socket
+    port: The port of the listening socket
+    tcp: Is the socket of TCP type, else UDP
+
+  <Returns>
+    True or False.
+  """
+  if MobileCE:
+    return False
+
+  # This only works if both are not of the None type
+  if not (ip and port):
+    return False
+
+  # UDP connections are stateless, so for TCP check for the LISTEN state
+  # and for UDP, just check that there exists a UDP port
+  if tcp:
+    find = ["tcp", "LISTEN"]
+  else:
+    find = ["udp"]
+
+  # Construct the command
+  cmd = 'netstat -an | find "'+ip+':'+str(port)+'"' # Basic netstat with preliminary grep
+
+  for term in find:   # Add additional grep's
+    cmd +=  '| find /I "'+term+'" '
+
+  # Launch up a shell, get the feed back
+  process = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
+
+  # Get the output
+  num = process.stdout.readlines()
+
+  # Close the pipe
+  process.stdout.close()
+
+  # Convert to an integer
+  num = len(num)
+
+  return (num > 0)
 
 # Windows CE Stuff
 # Internal function, not public

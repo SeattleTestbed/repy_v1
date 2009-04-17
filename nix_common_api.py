@@ -24,7 +24,7 @@ def existsListeningNetworkSocket(ip, port, tcp):
   """
   # This only works if both are not of the None type
   if not (ip and port):
-    return
+    return False
   
   # Escape the characters, so that they aren't treated as special regex
   ip = ip.replace(".","\.")
