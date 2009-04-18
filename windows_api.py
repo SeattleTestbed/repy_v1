@@ -1233,7 +1233,7 @@ def existsListeningNetworkSocket(ip, port, tcp):
     find = ["udp"]
 
   # Construct the command
-  cmd = 'netstat -an | find "'+ip+':'+str(port)+'"' # Basic netstat with preliminary grep
+  cmd = 'netstat -an | find "'+ip+':'+str(port)+' "' # Basic netstat with preliminary grep
 
   for term in find:   # Add additional grep's
     cmd +=  '| find /I "'+term+'" '
