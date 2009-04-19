@@ -1252,6 +1252,132 @@ def existsListeningNetworkSocket(ip, port, tcp):
 
   return (num > 0)
 
+
+def _fetch_ipconfig_infomation():
+  """
+  <Purpose>
+    Fetch's the information from ipconfig and stores it in a useful format.
+    * Not Supported on Windows Mobile.
+  <Returns>
+    A dictionary object.
+  """
+  cmdstring = "ipconfig /all"
+  
+  # Launch up a shell, get the feed back
+  process = subprocess.Popen(cmdstring, stdout=subprocess.PIPE, shell=True)
+
+  # Get the output
+  outputdata = process.stdout.readlines()
+  
+  # Close the pipe
+  process.stdout.close()
+  
+  # Stores the info
+  info_dict = {}
+  
+  # Store the current container
+  current_container = None
+  
+  # Process each line
+  for line in outputdata:
+    # Strip unwanted characters
+    line = line.strip("\r\n")
+    
+    # Check if this line is blank, skip it
+    if line.strip() == "":
+      continue
+    
+    # This is a top-level line if it does not start with a space
+    if not line.startswith(" "):
+      # Do some cleanup
+      line = line.strip(" :")
+      line = line.replace("Ethernet adapter ", "")
+      
+      # Check if this exists in the top return dictionary, if not add it
+      if line not in info_dict:
+        info_dict[line] = {}
+      
+      # Set the current container
+      current_container = line
+    
+    # Otherwise, this line just contains some information
+    else:
+      # Check if we are in a container
+      if not current_container:
+        continue
+      
+      # Cleanup
+      line = line.strip()
+      line = line.replace(". ", "")
+      
+      # Explode on the colon
+      (key, value) = line.split(":",1)
+      
+      # More cleanup
+      key = key.strip()
+      value = value.strip()
+      
+      # Store this
+      info_dict[current_container][key] = value
+  
+  # Return everything
+  return info_dict    
+
+
+def getAvailableInterfaces():
+  """
+  <Purpose>
+    Returns a list of available network interfaces.
+    * Not Supported on Windows Mobile.
+  <Returns>
+    An array of string interfaces
+  """
+  if MobileCE:
+    return []
+    
+  # Get the information from ipconfig
+  ipconfig_data = _fetch_ipconfig_infomation()
+  
+  # Get the keys
+  ipconfig_data_keys = ipconfig_data.keys()
+  
+  # Remove the Generic "Windows IP Configuration"
+  if "Windows IP Configuration" in ipconfig_data_keys:
+    index = ipconfig_data_keys.index("Windows IP Configuration")
+    del ipconfig_data_keys[index]
+    
+  # Return the keys
+  return ipconfig_data_keys
+
+
+def getInterfaceIPAddresses(interfaceName):
+  """
+  <Purpose>
+    Returns the IP address associated with the interface.
+    * Not Supported on Windows Mobile.
+  <Arguments>
+    interfaceName: The string name of the interface, e.g. eth0
+
+  <Returns>
+    A list of IP addresses associated with the interface.
+  """
+  if MobileCE:
+    return []
+    
+  # Get the information from ipconfig
+  ipconfig_data = _fetch_ipconfig_infomation()
+  
+  # Check if the interface exists
+  if interfaceName not in ipconfig_data:
+    return []
+  
+  # Check if there is an IP address
+  if "IP Address" in ipconfig_data[interfaceName]:
+    return [ipconfig_data[interfaceName]["IP Address"]]
+  
+  return []
+
+
 # Windows CE Stuff
 # Internal function, not public
 
