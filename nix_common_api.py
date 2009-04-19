@@ -99,7 +99,7 @@ def getAvailableInterfaces():
   return interfaces
 
 
-def getInterfaceIPAddress(interfaceName):
+def getInterfaceIPAddresses(interfaceName):
   """
   <Purpose>
     Returns the IP address associated with the interface.
