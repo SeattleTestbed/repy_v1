@@ -1,5 +1,4 @@
-# Get the webserver
-include webserver.repy
+MAXIMUM_MSG_SIZE = 1024 #maximum number of bytes per message contents per send call to user
 
 
 # send a probe message to each neighbor
@@ -77,6 +76,56 @@ def show_status():
 
 
 
+
+# Sends response arguement to a client via the client connection and then closes it.
+def send_reply(response, client):
+  count = 0
+  length_of_msg = len(response)
+
+  while(count < length_of_msg):
+    string_to_send = ''
+    max= count + MAXIMUM_MSG_SIZE
+
+    if(max >= length_of_msg):
+      string_to_send = response[count: ]
+    else:
+      string_to_send = response[count:max]
+
+    num_sent = client.send(string_to_send)
+    count += num_sent
+
+  client.close()
+
+
+# Closes client connection when called.
+def close_user_conn(client):
+  client.close()
+
+
+
+def send_webpage_to_user(ip, port, client, thiscommhandle, listencommhandle):
+
+  # The lock is acquired so that no other client can reset the timer or concurrently open a file.
+  mycontext['lock'].acquire()
+
+  # Set a 6 second timeout for the connection to be closed if the client doesn't send a request.
+  close_client_conn = settimer(6.0, timed_out, [client])
+
+  try:
+    data = client.recv(1024)
+    canceltimer(close_client_conn)
+    page_results = show_status()
+    send_reply(page_results, client)
+  except:
+    print 'client timed out'
+  finally:
+    mycontext['lock'].release()
+    stopcomm(thiscommhandle)
+
+
+
+
+
 if callfunc == 'initialize':
 
   # this holds the response information (i.e. when nodes responded)
@@ -107,4 +156,4 @@ if callfunc == 'initialize':
   # we want to register a function to show a status webpage (TCP port)
   pageport = int(callargs[0])
   mycontext['lock'] = getlock()
-  listencommhandle = waitforconn(ip, pageport, process_client)
+  listencommhandle = waitforconn(ip, pageport, send_webpage_to_user)
