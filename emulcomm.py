@@ -50,16 +50,232 @@ import time
 
 comminfo = {}
 
+# If we have a preference for an IP/Interface this flag is set to True
+preference = False
+
+# Armon: These ip's and interfaces are allowed
+# Both lists can have an "any" key word that allows any ip or any ip on an interface
+# By default, its just loopback but the user may add more with the --ip flag
+# If no interface or IP is specified, then all ips will be allowed
+allowedIPs = ['127.0.0.1'] 
+allowedinterfaces = []
+
+# This set caches the allowed IP's
+# It is updated at the launch of repy, or by calls to getmyip
+allowedcache = set([])
+cachelock = threading.Lock()  # This allows only a single simultaneous cache update
+
+# Since we modifiy the interfaces list if we encounter "any",
+# it is best to lock it for safety reasons
+interfacelock = threading.Lock()
+
+### IP Iteration Stuff
+def ip_is_allowed(ip):
+  """
+  <Purpose>
+    Determines if a given IP is allowed, by checking against the cached allowed IP's.
+  
+  <Arguments>
+    ip: The IP address to search for.
+  
+  <Returns>
+    True, if allowed. False, otherwise.
+  """
+  global allowedcache
+  global preference
+  
+  # If there is no preference, anything goes
+  if not preference:
+    return True
+  
+  # Check the set
+  return (ip in allowedcache)
+  
+
+# This function updates the allowed IP cache
+# It creates an IP iterator and stores all the values it returns
+# as part of the allowedcache
+def update_ip_cache():
+  global allowedcache
+  global preference
+  
+  # If there is no preference, this is a no-op
+  if not preference:
+    return
+    
+  # Stores the IP's
+  allowed_set = set([])
+  
+  # Create an IP iterator
+  ip_iter = ip_address_iterator()
+  
+  # Seed the loop with some value
+  current_ip = "Junk"
+  while current_ip:
+    current_ip = ip_iter.next_ip()
+    if current_ip:
+      allowed_set.add(current_ip)
+      
+  # Update the global cache
+  allowedcache = allowed_set
 
 
-# If I'm supposed to use a certain IP address, it is defined here
-specificIP = None
-
-# These addresses can always be used
-whitelistedIPs = ['127.0.0.1']
-
-
-
+class ip_address_iterator():
+  """
+  <Purpose>
+    This object allows for easy enumeration of allowed IP addresses.
+    This is made complicated by special IP and interface keywords just as "any",
+    and the need to translate interfaces into IP addresses while handling things
+    like virtual IP's.
+    
+    It is very simple to use, just initialize, and then call next_ip().
+  """
+  def __init__(self):
+    # Initialize with our instance variabgles
+    self.current_location = 1 # 1 is the IP's, 2 is the interfaces, 3 is done
+    self.index = 0    # An index for the current location
+    
+    self.sub_list = None  # Each interface may have a list of IP's, so we need to track this sub-list
+    self.sub_index = 0  # Index for the sublist
+    
+    self.used = set([]) # Set of previously returned IP's, to ensure uniqueness
+  
+  def next_ip(self):
+    """
+    <Purpose>
+      Iterates through the list of all possible IP's. Returns the next IP.
+      Each IP will be unique and returned only once.
+  
+    <Returns>
+      A string IP representation, or None if there are no more IP addresses.
+    """
+    # Set to True so we enter the loop
+    next_address = True
+    first_none = True   # Is this the first time we saw 'None', then return loopback
+    
+    while next_address:
+      next_address = self._next_ip()
+      
+      if next_address == None and first_none:
+        first_none = False
+        next_address = "127.0.0.1"
+      elif next_address == "127.0.0.1" and first_none:
+        # Ignore loopback until the end
+        continue
+      
+      # Check if this address is unique
+      if not (next_address in self.used):
+        self.used.add(next_address)
+        return next_address
+      
+    # At this point, the loop will continue until we find a unique address
+    # or exhaust all possible addresses
+    
+  def _next_ip(self):
+    """
+    <Purpose>
+      Iterates through the list of all possible IP's. Returns the next IP.
+      Semi-Private. This may return duplicates.
+  
+    <Returns>
+      A string IP representation, or None if there are no more IP addresses.
+    """
+    global preference
+    
+    # Switch on the current location
+    # Handle the allowed IP's
+    if self.current_location == 1:
+      # Check if our current index is in bounds
+      if self.index < len(allowedIPs):
+        # Check if this is the "any" keyword
+        if allowedIPs[self.index] == "any":
+          # We want the IP from getmyip, but we need to disable the preference for that to work
+          original_preferred = preference
+          preference = False
+          
+          # Use getmyip to get a real IP
+          network_ip = getmyip()
+          
+          # Restore the original
+          preference = original_preferred
+          
+          # Increment the index
+          self.index += 1
+          
+          # Return the network IP
+          return network_ip
+        
+        # This is just a normal IP
+        else:
+          # Update our index
+          self.index += 1
+      
+          # Return the IP at the old index
+          return allowedIPs[self.index-1]
+      
+      else:
+        # Update our location and recurse
+        self.current_location = 2
+        self.index = 0
+        return self._next_ip()
+  
+    # Handle the interfaces
+    elif self.current_location == 2:
+      # Check the bounds
+      if self.index < len(allowedinterfaces):
+        # Check if we need to load the sub-list
+        if self.sub_list == None:
+          # Acquire the lock
+          interfacelock.acquire()
+          
+          # Get the interface
+          interface = allowedinterfaces[self.index]
+          
+          # Handle the special case where interface is "any"
+          if interface == "any":
+            # Get all the interfaces
+            allInterfaces = nonportable.osAPI.getAvailableInterfaces()
+            
+            # If the interface is new, add it to the whitelist
+            for nic in allInterfaces:
+              if nic not in allowedinterfaces:
+                allowedinterfaces.append(nic)
+            
+            # Delete the special "any" and recurse
+            del allowedinterfaces[self.index]
+            interfacelock.release() # Release the lock
+            return self._next_ip()
+            
+          else:
+            # Normal interface, get its IP's
+            self.sub_list = nonportable.osAPI.getInterfaceIPAddresses(interface)
+          
+          # Release the lock
+          interfacelock.release() 
+        
+        # Check the sub-index bounds
+        if self.sub_index < len(self.sub_list):
+          # Increment the index
+          self.sub_index += 1
+        
+          # Return the previous value
+          return self.sub_list[self.sub_index-1]
+      
+        # Increment the index
+        else:
+          self.index += 1
+          self.sub_index = 0
+          self.sub_list = None
+          return self._next_ip()
+    
+      else:
+        # There is nothing left, go to state 3
+        self.current_location = 3
+        return None
+  
+    # Handle state 3
+    else:
+      return None
 
 ########################### SocketSelector functions #########################
 
@@ -409,21 +625,43 @@ def getmyip():
 
   restrictions.assertisallowed('getmyip')
   # I got some of this from: http://groups.google.com/group/comp.lang.python/browse_thread/thread/d931cdc326d7032b?hl=en
-
+  
+  # Do a non-blocking acquire, since update_ip_cache may end up calling us
+  gotlock = cachelock.acquire(False)
+  if gotlock:
+    # If we have the lock, update the IP cache
+    update_ip_cache()
+    cachelock.release()
+  
   # Open a connectionless socket
   s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-  # In some cases the user wanted to restrict us to a certain IP address.   
+  # In some cases the user wanted to restrict us to a certain IP addresses.   
   # in this case, we'll see if we can bind to it and if so, we'll return that
-  # IP address.   If we can't bind to it, we'll raise an exception.
-  if specificIP:
-    try:
-      # this will raise an exception if the IP is not a local IP
-      s.bind((specificIP,0))
-    finally:
-      s.close()
-
-    return specificIP
+  # IP address.
+  if preference:
+    # Get an IP iterator
+    ip_iter = ip_address_iterator()
+    
+    address = ip_iter.next_ip()
+    while address:  
+      try:
+        # this will raise an exception if the IP is not a local IP
+        s.bind((address,0))
+      except:
+        # Go to the next address
+        address = ip_iter.next_ip()
+        
+        # There are no more addresses left, raise the exception
+        if not address:
+          s.close()
+          raise          
+      else:
+        # We found a good IP, return this
+        s.close()
+        break
+    
+    return address
 
 
   # Tell it to connect to google (we assume that the DNS entry for this works)
@@ -617,14 +855,15 @@ def sendmess(desthost, destport, message,localip=None,localport = 0):
   if localport:
     nanny.tattle_check('messport',localport)
 
-  # If they specify an IP, we must use it...
-  if specificIP and localip not in whitelistedIPs:
-    if localip and specificIP != localip:
-      raise Exception, "IP '"+localip+"' is not allowed.   User restricts outgoing traffic to IP: '"+specificIP+"'"
-
-    # always use the user specified IP
-    localip = specificIP
-
+  # Armon: Check if the specified local ip is allowed
+  # this check only makes sense if the localip is specified
+  if localip and not ip_is_allowed(localip):
+    raise Exception, "IP '"+str(localip)+"' is not allowed."
+  
+  # If there is a preference, but no localip, then get one
+  elif preference and not localip:
+    # Use whatever getmyip returns
+    localip = getmyip()
 
   # this is used to track errors when trying to resend data
   firsterror = None
@@ -738,11 +977,10 @@ def recvmess(localip, localport, function):
   restrictions.assertisallowed('recvmess',localip,localport)
 
   nanny.tattle_check('messport',localport)
-
-  # If they specify an IP, we must use it...
-  if specificIP and localip not in whitelistedIPs and specificIP != localip:
-    raise Exception, "IP '"+localip+"' is not allowed.   User restricts outgoing traffic to IP: '"+specificIP+"'"
-
+  
+  # Armon: Check if the specified local ip is allowed
+  if not ip_is_allowed(localip):
+    raise Exception, "IP '"+localip+"' is not allowed."
 
   # check if I'm already listening on this port / ip
   # NOTE: I check as though there might be a socket open that is sending a
@@ -839,14 +1077,15 @@ def openconn(desthost, destport,localip=None, localport=0,timeout=5.0):
   if type(localport) is not int and type(localport) is not long:
     raise Exception("Local port number must be an integer")
 
-  # If they specify an IP, we must use it...
-  if specificIP and localip not in whitelistedIPs:
-    if localip and specificIP != localip:
-      raise Exception("IP '"+localip+"' is not allowed.   User restricts outgoing traffic to IP: '"+specificIP+"'")
+  # Armon: Check if the specified local ip is allowed
+  # this check only makes sense if the localip is specified
+  if localip and not ip_is_allowed(localip):
+    raise Exception, "IP '"+str(localip)+"' is not allowed."
 
-    # always use the user specified IP
-    localip = specificIP
-
+  # If there is a preference, but no localip, then get one
+  elif preference and not localip:
+    # Use whatever getmyip returns
+    localip = getmyip()
 
   restrictions.assertisallowed('openconn',desthost,destport,localip,localport)
 
@@ -932,9 +1171,9 @@ def waitforconn(localip, localport,function):
 
   nanny.tattle_check('connport',localport)
 
-  # If they specify an IP, we must use it...
-  if specificIP and localip not in whitelistedIPs and specificIP != localip:
-    raise Exception, "IP '"+localip+"' is not allowed.   User restricts outgoing traffic to IP: '"+specificIP+"'"
+  # Armon: Check if the specified local ip is allowed
+  if not ip_is_allowed(localip):
+    raise Exception, "IP '"+localip+"' is not allowed."
 
   # check if I'm already listening on this port / ip
   oldhandle = find_tipo_commhandle('TCP', localip, localport, False)

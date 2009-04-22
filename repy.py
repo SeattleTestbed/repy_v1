@@ -149,6 +149,9 @@ def main(restrictionsfn, program, args,stopfile=None):
   # start the nanny up and read the restrictions files.  
   restrictions.init_restrictions(restrictionsfn)
 
+  # Armon: Update our IP cache
+  emulcomm.update_ip_cache()
+  
   # check for a stop file (I need to do this after forking in 
   # init_restrictions)
   if stopfile:
@@ -279,11 +282,33 @@ if __name__ == '__main__':
       simpleexec = True
       args = sys.argv[2:]
 
-    if args[0] == '--ip':
-      # Allow the program to use only this IP
-      emulcomm.specificIP = args[1]
+    # Armon: Loop checking for additional --ip flags, since multiple IP's may be specified
+    while args[0] == '--ip':
+      # Set IP preference to True
+      emulcomm.preference = True
+      
+      # Append this IP to the list of available IP's if it is new
+      if args[1] not in emulcomm.allowedIPs:
+        emulcomm.allowedIPs.append(args[1])
+        
       args = args[2:]
-
+    
+    # Armon: Loop checking for additional --iface flags, since multiple interfaces may be specified
+    while args[0] == '--iface':
+      # Set Interface preference to True
+      emulcomm.preference = True
+      
+      # Append this interface to the list of available ones if it is new
+      if args[1] not in emulcomm.allowedinterfaces:
+        emulcomm.allowedinterfaces.append(args[1])
+      args = args[2:]
+    
+    # By default, if there is no preferred IP specified, 
+    # and there are no interfaces specified, we will allow "any"
+    if not emulcomm.preference:
+      emulcomm.allowedIPs.append("any")
+      emulcomm.allowedinterfaces.append("any")
+    
     if args[0] == '--logfile':
       # set up the circular log buffer...
       logfile = args[1]
