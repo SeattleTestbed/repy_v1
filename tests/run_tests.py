@@ -20,6 +20,9 @@
   
   Armon Dadgar 4-6-9- Added new flag "-threaderr" that runs a special test to check for the proper behavior of 
   repy when the system thead limit is reached. This may destabilize some systems, so save everything!
+
+  Armon Dadgar 4-21-9- Added new flag "-network" that runs special tests to check for the proper behavior of 
+  repy when given "--ip" and "--iface" flags.
    
 <Usage>
   To run the repy unit tests locally, first navigate to trunk, then 
@@ -39,6 +42,11 @@
   1.  python preparetest.py -t <directory>
   2.  cd <directory>
   3.  python run_tests.py -threaderr
+
+  To run the Network Restrictions checks, use these commands:
+  1.  python preparetest.py -t <directory>
+  2.  cd <directory>
+  3.  python run_tests.py -network
 
   To run the node manager unit tests locally, open two shells (or command prompts). Navigate to trunk in each.
   
@@ -253,7 +261,7 @@ def exec_repy_script(filename, restrictionsfile, arguments={}, script_args=''):
     return (output, '')
     
 def arguments_to_string(arguments):
-  order = ['simple', 'ip', 'logfile', 'stop', 'status', 'cwd', 'servicelog']
+  order = ['simple', 'ip', 'iface','logfile', 'stop', 'status', 'cwd', 'servicelog']
   argument_string = ""
   
   for key in order:
@@ -628,6 +636,69 @@ if len(sys.argv) > 1 and sys.argv[1] == "-threaderr":
   diff = end-start
   logstream.write("INFO: End Time: "+str(end)+"  Elapsed Time: "+str(diff)+"s\n")
   
+  # Exit now
+  exit()
+  
+# Check for the network flag, and if found
+# run the proper tests, then exit
+if len(sys.argv) > 1 and sys.argv[1] == "-network":
+  
+  logstream.write("INFO: Running: ip_onlyloopback_checkgetmyip.py\n")
+  
+  # Run the tests
+  (testout, testerr) = exec_repy_script("ip_onlyloopback_checkgetmyip.py", "restrictions.default", {'ip':'127.0.0.1'})
+  
+  # Check for output
+  if testout != "" or testerr != "":
+      logstream.write("FAILURE: Out:\n"+testout+"\n\nErr:\n"+testerr+"\n")
+      
+  logstream.write("INFO: Running: ip_nopreferred_noallowed_checkgetmyip.py\n")
+
+  # Run the tests
+  (testout, testerr) = exec_repy_script("ip_nopreferred_noallowed_checkgetmyip.py", "restrictions.default", {'iface':'lo'})
+
+  # Check for output
+  if testout != "" or testerr != "":
+      logstream.write("FAILURE: Out:\n"+testout+"\n\nErr:\n"+testerr+"\n")
+
+  logstream.write("INFO: Running: ip_alliface_nopref_checkgetmyip.py\n")
+
+  # Run the tests
+  (testout, testerr) = exec_repy_script("ip_alliface_nopref_checkgetmyip.py", "restrictions.default", {'iface':'any'})
+
+  # Check for output
+  if testout != "" or testerr != "":
+      logstream.write("FAILURE: Out:\n"+testout+"\n\nErr:\n"+testerr+"\n")
+  
+  logstream.write("INFO: Running: ip_junkip_checkgetmyip.py\n")
+
+  # Run the tests
+  (testout, testerr) = exec_repy_script("ip_junkip_checkgetmyip.py", "restrictions.default", {'ip':'256.256.256.256'})
+
+  # Check for output
+  if testout != "" or testerr != "":
+      logstream.write("FAILURE: Out:\n"+testout+"\n\nErr:\n"+testerr+"\n")
+
+  logstream.write("INFO: Running: ip_junkip_trybind.py\n")
+
+  # Run the tests
+  (testout, testerr) = exec_repy_script("ip_junkip_trybind.py", "restrictions.default", {'ip':'256.256.256.256'})
+
+  # Check for output
+  if testout != "" or testerr != "":
+      logstream.write("FAILURE: Out:\n"+testout+"\n\nErr:\n"+testerr+"\n")
+
+  logstream.write("INFO: Running: ip_alliface_openconn_with_sendmess.py\n")
+
+  # Run the tests
+  (testout, testerr) = exec_repy_script("ip_alliface_openconn_with_sendmess.py", "restrictions.default", {'iface':'any'})
+
+  # Check for output
+  if testout != "" or testerr != "":
+      logstream.write("FAILURE: Out:\n"+testout+"\n\nErr:\n"+testerr+"\n")
+
+  logstream.write("INFO: Done.\n")
+
   # Exit now
   exit()
 
