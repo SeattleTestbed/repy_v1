@@ -288,9 +288,8 @@ if __name__ == '__main__':
       emulcomm.preference = True
       
       # Append this IP to the list of available IP's if it is new
-      if args[1] not in emulcomm.allowedIPs:
-        emulcomm.allowedIPs.append(args[1])
-        
+      if (True, args[1]) not in emulcomm.allowedlist:
+        emulcomm.allowedlist.append((True, args[1]))
       args = args[2:]
     
     # Armon: Loop checking for additional --iface flags, since multiple interfaces may be specified
@@ -299,21 +298,17 @@ if __name__ == '__main__':
       emulcomm.preference = True
       
       # Append this interface to the list of available ones if it is new
-      if args[1] not in emulcomm.allowedinterfaces:
-        emulcomm.allowedinterfaces.append(args[1])
+      if (False,args[1]) not in emulcomm.allowedlist:
+        emulcomm.allowedlist.append((False,args[1]))
       args = args[2:]
     
-    implicit_ips_allowed = True
     # Check if they have told us explicitly not to allow other IP's
     if args[0] == '--nootherips':
-      implicit_ips_allowed = False
+      # Set Interface preference to True
+      emulcomm.preference = True
+      # Disable nonspecified IP's
+      emulcomm.allow_nonspecified_ips = False
       args = args[1:]
-    
-    # By default, if there is a preferred IP specified, 
-    # we will allow "any". However if we get '--nootherips'
-    # we supress this behavior
-    if emulcomm.preference and implicit_ips_allowed and "any" not in emulcomm.allowedinterfaces:
-      emulcomm.allowedinterfaces.append("any")
     
     if args[0] == '--logfile':
       # set up the circular log buffer...

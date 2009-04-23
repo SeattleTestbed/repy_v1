@@ -53,12 +53,12 @@ comminfo = {}
 # If we have a preference for an IP/Interface this flag is set to True
 preference = False
 
-# Armon: These ip's and interfaces are allowed
-# Both lists can have an "any" key word that allows any ip or any ip on an interface
-# By default, its just loopback but the user may add more with the --ip flag
-# If no interface or IP is specified, then all ips will be allowed
-allowedIPs = ['127.0.0.1'] 
-allowedinterfaces = []
+# Do we allow non-specified IPs
+allow_nonspecified_ips = True
+
+# Armon: Specified the list of allowed IP and Interfaces in order of their preference
+# The basic structure is list of tuples (IP, Value), IP is True if its an IP, False if its an interface
+allowedlist = []
 
 # This set caches the allowed IP's
 # It is updated at the launch of repy, or by calls to getmyip
@@ -80,22 +80,29 @@ def ip_is_allowed(ip):
   """
   global allowedcache
   global preference
+  global allow_nonspecified_ips
   
   # If there is no preference, anything goes
-  if not preference:
+  # same with allow_nonspecified_ips
+  if not preference or allow_nonspecified_ips:
     return True
   
   # Check the set
   return (ip in allowedcache)
-  
 
+
+# Only appends the elem to lst if the elem is unique
+def unique_append(lst, elem):
+  if elem not in lst:
+    lst.append(elem)
+      
 # This function updates the allowed IP cache
 # It iterates through all possible IP's and stores ones which are bindable as part of the allowedcache
 def update_ip_cache():
   global allowedcache
   global preference
-  global allowedinterfaces
-  global allowedIPs
+  global allowedlist
+  global allow_nonspecified_ips
   
   # If there is no preference, this is a no-op
   if not preference:
@@ -107,41 +114,22 @@ def update_ip_cache():
   # Stores the IP's
   allowed_list = []
   
-  # Mini-function because I'm too lazy to keep checking if the element
-  # already exists
-  # Prohibits adding "127.0.0.1", loopback is always added last
-  def unique_append(lst, elem):
-    if not (elem == "127.0.0.1") and elem not in lst:
-      allowed_list.append(elem)
-  
-  # Adds all the IP's from an interface    
-  def add_nic_ips(nic, lst):
-    try:
-      # Get the IP's associated with the NIC
-      interface_ips = nonportable.osAPI.getInterfaceIPAddresses(nic)
-      for interface_ip in interface_ips:
-        unique_append(lst, interface_ip)
-    except:
-      # Catch exceptions if the NIC does not exist
-      pass
-  
-  # Loop through allowed IP's appending to the allowed_list
-  for ip in allowedIPs:
-      unique_append(allowed_list, ip)
+  # Iterate through the allowed list, handle each element
+  for (is_ip_addr, value) in allowedlist:
+    # Handle normal IP's
+    if is_ip_addr:
+      unique_append(allowed_list, value)
     
-  # Loop through the allowed interfaces, appeneding to the allowed_list
-  for nic in allowedinterfaces:
-    # Handle the 'any' case
-    if nic == "any":
-      all_interfaces = nonportable.osAPI.getAvailableInterfaces() # Get all the interfaces
-      for interface in all_interfaces:
-        # Add all associated IP's
-        add_nic_ips(interface, allowed_list)
-    
-      break # This adds all IP's from interfaces, no need to continue
+    # Handle interfaces
     else:
-      # Add all associated IP's
-      add_nic_ips(nic, allowed_list)
+      try:
+        # Get the IP's associated with the NIC
+        interface_ips = nonportable.osAPI.getInterfaceIPAddresses(value)
+        for interface_ip in interface_ips:
+          unique_append(allowed_list, interface_ip)
+      except:
+        # Catch exceptions if the NIC does not exist
+        pass
   
   # This will store all the IP's that we are able to bind to
   bindable_list = []
@@ -159,7 +147,7 @@ def update_ip_cache():
       sock.close()
 
   # Add loopback
-  bindable_list.append("127.0.0.1")
+  unique_append(bindable_list, "127.0.0.1")
   
   # Update the global cache
   allowedcache = bindable_list
@@ -518,6 +506,7 @@ def getmyip():
   # I got some of this from: http://groups.google.com/group/comp.lang.python/browse_thread/thread/d931cdc326d7032b?hl=en
   
   # Update the cache and return the first allowed IP
+  # Only if a preference is set
   if preference:
     update_ip_cache()
     # Return the first allowed ip, there is always at least 1 element (loopback)
