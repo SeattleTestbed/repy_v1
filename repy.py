@@ -303,10 +303,16 @@ if __name__ == '__main__':
         emulcomm.allowedinterfaces.append(args[1])
       args = args[2:]
     
-    # By default, if there is no preferred IP specified, 
-    # and there are no interfaces specified, we will allow "any"
-    if not emulcomm.preference:
-      emulcomm.allowedIPs.append("any")
+    implicit_ips_allowed = True
+    # Check if they have told us explicitly not to allow other IP's
+    if args[0] == '--nootherips':
+      implicit_ips_allowed = False
+      args = args[1:]
+    
+    # By default, if there is a preferred IP specified, 
+    # we will allow "any". However if we get '--nootherips'
+    # we supress this behavior
+    if emulcomm.preference and implicit_ips_allowed and "any" not in emulcomm.allowedinterfaces:
       emulcomm.allowedinterfaces.append("any")
     
     if args[0] == '--logfile':

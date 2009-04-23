@@ -62,12 +62,9 @@ allowedinterfaces = []
 
 # This set caches the allowed IP's
 # It is updated at the launch of repy, or by calls to getmyip
-allowedcache = set([])
+allowedcache = []
 cachelock = threading.Lock()  # This allows only a single simultaneous cache update
 
-# Since we modifiy the interfaces list if we encounter "any",
-# it is best to lock it for safety reasons
-interfacelock = threading.Lock()
 
 ### IP Iteration Stuff
 def ip_is_allowed(ip):
@@ -93,189 +90,83 @@ def ip_is_allowed(ip):
   
 
 # This function updates the allowed IP cache
-# It creates an IP iterator and stores all the values it returns
-# as part of the allowedcache
+# It iterates through all possible IP's and stores ones which are bindable as part of the allowedcache
 def update_ip_cache():
   global allowedcache
   global preference
+  global allowedinterfaces
+  global allowedIPs
   
   # If there is no preference, this is a no-op
   if not preference:
     return
     
+  # Acquire the lock to update the cache
+  cachelock.acquire()
+    
   # Stores the IP's
-  allowed_set = set([])
+  allowed_list = []
   
-  # Create an IP iterator
-  ip_iter = ip_address_iterator()
+  # Mini-function because I'm too lazy to keep checking if the element
+  # already exists
+  # Prohibits adding "127.0.0.1", loopback is always added last
+  def unique_append(lst, elem):
+    if not (elem == "127.0.0.1") and elem not in lst:
+      allowed_list.append(elem)
   
-  # Seed the loop with some value
-  current_ip = "Junk"
-  while current_ip:
-    current_ip = ip_iter.next_ip()
-    if current_ip:
-      allowed_set.add(current_ip)
-      
-  # Update the global cache
-  allowedcache = allowed_set
-
-
-class ip_address_iterator():
-  """
-  <Purpose>
-    This object allows for easy enumeration of allowed IP addresses.
-    This is made complicated by special IP and interface keywords just as "any",
-    and the need to translate interfaces into IP addresses while handling things
-    like virtual IP's.
-    
-    It is very simple to use, just initialize, and then call next_ip().
-  """
-  def __init__(self):
-    # Initialize with our instance variabgles
-    self.current_location = 1 # 1 is the IP's, 2 is the interfaces, 3 is done
-    self.index = 0    # An index for the current location
-    
-    self.sub_list = None  # Each interface may have a list of IP's, so we need to track this sub-list
-    self.sub_index = 0  # Index for the sublist
-    
-    self.used = set([]) # Set of previously returned IP's, to ensure uniqueness
+  # Adds all the IP's from an interface    
+  def add_nic_ips(nic, lst):
+    try:
+      # Get the IP's associated with the NIC
+      interface_ips = nonportable.osAPI.getInterfaceIPAddresses(nic)
+      for interface_ip in interface_ips:
+        unique_append(lst, interface_ip)
+    except:
+      # Catch exceptions if the NIC does not exist
+      pass
   
-  def next_ip(self):
-    """
-    <Purpose>
-      Iterates through the list of all possible IP's. Returns the next IP.
-      Each IP will be unique and returned only once.
-  
-    <Returns>
-      A string IP representation, or None if there are no more IP addresses.
-    """
-    # Set to True so we enter the loop
-    next_address = True
-    first_none = True   # Is this the first time we saw 'None', then return loopback
+  # Loop through allowed IP's appending to the allowed_list
+  for ip in allowedIPs:
+      unique_append(allowed_list, ip)
     
-    while next_address:
-      next_address = self._next_ip()
-      
-      if next_address == None and first_none:
-        first_none = False
-        next_address = "127.0.0.1"
-      elif next_address == "127.0.0.1" and first_none:
-        # Ignore loopback until the end
-        continue
-      
-      # Check if this address is unique
-      if not (next_address in self.used):
-        self.used.add(next_address)
-        return next_address
-      
-    # At this point, the loop will continue until we find a unique address
-    # or exhaust all possible addresses
+  # Loop through the allowed interfaces, appeneding to the allowed_list
+  for nic in allowedinterfaces:
+    # Handle the 'any' case
+    if nic == "any":
+      all_interfaces = nonportable.osAPI.getAvailableInterfaces() # Get all the interfaces
+      for interface in all_interfaces:
+        # Add all associated IP's
+        add_nic_ips(interface, allowed_list)
     
-  def _next_ip(self):
-    """
-    <Purpose>
-      Iterates through the list of all possible IP's. Returns the next IP.
-      Semi-Private. This may return duplicates.
-  
-    <Returns>
-      A string IP representation, or None if there are no more IP addresses.
-    """
-    global preference
-    
-    # Switch on the current location
-    # Handle the allowed IP's
-    if self.current_location == 1:
-      # Check if our current index is in bounds
-      if self.index < len(allowedIPs):
-        # Check if this is the "any" keyword
-        if allowedIPs[self.index] == "any":
-          # We want the IP from getmyip, but we need to disable the preference for that to work
-          original_preferred = preference
-          preference = False
-          
-          # Use getmyip to get a real IP
-          network_ip = getmyip()
-          
-          # Restore the original
-          preference = original_preferred
-          
-          # Increment the index
-          self.index += 1
-          
-          # Return the network IP
-          return network_ip
-        
-        # This is just a normal IP
-        else:
-          # Update our index
-          self.index += 1
-      
-          # Return the IP at the old index
-          return allowedIPs[self.index-1]
-      
-      else:
-        # Update our location and recurse
-        self.current_location = 2
-        self.index = 0
-        return self._next_ip()
-  
-    # Handle the interfaces
-    elif self.current_location == 2:
-      # Check the bounds
-      if self.index < len(allowedinterfaces):
-        # Check if we need to load the sub-list
-        if self.sub_list == None:
-          # Acquire the lock
-          interfacelock.acquire()
-          
-          # Get the interface
-          interface = allowedinterfaces[self.index]
-          
-          # Handle the special case where interface is "any"
-          if interface == "any":
-            # Get all the interfaces
-            allInterfaces = nonportable.osAPI.getAvailableInterfaces()
-            
-            # If the interface is new, add it to the whitelist
-            for nic in allInterfaces:
-              if nic not in allowedinterfaces:
-                allowedinterfaces.append(nic)
-            
-            # Delete the special "any" and recurse
-            del allowedinterfaces[self.index]
-            interfacelock.release() # Release the lock
-            return self._next_ip()
-            
-          else:
-            # Normal interface, get its IP's
-            self.sub_list = nonportable.osAPI.getInterfaceIPAddresses(interface)
-          
-          # Release the lock
-          interfacelock.release() 
-        
-        # Check the sub-index bounds
-        if self.sub_index < len(self.sub_list):
-          # Increment the index
-          self.sub_index += 1
-        
-          # Return the previous value
-          return self.sub_list[self.sub_index-1]
-      
-        # Increment the index
-        else:
-          self.index += 1
-          self.sub_index = 0
-          self.sub_list = None
-          return self._next_ip()
-    
-      else:
-        # There is nothing left, go to state 3
-        self.current_location = 3
-        return None
-  
-    # Handle state 3
+      break # This adds all IP's from interfaces, no need to continue
     else:
-      return None
+      # Add all associated IP's
+      add_nic_ips(nic, allowed_list)
+  
+  # This will store all the IP's that we are able to bind to
+  bindable_list = []
+        
+  # Try binding to every ip
+  for ip in allowed_list:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+      sock.bind((ip,0))
+    except:
+      pass # Not a good ip, skip it
+    else:
+      bindable_list.append(ip) # This is a good ip, store it
+    finally:
+      sock.close()
+
+  # Add loopback
+  bindable_list.append("127.0.0.1")
+  
+  # Update the global cache
+  allowedcache = bindable_list
+        
+  # Release the lock
+  cachelock.release()
+  
 
 ########################### SocketSelector functions #########################
 
@@ -626,43 +517,14 @@ def getmyip():
   restrictions.assertisallowed('getmyip')
   # I got some of this from: http://groups.google.com/group/comp.lang.python/browse_thread/thread/d931cdc326d7032b?hl=en
   
-  # Do a non-blocking acquire, since update_ip_cache may end up calling us
-  gotlock = cachelock.acquire(False)
-  if gotlock:
-    # If we have the lock, update the IP cache
+  # Update the cache and return the first allowed IP
+  if preference:
     update_ip_cache()
-    cachelock.release()
+    # Return the first allowed ip, there is always at least 1 element (loopback)
+    return allowedcache[0]
   
   # Open a connectionless socket
   s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-  # In some cases the user wanted to restrict us to a certain IP addresses.   
-  # in this case, we'll see if we can bind to it and if so, we'll return that
-  # IP address.
-  if preference:
-    # Get an IP iterator
-    ip_iter = ip_address_iterator()
-    
-    address = ip_iter.next_ip()
-    while address:  
-      try:
-        # this will raise an exception if the IP is not a local IP
-        s.bind((address,0))
-      except:
-        # Go to the next address
-        address = ip_iter.next_ip()
-        
-        # There are no more addresses left, raise the exception
-        if not address:
-          s.close()
-          raise          
-      else:
-        # We found a good IP, return this
-        s.close()
-        break
-    
-    return address
-
 
   # Tell it to connect to google (we assume that the DNS entry for this works)
   # however, using port 0 causes some issues on FreeBSD!   I choose port 80 
