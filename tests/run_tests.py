@@ -663,6 +663,15 @@ if len(sys.argv) > 1 and sys.argv[1] == "-network":
   # Checks that we are not allowed to bind to a junk IP (the test uses a different IP)
   run_network_test("ip_junkip_trybind.py", {'ip':'256.256.256.256','nootherips':''})
 
+  # Run interface test, this one passes many common interfaces to the test, and
+  # tests that we can get a non-loopback and bindable address from getmyip
+  logstream.write("INFO: Running: ip_multiple_iface_trybind.py. This may fail since it relies on the system having an interface that I provided.\n")
+  (out, err) = exec_command('python repy.py --iface eth0 --iface eth1 --iface en0 --iface en1 --iface xl0 --iface xl1 \
+  --iface "Ethernet adapter Local Area Connection" --iface "Ethernet adapter Local Area Connection 2" \
+  --nootherips restrictions.default ip_multiple_iface_trybind.py')
+  if out != "" or err != "":
+      logstream.write("FAILURE: Out:\n"+out+"\n\nErr:\n"+err+"\n")
+      
   logstream.write("INFO: Done.\n")
 
   # Exit now
