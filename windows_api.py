@@ -1291,7 +1291,6 @@ def _fetch_ipconfig_infomation():
     if not line.startswith(" "):
       # Do some cleanup
       line = line.strip(" :")
-      line = line.replace("Ethernet adapter ", "")
       
       # Check if this exists in the top return dictionary, if not add it
       if line not in info_dict:
