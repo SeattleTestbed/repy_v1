@@ -655,23 +655,13 @@ if len(sys.argv) > 1 and sys.argv[1] == "-network":
   run_network_test("ip_onlyloopback_checkgetmyip.py", {'ip':'127.0.0.1','nootherips':''})
 
   # Checks that we only get loopback and is bindable, using iface flag
-  run_network_test("ip_nopreferred_noallowed_checkgetmyip.py", {'iface':'lo','nootherips':''})    
- 
-  # Checks that given all interfaces an no prefered IP, that getmyip returns a real bindable IP
-  run_network_test("ip_alliface_nopref_checkgetmyip.py", {'iface':'any','nootherips':''})  
+  run_network_test("ip_nopreferred_noallowed_checkgetmyip.py", {'iface':'lo','nootherips':''})     
 
   # Checks that given a junk IP this is not returned by getmyip
   run_network_test("ip_junkip_checkgetmyip.py", {'ip':'256.256.256.256','nootherips':''})
   
   # Checks that we are not allowed to bind to a junk IP (the test uses a different IP)
   run_network_test("ip_junkip_trybind.py", {'ip':'256.256.256.256','nootherips':''})
-
-  # Check that with all interfaces, getmyip returns something sensible and it is bindable
-  # checks that openconn and sendmess work without a localip specified
-  run_network_test("ip_alliface_openconn_with_sendmess.py", {'iface':'any','nootherips':''})
-  
-  # Checks that we get a reasonable IP from getmyip if implicit IP's are allowed by excluding the nootherips flag
-  run_network_test("ip_noallowed_withimplicitips.py", {'iface':'lo'})
 
   logstream.write("INFO: Done.\n")
 
