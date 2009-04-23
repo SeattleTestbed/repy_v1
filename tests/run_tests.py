@@ -655,7 +655,10 @@ if len(sys.argv) > 1 and sys.argv[1] == "-network":
   run_network_test("ip_onlyloopback_checkgetmyip.py", {'ip':'127.0.0.1','nootherips':''})
 
   # Checks that we only get loopback and is bindable, using iface flag
-  run_network_test("ip_nopreferred_noallowed_checkgetmyip.py", {'iface':'lo','nootherips':''})     
+  run_network_test("ip_nopreferred_noallowed_checkgetmyip.py", {'iface':'lo','nootherips':''})
+  
+  # Checks that we only get loopback and is bindable, without any flags other than nootherips
+  run_network_test("ip_nopreferred_noallowed_checkgetmyip.py", {'nootherips':''})     
 
   # Checks that given a junk IP this is not returned by getmyip
   run_network_test("ip_junkip_checkgetmyip.py", {'ip':'256.256.256.256','nootherips':''})
