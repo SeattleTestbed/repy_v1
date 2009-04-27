@@ -754,10 +754,7 @@ def sendmess(desthost, destport, message,localip=None,localport = 0):
 
   # open a new socket
   s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-  # reuse the socket if it's "pseudo-availible"
-  s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
+ 
 
   try:
     if localip:
@@ -853,8 +850,6 @@ def recvmess(localip, localport, function):
   # get the socket
   try:
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    # reuse the socket if it's "pseudo-availible"
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     s.bind((localip,localport))
 
     nonportable.preparesocket(s)
