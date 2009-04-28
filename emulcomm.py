@@ -51,7 +51,7 @@ import time
 comminfo = {}
 
 # If we have a preference for an IP/Interface this flag is set to True
-preference = False
+user_ip_interface_preferences = False
 
 # Do we allow non-specified IPs
 allow_nonspecified_ips = True
@@ -62,11 +62,13 @@ user_specified_ip_interface_list = []
 
 # This list caches the allowed IP's
 # It is updated at the launch of repy, or by calls to getmyip and update_ip_cache
+# NOTE: The loopback address 127.0.0.1 is always permitted. update_ip_cache will always add this
+# if it is not specified explicitly by the user
 allowediplist = []
 cachelock = threading.Lock()  # This allows only a single simultaneous cache update
 
 
-### IP Iteration Stuff
+# Determines if a specified IP address is allowed in the context of user settings
 def ip_is_allowed(ip):
   """
   <Purpose>
@@ -79,12 +81,12 @@ def ip_is_allowed(ip):
     True, if allowed. False, otherwise.
   """
   global allowediplist
-  global preference
+  global user_ip_interface_preferences
   global allow_nonspecified_ips
   
   # If there is no preference, anything goes
   # same with allow_nonspecified_ips
-  if not preference or allow_nonspecified_ips:
+  if not user_ip_interface_preferences or allow_nonspecified_ips:
     return True
   
   # Check the list of allowed IP's
@@ -100,12 +102,12 @@ def unique_append(lst, elem):
 # It iterates through all possible IP's and stores ones which are bindable as part of the allowediplist
 def update_ip_cache():
   global allowediplist
-  global preference
+  global user_ip_interface_preferences
   global user_specified_ip_interface_list
   global allow_nonspecified_ips
   
   # If there is no preference, this is a no-op
-  if not preference:
+  if not user_ip_interface_preferences:
     return
     
   # Acquire the lock to update the cache
@@ -510,7 +512,7 @@ def getmyip():
   
   # Update the cache and return the first allowed IP
   # Only if a preference is set
-  if preference:
+  if user_ip_interface_preferences:
     update_ip_cache()
     # Return the first allowed ip, there is always at least 1 element (loopback)
     return allowediplist[0]
@@ -715,7 +717,7 @@ def sendmess(desthost, destport, message,localip=None,localport = 0):
     raise Exception, "IP '"+str(localip)+"' is not allowed."
   
   # If there is a preference, but no localip, then get one
-  elif preference and not localip:
+  elif user_ip_interface_preferences and not localip:
     # Use whatever getmyip returns
     localip = getmyip()
 
@@ -932,7 +934,7 @@ def openconn(desthost, destport,localip=None, localport=0,timeout=5.0):
     raise Exception, "IP '"+str(localip)+"' is not allowed."
 
   # If there is a preference, but no localip, then get one
-  elif preference and not localip:
+  elif user_ip_interface_preferences and not localip:
     # Use whatever getmyip returns
     localip = getmyip()
 

@@ -297,8 +297,8 @@ if __name__ == '__main__':
 
     # Armon: Loop checking for additional --ip flags, since multiple IP's may be specified
     while args[0] == '--ip':
-      # Set IP preference to True
-      emulcomm.preference = True
+      # Set user preference to True
+      emulcomm.user_ip_interface_preferences = True
       
       # Append this IP to the list of available IP's if it is new
       if (True, args[1]) not in emulcomm.user_specified_ip_interface_list:
@@ -307,8 +307,8 @@ if __name__ == '__main__':
     
     # Armon: Loop checking for additional --iface flags, since multiple interfaces may be specified
     while args[0] == '--iface':
-      # Set Interface preference to True
-      emulcomm.preference = True
+      # Set user preference to True
+      emulcomm.user_ip_interface_preferences = True
       
       # Append this interface to the list of available ones if it is new
       if (False,args[1]) not in emulcomm.user_specified_ip_interface_list:
@@ -317,8 +317,8 @@ if __name__ == '__main__':
     
     # Check if they have told us explicitly not to allow other IP's
     if args[0] == '--nootherips':
-      # Set Interface preference to True
-      emulcomm.preference = True
+      # Set user preference to True
+      emulcomm.user_ip_interface_preferences = True
       # Disable nonspecified IP's
       emulcomm.allow_nonspecified_ips = False
       args = args[1:]
