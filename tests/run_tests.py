@@ -680,6 +680,105 @@ if len(sys.argv) > 1 and sys.argv[1] == "-network":
   # Exit now
   exit()
 
+# Check for the nodemanager network flag, and if found
+# run the proper tests, then exit
+if len(sys.argv) > 1 and sys.argv[1] == "-nm-network":
+  # This is to find the NM PID
+  import runonce
+  
+  # First run nmminit
+  exec_command("python nminit.py")
+  
+  # We need getmyip()
+  import misc
+  DEFAULT_IP = misc.getmyip()
+  LOOPBACK_IP = "127.0.0.1"
+  JUNK_IP = "128.0.0.255"
+  
+  # We need nonportable to check for network sockets
+  import nonportable
+  
+  # Get the osAPI
+  osAPI = nonportable.osAPI
+  
+  # We need this to change the nm configuration file
+  import injectconfig
+  
+  
+  allowed_port = 50000
+  # First override the ports, only use one port, so we know what to check
+  injectconfig.inject('ports', [allowed_port], "nodeman.cfg")
+  
+  # The NM will use a constant key, store this
+  NET_KEY = 'networkrestrictions'
+  
+  # Create generic config dictionary
+  config = {}
+  config['nm_restricted'] = False
+  config['nm_user_preference'] = []
+  config['repy_restricted'] = False
+  config['repy_nootherips'] = False
+  config['repy_user_preference'] = []
+  
+  # Mini-function to make life easier
+  def run_network_test(name, config, ip):
+    logstream.write("INFO: Running: "+name+"\n")
+    
+    # Override the configuration
+    injectconfig.inject(NET_KEY, config, "nodeman.cfg")
+    
+    # Start the NM
+    p =  subprocess.Popen("python nmmain.py", shell=True)
+    
+    # Wait a bit for everything to settle
+    time.sleep(3)
+    
+    # Check for a network socket
+    isListen = osAPI.existsListeningNetworkSocket(ip, allowed_port, True)
+    
+    # Check for output
+    if not isListen:
+        logstream.write("FAILURE: Expected NM to listen on IP:"+ip+" and port:"+str(allowed_port)+"! \n")
+    
+    gotlock = runonce.getprocesslock("seattlenodemanager")
+    if gotlock == True:
+      # No NM running? This is an error
+      logstream.write("FAILURE: Successfully acquired the NM process lock! The NM should be running!\n")
+    else:
+      if gotlock:
+        # Kill the NM
+        nonportable.portablekill(gotlock)
+
+  # Run with the generic config, no restrictions
+  run_network_test("SELF TEST. EXPECT FAILURE!", config, JUNK_IP)
+    
+  # Run with the generic config, no restrictions
+  run_network_test("No Restrictions, defaults on.", config, DEFAULT_IP)
+  
+  # Run with the generic config, enable restrictions
+  config['nm_restricted'] = True
+  run_network_test("Enable Restrictions, nothing provided.", config, LOOPBACK_IP)
+  
+  # Run with the default IP, enable restrictions
+  config['nm_user_preference'] = [(True, DEFAULT_IP)]
+  run_network_test("Enable Restrictions, provided IP from getmyip().", config, DEFAULT_IP)
+  
+  # Run with the junk IP, enable restrictions
+  config['nm_user_preference'] = [(True, JUNK_IP)]
+  run_network_test("Enable Restrictions, provided junk IP.", config, LOOPBACK_IP)
+
+  # Run interface test, this one passes many common interfaces to the test, and
+  # tests that we can get a non-loopback and bindable address from getmyip
+  config['nm_user_preference'] = [(False, 'eth0'),(False, 'eth1'),(False, 'en0'),(False, 'en1')\
+                                  ,(False, 'xl0'),(False, 'xl1'),(False, 'Ethernet adapter Local Area Connection')\
+                                  ,(False, 'Ethernet adapter Local Area Connection 2') ]
+  run_network_test("Enable Restrictions, provided common Interfaces. May fail!", config, DEFAULT_IP)
+
+  logstream.write("INFO: Done.\n")
+
+  # Exit now
+  exit()
+
 # these are updated in run_test
 passcount=0
 failcount=0
