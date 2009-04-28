@@ -659,6 +659,11 @@ def cleanup(handle):
       tcp = (socketType == 'TCP') # Check if this is a TCP typed connection
       
       # Loop until the socket no longer exists
+      # BUG: There exists a potential race condition here. The problem is that
+      # the socket may be cleaned up and then before we are able to check for it again
+      # another process binds to the ip/port we are checking. This would cause us to detect
+      # the socket from the other process and we would block indefinately while that socket
+      # is open.
       while nonportable.osAPI.existsListeningNetworkSocket(ip,port, tcp):
         time.sleep(RETRY_INTERVAL)
         
