@@ -23,6 +23,9 @@
 
   Armon Dadgar 4-21-9- Added new flag "-network" that runs special tests to check for the proper behavior of 
   repy when given "--ip" and "--iface" flags.
+  
+  Armon Dadgar 4-28-9- Added new flag "-nm-network" that runs special tests to check for the proper behavior of 
+  the nodemanager when ip and iface preferences are enabled.
    
 <Usage>
   To run the repy unit tests locally, first navigate to trunk, then 
@@ -47,6 +50,11 @@
   1.  python preparetest.py -t <directory>
   2.  cd <directory>
   3.  python run_tests.py -network
+
+  To run the Node Manager network restrictions checks, use these commands:
+  1.  python preparetest.py -t <directory>
+  2.  cd <directory>
+  3.  python run_tests.py -nm-network
 
   To run the node manager unit tests locally, open two shells (or command prompts). Navigate to trunk in each.
   
@@ -748,9 +756,7 @@ if len(sys.argv) > 1 and sys.argv[1] == "-nm-network":
       if gotlock:
         # Kill the NM
         nonportable.portablekill(gotlock)
-
-  # Run with the generic config, no restrictions
-  run_network_test("SELF TEST. EXPECT FAILURE!", config, JUNK_IP)
+        time.sleep(2)
     
   # Run with the generic config, no restrictions
   run_network_test("No Restrictions, defaults on.", config, DEFAULT_IP)
