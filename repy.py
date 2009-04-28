@@ -301,8 +301,8 @@ if __name__ == '__main__':
       emulcomm.preference = True
       
       # Append this IP to the list of available IP's if it is new
-      if (True, args[1]) not in emulcomm.allowedlist:
-        emulcomm.allowedlist.append((True, args[1]))
+      if (True, args[1]) not in emulcomm.user_specified_ip_interface_list:
+        emulcomm.user_specified_ip_interface_list.append((True, args[1]))
       args = args[2:]
     
     # Armon: Loop checking for additional --iface flags, since multiple interfaces may be specified
@@ -311,8 +311,8 @@ if __name__ == '__main__':
       emulcomm.preference = True
       
       # Append this interface to the list of available ones if it is new
-      if (False,args[1]) not in emulcomm.allowedlist:
-        emulcomm.allowedlist.append((False,args[1]))
+      if (False,args[1]) not in emulcomm.user_specified_ip_interface_list:
+        emulcomm.user_specified_ip_interface_list.append((False,args[1]))
       args = args[2:]
     
     # Check if they have told us explicitly not to allow other IP's

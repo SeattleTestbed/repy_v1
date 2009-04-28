@@ -58,11 +58,11 @@ allow_nonspecified_ips = True
 
 # Armon: Specified the list of allowed IP and Interfaces in order of their preference
 # The basic structure is list of tuples (IP, Value), IP is True if its an IP, False if its an interface
-allowedlist = []
+user_specified_ip_interface_list = []
 
-# This set caches the allowed IP's
-# It is updated at the launch of repy, or by calls to getmyip
-allowedcache = []
+# This list caches the allowed IP's
+# It is updated at the launch of repy, or by calls to getmyip and update_ip_cache
+allowediplist = []
 cachelock = threading.Lock()  # This allows only a single simultaneous cache update
 
 
@@ -78,7 +78,7 @@ def ip_is_allowed(ip):
   <Returns>
     True, if allowed. False, otherwise.
   """
-  global allowedcache
+  global allowediplist
   global preference
   global allow_nonspecified_ips
   
@@ -88,7 +88,7 @@ def ip_is_allowed(ip):
     return True
   
   # Check the set
-  return (ip in allowedcache)
+  return (ip in allowediplist)
 
 
 # Only appends the elem to lst if the elem is unique
@@ -97,11 +97,11 @@ def unique_append(lst, elem):
     lst.append(elem)
       
 # This function updates the allowed IP cache
-# It iterates through all possible IP's and stores ones which are bindable as part of the allowedcache
+# It iterates through all possible IP's and stores ones which are bindable as part of the allowediplist
 def update_ip_cache():
-  global allowedcache
+  global allowediplist
   global preference
-  global allowedlist
+  global user_specified_ip_interface_list
   global allow_nonspecified_ips
   
   # If there is no preference, this is a no-op
@@ -115,7 +115,7 @@ def update_ip_cache():
   allowed_list = []
   
   # Iterate through the allowed list, handle each element
-  for (is_ip_addr, value) in allowedlist:
+  for (is_ip_addr, value) in user_specified_ip_interface_list:
     # Handle normal IP's
     if is_ip_addr:
       unique_append(allowed_list, value)
@@ -150,7 +150,7 @@ def update_ip_cache():
   unique_append(bindable_list, "127.0.0.1")
   
   # Update the global cache
-  allowedcache = bindable_list
+  allowediplist = bindable_list
         
   # Release the lock
   cachelock.release()
@@ -510,7 +510,7 @@ def getmyip():
   if preference:
     update_ip_cache()
     # Return the first allowed ip, there is always at least 1 element (loopback)
-    return allowedcache[0]
+    return allowediplist[0]
   
   # Open a connectionless socket
   s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
