@@ -87,7 +87,7 @@ def ip_is_allowed(ip):
   if not preference or allow_nonspecified_ips:
     return True
   
-  # Check the set
+  # Check the list of allowed IP's
   return (ip in allowediplist)
 
 
@@ -110,50 +110,53 @@ def update_ip_cache():
     
   # Acquire the lock to update the cache
   cachelock.acquire()
-    
-  # Stores the IP's
-  allowed_list = []
   
-  # Iterate through the allowed list, handle each element
-  for (is_ip_addr, value) in user_specified_ip_interface_list:
-    # Handle normal IP's
-    if is_ip_addr:
-      unique_append(allowed_list, value)
+  # If there is any exception release the cachelock
+  try:  
+    # Stores the IP's
+    allowed_list = []
+  
+    # Iterate through the allowed list, handle each element
+    for (is_ip_addr, value) in user_specified_ip_interface_list:
+      # Handle normal IP's
+      if is_ip_addr:
+        unique_append(allowed_list, value)
     
-    # Handle interfaces
-    else:
+      # Handle interfaces
+      else:
+        try:
+          # Get the IP's associated with the NIC
+          interface_ips = nonportable.osAPI.getInterfaceIPAddresses(value)
+          for interface_ip in interface_ips:
+            unique_append(allowed_list, interface_ip)
+        except:
+          # Catch exceptions if the NIC does not exist
+          pass
+  
+    # This will store all the IP's that we are able to bind to
+    bindable_list = []
+        
+    # Try binding to every ip
+    for ip in allowed_list:
+      sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
       try:
-        # Get the IP's associated with the NIC
-        interface_ips = nonportable.osAPI.getInterfaceIPAddresses(value)
-        for interface_ip in interface_ips:
-          unique_append(allowed_list, interface_ip)
+        sock.bind((ip,0))
       except:
-        # Catch exceptions if the NIC does not exist
-        pass
-  
-  # This will store all the IP's that we are able to bind to
-  bindable_list = []
-        
-  # Try binding to every ip
-  for ip in allowed_list:
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-      sock.bind((ip,0))
-    except:
-      pass # Not a good ip, skip it
-    else:
-      bindable_list.append(ip) # This is a good ip, store it
-    finally:
-      sock.close()
+        pass # Not a good ip, skip it
+      else:
+        bindable_list.append(ip) # This is a good ip, store it
+      finally:
+        sock.close()
 
-  # Add loopback
-  unique_append(bindable_list, "127.0.0.1")
+    # Add loopback
+    unique_append(bindable_list, "127.0.0.1")
   
-  # Update the global cache
-  allowediplist = bindable_list
-        
-  # Release the lock
-  cachelock.release()
+    # Update the global cache
+    allowediplist = bindable_list
+  
+  finally:      
+    # Release the lock
+    cachelock.release()
   
 
 ########################### SocketSelector functions #########################
