@@ -1,5 +1,5 @@
 MAXIMUM_MSG_SIZE = 1024 #maximum number of bytes per message contents per send call to user
-
+MAXIMUM_HTTP_REQUEST_SIZE= 4000 #max number of bytes in a http get request
 
 # send a probe message to each neighbor
 def probe_neighbors(port):
@@ -77,6 +77,43 @@ def show_status():
 
 
 
+
+
+# Get entire HTTP GET request to keep the browser happy
+# Keeps trying to receive data from the user until it 
+# finds the '\n\n' sequence or maxes past the upper reasonable limit of bytes read.
+# Returns 1 if the entire line was found and 0 if not
+def get_complete_request(client_conn):
+
+  msg_recvd = ""
+  num_bytes_recvd = 0
+
+  while( num_bytes_recvd < MAXIMUM_HTTP_REQUEST_SIZE):
+
+    #try to get more data from the client
+    temp_recvd = client_conn.recv(1)
+
+    #update the total number of bytes of data received from the connection
+    num_bytes_recvd += temp_recvd
+
+
+    # Remove carriage returns, '/r' characters, from the new data received and then add it to the data you've already collected 
+    # Some machines use '\r\n' as a newline character while others just use '\n'
+    # So you can see 2 newline characters in a row on all machines as '\n\n'
+    temp_recvd = temp_recvd.replace("\r","")
+    msg_recvd += temp_recvd
+
+
+    if ( msg_recvd.find("/n/n") != -1 ):
+      # the 2 newlines were found so return the data
+      return 1
+
+  return 0
+
+
+
+ 
+
 # Sends response arguement to a client via the client connection and then closes it.
 def send_reply(response, client):
   count = 0
@@ -98,12 +135,14 @@ def send_reply(response, client):
 
 
 # Closes client connection when called.
-def close_user_conn(client):
-  client.close()
+def close_user_conn(client_conn):
+  client_conn.close()
 
 
 
-def send_webpage_to_user(ip, port, client, thiscommhandle, listencommhandle):
+
+
+def send_webpage_to_user(ip, port, client_conn, thiscommhandle, listencommhandle):
 
   # The lock is acquired so that no other client can reset the timer or concurrently open a file.
   mycontext['lock'].acquire()
@@ -112,10 +151,14 @@ def send_webpage_to_user(ip, port, client, thiscommhandle, listencommhandle):
   close_client_conn = settimer(6.0, timed_out, [client])
 
   try:
-    data = client.recv(1024)
+    get_request_results = get_complete_request(client_conn)
     canceltimer(close_client_conn)
-    page_results = show_status()
-    send_reply(page_results, client)
+
+    if(get_request_results == 1):
+
+      page_results = show_status()
+      send_reply(page_results, client_conn)
+ 
   except:
     print 'client timed out'
   finally:
