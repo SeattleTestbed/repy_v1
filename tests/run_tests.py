@@ -140,7 +140,7 @@ def run_test(fulltestname):
   
   #print "Running on: ", testname
   
-  #Is this a pytjon or repy unit test?
+  #Is this a python or repy unit test?
   is_python_test = False
   if fulltestname.startswith('py_'):
     is_python_test = True
