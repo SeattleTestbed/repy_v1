@@ -697,6 +697,9 @@ if len(sys.argv) > 1 and sys.argv[1] == "-nm-network":
   # First run nmminit
   exec_command("python nminit.py")
   
+  # Pre-process our helper file
+  exec_command("python repypp.py helper_uploadstartprintlog.repy helper_uploadstartprintlog.py")
+  
   # We need getmyip()
   import misc
   DEFAULT_IP = misc.getmyip()
@@ -711,7 +714,6 @@ if len(sys.argv) > 1 and sys.argv[1] == "-nm-network":
   
   # We need this to change the nm configuration file
   import injectconfig
-  
   
   allowed_port = 50000
   # First override the ports, only use one port, so we know what to check
@@ -728,26 +730,19 @@ if len(sys.argv) > 1 and sys.argv[1] == "-nm-network":
   config['repy_nootherips'] = False
   config['repy_user_preference'] = []
   
-  # Mini-function to make life easier
-  def run_network_test(name, config, ip):
+  # Starts the NM after injecting the config for NET_KEY
+  def start_nm(name, config):
     logstream.write("INFO: Running: "+name+"\n")
-    
     # Override the configuration
     injectconfig.inject(NET_KEY, config, "nodeman.cfg")
-    
     # Start the NM
     p =  subprocess.Popen("python nmmain.py", shell=True)
-    
     # Wait a bit for everything to settle
     time.sleep(3)
-    
-    # Check for a network socket
-    isListen = osAPI.existsListeningNetworkSocket(ip, allowed_port, True)
-    
-    # Check for output
-    if not isListen:
-        logstream.write("FAILURE: Expected NM to listen on IP:"+ip+" and port:"+str(allowed_port)+"! \n")
-    
+  
+  # Stops the NM, allowed time for cleanup to occur
+  def stop_nm():
+    # Stop the NM
     gotlock = runonce.getprocesslock("seattlenodemanager")
     if gotlock == True:
       # No NM running? This is an error
@@ -756,8 +751,42 @@ if len(sys.argv) > 1 and sys.argv[1] == "-nm-network":
       if gotlock:
         # Kill the NM
         nonportable.portablekill(gotlock)
-        time.sleep(2)
+        # Allow the sockets to cleanup and the locks to be cleaned
+        time.sleep(3)
+  
+  # Starts the NM, checks that it is bound to a certain IP/Port, stops the NM  
+  def run_network_test(name, config, ip):
+    start_nm(name, config)
     
+    # Check for a network socket
+    isListen = osAPI.existsListeningNetworkSocket(ip, allowed_port, True)
+    
+    # Check for output
+    if not isListen:
+        logstream.write("FAILURE: Expected NM to listen on IP:"+ip+" and port:"+str(allowed_port)+"! \n")
+    
+    stop_nm()
+  
+  # Starts the NM, lauches a repy script which then lauches our specified script
+  # the scripts test repy's behavior given various ip/iface flags
+  # We check to make sure there was no output produced, then stop the NM
+  def run_repy_param_test(name, config):
+    start_nm(name, config)
+    
+    # Wait for the NM to get ready to handle requests, this can sometimes mess up the timing
+    # since the NM launches a ton of threads at start time
+    time.sleep(5) 
+    
+    # Launch our helper repy script, give it the name of the file
+    (testout, testerr) = exec_repy_script("helper_uploadstartprintlog.py", "restrictions.test", {}, name)
+
+    # Check for output
+    if testout != "" or testerr != "":
+        logstream.write("FAILURE: Out:\n"+testout+"\n\nErr:\n"+testerr+"\n")
+    stop_nm()
+    
+  ### First check the NM binding behavior  
+  
   # Run with the generic config, no restrictions
   run_network_test("No Restrictions, defaults on.", config, DEFAULT_IP)
   
@@ -780,6 +809,50 @@ if len(sys.argv) > 1 and sys.argv[1] == "-nm-network":
                                   ,(False, 'Ethernet adapter Local Area Connection 2') ]
   run_network_test("Enable Restrictions, provided common Interfaces. May fail!", config, DEFAULT_IP)
 
+
+
+  ### Check that the NM is passing the correct parameters to repy
+  # NOTE: See the -network flag for more. This is running those same
+  # tests, but through the NM with repy preferences
+  
+  # Reverse the changes
+  config['nm_restricted'] = False
+  config['nm_user_preference'] = []
+  injectconfig.inject('ports', [1224], "nodeman.cfg") # Restore the normal port
+  
+  # Checks that getmyip returns only loopback and is bindable, using ip flag
+  config['repy_restricted'] = True
+  config['repy_nootherips'] = True
+  
+  # Checks that we only get loopback and is bindable, without any flags other than nootherips
+  run_repy_param_test("ip_nopreferred_noallowed_checkgetmyip.py", config)
+
+  # Checks that getmyip returns only loopback and is bindable, using ip flag
+  config['repy_user_preference'] = [(True, "127.0.0.1")]
+  run_repy_param_test("ip_onlyloopback_checkgetmyip.py", config)
+
+  # Checks that we only get loopback and is bindable, using iface flag
+  config['repy_user_preference'] = [(False, "lo")]
+  run_repy_param_test("ip_nopreferred_noallowed_checkgetmyip.py", config)
+
+  # Checks that given a junk IP this is not returned by getmyip
+  config['repy_user_preference'] = [(True, "256.256.256.256")]
+  run_repy_param_test("ip_junkip_checkgetmyip.py", config)
+  
+  # Checks that we are not allowed to bind to a junk IP (the test uses a different IP)
+  run_repy_param_test("ip_junkip_trybind.py", config)
+  
+  # Checks given many common interfaces that we get a non loopback IP that is bindable
+  config['repy_user_preference'] = [(False, 'eth0'),(False, 'eth1'),(False, 'en0'),(False, 'en1')\
+                                  ,(False, 'xl0'),(False, 'xl1'),(False, 'Ethernet adapter Local Area Connection')\
+                                  ,(False, 'Ethernet adapter Local Area Connection 2') ]
+  run_repy_param_test("ip_multiple_iface_trybind.py", config)
+  
+  # I'm reusing the same test, but instead of a list of interfaces, I'm just giving it the OS default IP
+  # It should work the same anyways
+  config['repy_user_preference'] = [(True, DEFAULT_IP)]
+  run_repy_param_test("ip_multiple_iface_trybind.py", config)
+  
   logstream.write("INFO: Done.\n")
 
   # Exit now
