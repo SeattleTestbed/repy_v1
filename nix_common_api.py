@@ -9,6 +9,60 @@ Description:
 
 import subprocess
 
+def existsOutgoingNetworkSocket(localip, localport, remoteip, remoteport, tcp):
+  """
+  <Purpose>
+    Determines if there exists a network socket with the specified unique tuple.
+  
+  <Arguments>
+    localip: The IP address of the local socket
+    localport: The port of the local socket
+    remoteip:  The IP of the remote host
+    remoteport: The port of the remote host
+    tcp: Is the socket of TCP type, else UDP
+    
+  <Returns>
+    True or False.
+  """
+  # This only works if all are not of the None type
+  if not (localip and localport and remoteip and remoteport):
+    return False
+  
+  # Escape the characters, so that they aren't treated as special regex
+  localip = localip.replace(".","\.")
+  localip = localip.replace("*",".*")
+  remoteip = remoteip.replace(".","\.")
+  remoteip = remoteip.replace("*",".*")  
+
+  # UDP connections are stateless, so for TCP check for the ESTABLISHED state
+  # and for UDP, just check that there exists a UDP port
+  if tcp:
+    grepTerms = ["tcp", "ESTABLISHED"]
+  else:
+    grepTerms = ["udp"]
+  
+  # Construct the command
+  cmdStr = 'netstat -an |grep -e "'+localip+'[:\.]'+str(localport)+'[ \\t]*'+remoteip+'[:\.]'+str(remoteport)+'[ \\t]" |' # Basic netstat with preliminary grep
+  for term in grepTerms:   # Add additional grep's
+    cmdStr +=  'grep -i '+term+' |'
+  cmdStr += "wc -l"  # Count up the lines
+  
+  # Launch up a shell, get the feed back
+  processObject = subprocess.Popen(cmdStr, stdout=subprocess.PIPE, shell=True, close_fds=True)
+  
+  # Get the output
+  numberOfSockets = processObject.stdout.read()
+  
+  # Close the pipe
+  processObject.stdout.close()
+  
+  # Convert to an integer
+  numberOfSockets = int(numberOfSockets)
+  
+  return (numberOfSockets > 0)
+
+
+
 def existsListeningNetworkSocket(ip, port, tcp):
   """
   <Purpose>
