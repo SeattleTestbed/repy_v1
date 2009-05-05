@@ -1204,6 +1204,68 @@ def releaseMutex(handle):
       else:
         raise
 
+def existsOutgoingNetworkSocket(localip, localport, remoteip, remoteport):
+  """
+  <Purpose>
+    Determines if there exists a network socket with the specified unique tuple.
+    Assumes TCP.
+    * Not supported on Windows Mobile.
+
+  <Arguments>
+    localip: The IP address of the local socket
+    localport: The port of the local socket
+    remoteip:  The IP of the remote host
+    remoteport: The port of the remote host
+    
+  <Returns>
+    A Tuple, indicating the existence and state of the socket. E.g. (Exists (True/False), State (String or None))
+  """
+  if MobileCE:
+    return False 
+  
+  # This only works if all are not of the None type
+  if not (localip and localport and remoteip and remoteport):
+    return (False, None)
+  
+  # Construct search strings, add a space so port 8 wont match 80
+  localsocket = localip+":"+str(localport)+" "
+  remotesocket = remoteip+":"+str(remoteport)+" "
+
+  # Construct the command
+  cmdStr = 'netstat -an |find "'+localsocket+'" | find "'+remotesocket+'" | find /I "tcp" '
+  
+  # Launch up a shell, get the feed back
+  processObject = subprocess.Popen(cmdStr, stdout=subprocess.PIPE, shell=True)
+  
+  # Get the output
+  socketentries = processObject.stdout.readlines()
+  
+  # Close the pipe
+  processObject.stdout.close()
+  
+  # Check each line, to make sure the local socket comes before the remote socket
+  # Since we are just using find, the "order" is not imposed, so if the remote socket
+  # is first that implies it is an inbound connection
+  if len(socketentries) > 0:
+    # Check each entry
+    for line in socketentries:
+      # Check the indexes for the local and remote socket, make sure local
+      # comes first  
+      local_index = line.find(localsocket)
+      remote_index = line.find(remotesocket)
+      if local_index <= remote_index and local_index != -1:
+        # Replace tabs with spaces, explode on spaces
+        parts = line.replace("\t","").strip("\r\n").split()
+        # Get the state
+        socket_state = parts[-1]
+      
+        return (True, socket_state)
+ 
+    return (False, None)
+
+  # If there were no entries, then there is no socket!
+  else:
+    return (False, None)
 
 def existsListeningNetworkSocket(ip, port, tcp):
   """
