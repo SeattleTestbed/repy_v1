@@ -9,24 +9,25 @@ Description:
 
 import subprocess
 
-def existsOutgoingNetworkSocket(localip, localport, remoteip, remoteport, tcp):
+def existsOutgoingNetworkSocket(localip, localport, remoteip, remoteport):
   """
   <Purpose>
     Determines if there exists a network socket with the specified unique tuple.
-  
+    Assumes TCP.
+
   <Arguments>
     localip: The IP address of the local socket
     localport: The port of the local socket
     remoteip:  The IP of the remote host
     remoteport: The port of the remote host
-    tcp: Is the socket of TCP type, else UDP
     
   <Returns>
-    True or False.
+    A Tuple, indicating the existence and state of the socket. E.g. (Exists (True/False), State (String or None))
+
   """
   # This only works if all are not of the None type
   if not (localip and localport and remoteip and remoteport):
-    return False
+    return (False, None)
   
   # Escape the characters, so that they aren't treated as special regex
   localip = localip.replace(".","\.")
@@ -34,32 +35,31 @@ def existsOutgoingNetworkSocket(localip, localport, remoteip, remoteport, tcp):
   remoteip = remoteip.replace(".","\.")
   remoteip = remoteip.replace("*",".*")  
 
-  # UDP connections are stateless, so for TCP check for the ESTABLISHED state
-  # and for UDP, just check that there exists a UDP port
-  if tcp:
-    grepTerms = ["tcp", "ESTABLISHED"]
-  else:
-    grepTerms = ["udp"]
-  
   # Construct the command
-  cmdStr = 'netstat -an |grep -e "'+localip+'[:\.]'+str(localport)+'[ \\t]*'+remoteip+'[:\.]'+str(remoteport)+'[ \\t]" |' # Basic netstat with preliminary grep
-  for term in grepTerms:   # Add additional grep's
-    cmdStr +=  'grep -i '+term+' |'
-  cmdStr += "wc -l"  # Count up the lines
+  cmdStr = 'netstat -an |grep -e "'+localip+'[:\.]'+str(localport)+'[ \\t]*'+remoteip+'[:\.]'+str(remoteport)+'[ \\t]"|grep -i tcp'
   
   # Launch up a shell, get the feed back
   processObject = subprocess.Popen(cmdStr, stdout=subprocess.PIPE, shell=True, close_fds=True)
   
   # Get the output
-  numberOfSockets = processObject.stdout.read()
+  entries = processObject.stdout.readlines()
   
   # Close the pipe
   processObject.stdout.close()
-  
-  # Convert to an integer
-  numberOfSockets = int(numberOfSockets)
-  
-  return (numberOfSockets > 0)
+ 
+  # Check if there is any entries
+  if len(entries) > 0:
+    line = entries[0]
+    # Replace tabs with spaces, explode on spaces
+    parts = line.replace("\t","").strip("\n").split()
+    # Get the state
+    socket_state = parts[-1]
+      
+    return (True, socket_state)
+
+  else:
+    return (False, None)
+
 
 
 
