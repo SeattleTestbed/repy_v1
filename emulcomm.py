@@ -945,6 +945,20 @@ def openconn(desthost, destport,localip=None, localport=0,timeout=5.0):
 
   restrictions.assertisallowed('openconn',desthost,destport,localip,localport)
 
+  # Armon: Check for any pre-existing sockets. If they are being closed, wait for them.
+  exists = True
+  while exists:
+    # Update the status
+    (exists, status) = nonportable.osAPI.existsOutgoingNetworkSocket(localip,localport,desthost,destport)
+    if exists:
+      # Check the socket state
+      if "ESTABLISH" in status:
+        raise Exception, "Network socket is in use!"
+      else:
+        # Wait for socket cleanup
+        time.sleep(RETRY_INTERVAL)
+        
+
   if localport:
     nanny.tattle_check('connport',localport)
 
