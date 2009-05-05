@@ -19,6 +19,7 @@ import subprocess   # Used for the thread count
 import nix_common_api as nixAPI # Import the Common API
 
 # Manually import the common functions we want
+existsOutgoingNetworkSocket = nixAPI.existsOutgoingNetworkSocket
 existsListeningNetworkSocket = nixAPI.existsListeningNetworkSocket
 getAvailableInterfaces = nixAPI.getAvailableInterfaces
 getInterfaceIPAddresses = nixAPI.getInterfaceIPAddresses
