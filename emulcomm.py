@@ -1157,9 +1157,17 @@ class emulated_socket:
         # the timeout is needed so that if the socket is closed in another 
         # thread, we notice it
         # BUG: What should the timeout be?   What is the right value?
-        comminfo[mycommid]['socket'].settimeout(0.2)
-        datarecvd = comminfo[mycommid]['socket'].recv(bytes)
-        break
+        #comminfo[mycommid]['socket'].settimeout(0.2)
+        
+        # Armon: Get the real socket
+        realsocket = comminfo[mycommid]['socket']
+	
+        # Check if the socket is ready for reading
+        readylst = nonportable.select_sockets([realsocket],0.2)	
+        if realsocket in readylst:
+          datarecvd = realsocket.recv(bytes)
+          break
+
       except socket.error, e:
         # In windows either all or no sockets are blocking...   How odd
         if e[0] == 10035 or e[0] == 11:
