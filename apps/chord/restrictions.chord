@@ -9,7 +9,7 @@ resource outsockets 5
 resource netsend 10000
 resource netrecv 10000
 resource lograte 1000
-resource diskused 1000000
+resource diskused 10000000
 
 call getmyip allow
 call sendmess allow 			# send messages anywhere

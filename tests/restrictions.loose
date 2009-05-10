@@ -1,6 +1,6 @@
 resource cpu 1.0
 resource memory 1000000000   # 1 Billion bytes
-resource diskused 10000000 # 10 MB
+resource diskused 100000000 # 100 MB
 resource events 20
 resource filewrite 10000000
 resource fileread 10000000
