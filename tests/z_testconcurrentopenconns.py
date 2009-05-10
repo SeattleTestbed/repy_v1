@@ -10,6 +10,7 @@ if callfunc == "initialize":
     sock1 = openconn(remoteip, remoteport, ip, port)
   except:
     print "Unexpected Exception!"
+    exitall()
   
   # This should fail, sock1 is open
   try:
