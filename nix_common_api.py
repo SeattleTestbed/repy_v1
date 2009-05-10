@@ -95,7 +95,13 @@ def existsListeningNetworkSocket(ip, port, tcp):
   cmdStr = 'netstat -an |grep -e "'+ip+'[:\.]'+str(port)+'[ \\t]" |' # Basic netstat with preliminary grep
   for term in grepTerms:   # Add additional grep's
     cmdStr +=  'grep -i '+term+' |'
-  cmdStr += "wc -l"  # Count up the lines
+  # Count up the lines.   
+  # JAC: To fix the wc error messages mentioned in #402, we need to discard
+  # stderr.   I don't think we can do anything smarter because our process may
+  # have died at that point.
+  cmdStr += "wc -l 2> /dev/null"  
+       
+
 
   # Launch up a shell, get the feed back
   processObject = subprocess.Popen(cmdStr, stdout=subprocess.PIPE, shell=True, close_fds=True)
