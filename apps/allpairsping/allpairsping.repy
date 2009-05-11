@@ -100,11 +100,11 @@ def get_complete_request(client_conn):
     # Remove carriage returns, '/r' characters, from the new data received and then add it to the data you've already collected 
     # Some machines use '\r\n' as a newline character while others just use '\n'
     # So you can see 2 newline characters in a row on all machines as '\n\n'
-    temp_recvd = temp_recvd.replace("\r","")
     msg_recvd += temp_recvd
+    msg_recvd = msg_recvd.replace("\r\n","\n")
 
 
-    if ( msg_recvd.find("/n/n") != -1 ):
+    if ( msg_recvd.find("\n\n") != -1 ):
       # the 2 newlines were found so return the data
       return True
 
