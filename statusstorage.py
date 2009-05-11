@@ -108,30 +108,4 @@ def read_status(mystatusfilenameprefix=None):
   return (lateststatus, latesttime)
 
 
-def launchStatusThread():
-  """
-  <Purpose>
-    Starts a thread that saves repy's status as 'Started' every second.
-  
-  <Side Effects>
-    Uses a thread
-  """
-  def _update_status():
-    # prevent concurrent status file writes.   
-    statuslock.acquire()
-    try:
-      # write out status information
-      write_status("Started")
-    finally:
-      # must release before harshexit...
-      statuslock.release()
-  class _infinite_loop(threading.Thread):
-    def run(self):
-      while True:
-        _update_status()
-        time.sleep(1)
-  
-  # Launch the thread    
-  threadobj = _infinite_loop()
-  threadobj.start()
 

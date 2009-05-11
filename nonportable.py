@@ -565,15 +565,23 @@ def smarter_select(inlist):
 class ResourceException(Exception):
   pass
 
-        
+# For *NIX systems, there is an external process, and the 
+# PID for the actual repy process is stored here
+repy_process_id = None
+
 # Forks Repy. The child will continue execution, and the parent
 # will become a resource monitor
 def do_forked_resource_monitor():
+  global repy_process_id
+
   # I'll fork a copy of myself
   childpid = os.fork()
 
   if childpid == 0:
     return
+
+  # Store the childpid
+  repy_process_id = childpid
   
   # Small internal error handler function
   def _internal_error(message):

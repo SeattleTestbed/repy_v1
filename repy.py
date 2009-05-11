@@ -54,7 +54,7 @@ import time
 import threading
 import logging
 
-import stopfilewatcher
+import nmstatusinterface
 
 import nonportable
 
@@ -151,23 +151,17 @@ def main(restrictionsfn, program, args,stopfile=None):
   global usercontext
   global usercode
   global simpleexec
-  global statusfile
+  
+  # Start the nmstatusinterface before initializing restrictions
+  # so that when we fork on *NIX the thread will be on the external process
+  nmstatusinterface.launch()
 
   # start the nanny up and read the restrictions files.  
   restrictions.init_restrictions(restrictionsfn)
 
   # Armon: Update our IP cache
   emulcomm.update_ip_cache()
-  
-  # check for a stop file (I need to do this after forking in 
-  # init_restrictions)
-  if stopfile:
-    stopfilewatcher.init(stopfile)
-
-  # Armon: start the status thread if necessary
-  if statusfile != None:
-    statusstorage.launchStatusThread()
-    
+      
   if logfile:
     # time to set up the circular logger
     loggerfo = logging.circular_logger(logfile)
@@ -366,7 +360,10 @@ if __name__ == '__main__':
     usage("Must supply a restrictions file and a program file to execute")
     sys.exit(1)
 
-  statusstorage.init(statusfile)
+  # Armon: Initialize the NM status interface
+  nmstatusinterface.init(stopfile,statusfile)
+  
+  # Write out our initial status
   statusstorage.write_status("Started")
 
   restrictionsfn = args[0]
