@@ -982,17 +982,30 @@ def openconn(desthost, destport,localip=None, localport=0,timeout=5.0):
     # We set a timeout before we connect.  This allows us to timeout slow 
     # connections...
     oldtimeout = comminfo[handle]['socket'].gettimeout()
-    try:
-      comminfo[handle]['socket'].settimeout(timeout)
-      comminfo[handle]['socket'].connect((desthost,destport))
-    except Exception, e:
-      # I reraise the exception from here because exceptions raised by connect
-      # are treated as "from a string" which confuses the traceback printer
-      # unless I re-raise it here (then it lists my line which is culled)
-      raise e
-    finally:
-      # and restore the old timeout...
-      comminfo[handle]['socket'].settimeout(oldtimeout)
+   
+    # Get our start time
+    starttime = nonportable.getruntime()
+
+    # Store exceptions until we exit the loop
+    connect_exception = None
+
+    # Ignore errors and retry if we have not yet reached the timeout
+    while nonportable.getruntime() - starttime < timeout:
+      try:
+        comminfo[handle]['socket'].settimeout(timeout)
+        comminfo[handle]['socket'].connect((desthost,destport))
+        break
+      except Exception, e:
+        # Store the exception in case we are unable to connect before the timeout
+        connect_exception = e
+      finally:
+        # and restore the old timeout...
+        comminfo[handle]['socket'].settimeout(oldtimeout)
+    else:
+      # Raise any exception that was raised
+      if connect_exception != None:
+        raise connect_exception
+
     comminfo[handle]['remotehost']=desthost
     comminfo[handle]['remoteport']=destport
   except:
