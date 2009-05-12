@@ -147,14 +147,10 @@ usercontext = {
 #simpleexec = None
 
 
-def main(restrictionsfn, program, args,stopfile=None):
+def main(restrictionsfn, program, args):
   global usercontext
   global usercode
   global simpleexec
-  
-  # Start the nmstatusinterface before initializing restrictions
-  # so that when we fork on *NIX the thread will be on the external process
-  nmstatusinterface.launch()
 
   # start the nanny up and read the restrictions files.  
   restrictions.init_restrictions(restrictionsfn)
@@ -377,7 +373,7 @@ if __name__ == '__main__':
   tracebackrepy.initialize(progname, servicelog)
 
   try:
-    main(restrictionsfn, progname,progargs,stopfile)
+    main(restrictionsfn, progname,progargs)
   except SystemExit:
     nonportable.harshexit(4)
   except:

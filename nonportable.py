@@ -50,6 +50,9 @@ import misc
 # Get constants
 import repy_constants
 
+# Get access to the status interface so we can start it
+import nmstatusinterface
+
 # This prevents writes to the nanny's status information after we want to stop
 statuslock = statusstorage.statuslock
 
@@ -162,7 +165,9 @@ def harshexit(val):
     raise UnsupportedSystemException, "Unsupported system type: '"+osrealtype+"' (alias: "+ostype+")"
   
 
-
+# Armon: Also launches the nmstatusinterface thread.
+# This will result in an internal thread on Windows
+# and a thread on the external process for *NIX
 def monitor_cpu_disk_and_mem():
   if ostype == 'Linux' or ostype == 'Darwin':  
     # Startup a CPU monitoring thread/process
@@ -180,7 +185,9 @@ def monitor_cpu_disk_and_mem():
     
     # Launch mem./disk resource nanny
     WindowsNannyThread().start()
-     
+    
+    # Start the nmstatusinterface
+    nmstatusinterface.launch()
   else:
     raise UnsupportedSystemException, "Unsupported system type: '"+osrealtype+"' (alias: "+ostype+")"
 
@@ -582,6 +589,9 @@ def do_forked_resource_monitor():
 
   # Store the childpid
   repy_process_id = childpid
+
+  # Start the nmstatusinterface
+  nmstatusinterface.launch()
   
   # Small internal error handler function
   def _internal_error(message):
