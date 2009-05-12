@@ -85,6 +85,9 @@ PROCESS_ABOVE_NORMAL_PRIORITY_CLASS = 0x00008000
 # before giving up with failure
 ATTEMPT_MAX = 10 
 
+# Which threads should not be put to sleep?
+EXCLUDED_THREADS = []
+
 # Key Functions
 # Maps Microsoft API calls to more convenient name for internal use
 # Also abstracts the linking library for each function for more portability
@@ -508,9 +511,11 @@ def suspendThread(ThreadID):
   
     <Returns>
       True on success, false on failure
-    """
-  # Check if it is the currently executing thread, and return
-  if ThreadID == _currentThreadId():
+  """
+  global EXCLUDED_THREADS
+
+  # Check if it is a white listed thread
+  if ThreadID in EXCLUDED_THREADS:
     return True
       
   # Open handle to thread
@@ -681,7 +686,7 @@ def timeoutProcess(PID, stime):
 
 
 # Sets the current threads priority level
-def setCurrentThreadPriority(priority=THREAD_PRIORITY_NORMAL):
+def setCurrentThreadPriority(priority=THREAD_PRIORITY_NORMAL,exclude=True):
   """
   <Purpose>
     Sets the priority level of the currently executing thread.
@@ -689,16 +694,28 @@ def setCurrentThreadPriority(priority=THREAD_PRIORITY_NORMAL):
   <Arguments>
     Thread priority level. Must be a predefined constant.
     See THREAD_PRIORITY_NORMAL, THREAD_PRIORITY_ABOVE_NORMAL and THREAD_PRIORITY_HIGHEST
-  
+    
+    exclude: If true, the thread will not be put to sleep when compensating for CPU use.
+
   <Exceptions>
     See getThreadHandle
   
   <Returns>
     True on success, False on failure.
   """
+  global EXCLUDED_THREADS
+
   # Get thread identifier
   ThreadID = _currentThreadId()
-      
+  
+  # Check if we should exclude this thread
+  if exclude:
+    # Use a list copy, so that our swap doesn't cause any issues
+    # if the CPU scheduler is already running
+    new_list = EXCLUDED_THREADS[:]
+    new_list.append(ThreadID)
+    EXCLUDED_THREADS = new_list
+     
   # Open handle to thread
   handle = getThreadHandle(ThreadID)
   
