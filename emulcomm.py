@@ -165,17 +165,31 @@ def update_ip_cache():
   
 ########################### General Purpose socket functions #################
 
-def is_recoverable_network_exception(errnum):
+def is_recoverable_network_exception(exceptionobj):
   """
   <Purpose>
     Determines if a given error number is recoverable or fatal.
 
   <Arguments>
-    An error number from socket.error[0]
+    An exception object from a network call.
 
   <Returns>
     True if potentially recoverable, False if fatal.
   """
+  # Get the type
+  exception_type = type(exceptionobj)
+
+  # socket.timeout is recoverable always
+  if exception_type == socket.timeout:
+    return True
+
+  # Only continue if the type is socket.error
+  elif exception_type != socket.error:
+    return False
+  
+  # Get the error number
+  errnum = exceptionobj[0]
+
   # Store a list of recoverable error numbers
   recoverable_errors = ["EINTR","EAGAIN","EBUSY","EWOULDBLOCK","ETIMEDOUT","ERESTART","WSAEINTR","WSAEWOULDBLOCK","WSAETIMEDOUT"]
 
@@ -1012,7 +1026,10 @@ def openconn(desthost, destport,localip=None, localport=0,timeout=5.0):
     # We set a timeout before we connect.  This allows us to timeout slow 
     # connections...
     oldtimeout = comminfo[handle]['socket'].gettimeout()
-   
+ 
+    # Set the new timeout
+    comminfo[handle]['socket'].settimeout(timeout)
+
     # Get our start time
     starttime = nonportable.getruntime()
 
@@ -1023,33 +1040,18 @@ def openconn(desthost, destport,localip=None, localport=0,timeout=5.0):
     # Ignore errors and retry if we have not yet reached the timeout
     while nonportable.getruntime() - starttime < timeout:
       try:
-        comminfo[handle]['socket'].settimeout(timeout)
         comminfo[handle]['socket'].connect((desthost,destport))
         break
-      
-      except socket.timeout:
-        # Store an exception in case we are unable to connect before the timeout
-        connect_exception = Exception("Connection timed out!")
-        
+      except Exception,e:
+        # Check if this is recoverable, only continue if it is
+        if not is_recoverable_network_exception(e):
+          raise
+        else:
+          # Store the exception
+          connect_exception = e
+
         # Sleep a bit, avoid excessive iterations of the loop
         time.sleep(0.2)
-      
-      except socket.error, e:
-        # Extract the error number
-        errno = e[0]
-
-        # Is this fatal?
-        recoverable = is_recoverable_network_exception(errno)
-        if not recoverable:
-          raise
-        
-        # Wait before retrying
-        time.sleep(0.2)
-      
-      finally:
-        # and restore the old timeout...
-        comminfo[handle]['socket'].settimeout(oldtimeout)
-    
     else:
       # Raise any exception that was raised
       if connect_exception != None:
@@ -1057,9 +1059,13 @@ def openconn(desthost, destport,localip=None, localport=0,timeout=5.0):
 
     comminfo[handle]['remotehost']=desthost
     comminfo[handle]['remoteport']=destport
+  
   except:
     cleanup(handle)
     raise
+  else:
+    # and restore the old timeout...
+    comminfo[handle]['socket'].settimeout(oldtimeout)
 
   return thissock
 

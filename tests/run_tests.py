@@ -522,7 +522,7 @@ def do_oddballtests():
     
   # Windows proc object  
   else:
-    p = subprocess.Popen("python repy.py restrictions.default killp_writetodisk.py",shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+    p = subprocess.Popen("python repy.py restrictions.default killp_writetodisk.py".split(),stdout=subprocess.PIPE,stderr=subprocess.PIPE)
 
   pid = p.pid
 
