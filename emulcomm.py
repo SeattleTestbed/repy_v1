@@ -34,6 +34,9 @@ import idhelper
 # for sleep
 import time 
 
+# Armon: Used for decoding the error messages
+import errno
+
 # The architecture is that I have a thread which "polls" all of the sockets
 # that are being listened on using select.  If a connection
 # oriented socket has a connection pending, or a message-based socket has a
@@ -160,6 +163,33 @@ def update_ip_cache():
     # Release the lock
     cachelock.release()
   
+########################### General Purpose socket functions #################
+
+def is_recoverable_network_exception(errnum):
+  """
+  <Purpose>
+    Determines if a given error number is recoverable or fatal.
+
+  <Arguments>
+    An error number from socket.error[0]
+
+  <Returns>
+    True if potentially recoverable, False if fatal.
+  """
+  # Store a list of recoverable error numbers
+  recoverable_errors = ["EINTR","EAGAIN","EBUSY","EWOULDBLOCK","ETIMEDOUT","ERESTART","WSAEINTR","WSAEWOULDBLOCK","WSAETIMEDOUT"]
+
+  # Convert the errno to and error string name
+  try:
+    errname = errno.errorcode[errnum]
+  except Exception,e:
+    # The error is unknown for some reason...
+    errname = None
+  
+  # Return if the error name is in our white list
+  return (errname in recoverable_errors)
+
+
 
 ########################### SocketSelector functions #########################
 
@@ -986,8 +1016,9 @@ def openconn(desthost, destport,localip=None, localport=0,timeout=5.0):
     # Get our start time
     starttime = nonportable.getruntime()
 
-    # Store exceptions until we exit the loop
-    connect_exception = None
+    # Store exceptions until we exit the loop, default to timed out
+    # in case we are given a very small timeout
+    connect_exception = Exception("Connection timed out!")
 
     # Ignore errors and retry if we have not yet reached the timeout
     while nonportable.getruntime() - starttime < timeout:
@@ -995,12 +1026,30 @@ def openconn(desthost, destport,localip=None, localport=0,timeout=5.0):
         comminfo[handle]['socket'].settimeout(timeout)
         comminfo[handle]['socket'].connect((desthost,destport))
         break
-      except Exception, e:
-        # Store the exception in case we are unable to connect before the timeout
-        connect_exception = e
+      
+      except socket.timeout:
+        # Store an exception in case we are unable to connect before the timeout
+        connect_exception = Exception("Connection timed out!")
+        
+        # Sleep a bit, avoid excessive iterations of the loop
+        time.sleep(0.2)
+      
+      except socket.error, e:
+        # Extract the error number
+        errno = e[0]
+
+        # Is this fatal?
+        recoverable = is_recoverable_network_exception(errno)
+        if not recoverable:
+          raise
+        
+        # Wait before retrying
+        time.sleep(0.2)
+      
       finally:
         # and restore the old timeout...
         comminfo[handle]['socket'].settimeout(oldtimeout)
+    
     else:
       # Raise any exception that was raised
       if connect_exception != None:
