@@ -572,6 +572,46 @@ def smarter_select(inlist):
 class ResourceException(Exception):
   pass
 
+
+# Armon: A simple thread to check for the parent process
+# and exit repy if the parent terminates
+class parent_process_checker(threading.Thread):
+  def __init__(self, readhandle):
+    """
+    <Purpose>
+      Terminates harshly if our parent dies before we do.
+
+    <Arguments>
+      readhandle: A file descriptor to the handle of a pipe to our parent.
+    """
+    # Name our self
+    threading.Thread.__init__(self, name="ParentProcessChecker")
+
+    # Store the handle
+    self.readhandle = readhandle
+
+  def run(self):
+    # Attempt to read 8 bytes from the pipe, this should block until we end execution
+    try:
+      mesg = os.read(self.readhandle,8)
+    except:
+      # It is possible we got an interrupted system call (on FreeBSD) when the parent is killed
+      mesg = ""
+
+    # Write out status information, our parent would do this, but its dead.
+    statusstorage.write_status("Terminated")  
+    
+    # Check the message. If it is the empty string the pipe was closed, 
+    # if there is any data, this is unexpected and is also an error.
+    if mesg == "":
+      print >> sys.stderr, "Monitor process died! Terminating!"
+      harshexit(70)
+    else:
+      print >> sys.stderr, "Unexpectedly received data! Terminating!"
+      harshexit(71)
+
+
+
 # For *NIX systems, there is an external process, and the 
 # PID for the actual repy process is stored here
 repy_process_id = None
@@ -581,11 +621,23 @@ repy_process_id = None
 def do_forked_resource_monitor():
   global repy_process_id
 
+  # Get a pipe
+  (readhandle, writehandle) = os.pipe()
+
   # I'll fork a copy of myself
   childpid = os.fork()
 
   if childpid == 0:
+    # We are the child, close the write end of the pipe
+    os.close(writehandle)
+
+    # Start a thread to check on the survival of the parent
+    parent_process_checker(readhandle).start()
+
     return
+  else:
+    # We are the parent, close the read end
+    os.close(readhandle)
 
   # Store the childpid
   repy_process_id = childpid

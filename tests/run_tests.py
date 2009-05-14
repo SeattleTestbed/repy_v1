@@ -502,6 +502,53 @@ def do_oddballtests():
     logstream.write("FAILED]\n")
     endput = endput+"Stop Test 3\noutput or errput! out:"+testout+"err:"+ testerr+"\n\n"
 
+
+  import nonportable
+  running_on_windows = nonportable.ostype in ["Windows", "WindowsCE"]
+
+  # oddball killing the parent test...
+  logstream.write("Running test %-50s [" % "Kill Repy resource monitor.")
+  logstream.flush()
+
+  # Get the location of python
+  if not running_on_windows:
+    locationproc = subprocess.Popen("which python",shell=True,stdout=subprocess.PIPE)
+    locationproc.wait()
+    location = locationproc.stdout.read().strip()
+    locationproc.stdout.close()
+
+    # Start the test
+    p =  subprocess.Popen((location+" repy.py restrictions.default killp_writetodisk.py").split(),stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    
+  # Windows proc object  
+  else:
+    p = subprocess.Popen("python repy.py restrictions.default killp_writetodisk.py",shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+
+  pid = p.pid
+
+  # Wait a bit 
+  time.sleep(3)
+  
+  # Kill the repy resource monitor
+  nonportable.portablekill(pid)
+
+  # Make sure the file size is not changing
+  firstsize = os.path.getsize("junk_test.out")
+  time.sleep(1)
+  secondsize = os.path.getsize("junk_test.out")
+
+  if firstsize == secondsize:
+    passcount = passcount + 1
+    logstream.write(" PASS ]\n")
+  else:
+    failcount = failcount + 1
+    logstream.write("FAILED]\n")
+    endput = endput+"Killing Repy's resource monitor did not stop repy!\n\n"
+  
+  # Close the pipes
+  p.stdout.close()
+  p.stderr.close()
+
 def setup_test_capture():
   global captureDir
   
@@ -881,7 +928,7 @@ else:
     glob.glob("py_n_*.py") + glob.glob("py_z_*.py") + glob.glob("py_b_*.py") + \
     glob.glob("py_u_*.py") + glob.glob("py_e_*.py"):
     run_test(testfile)
-    
+  
   do_oddballtests()
 
 print >> logstream, passcount,"tests passed,",failcount,"tests failed"
