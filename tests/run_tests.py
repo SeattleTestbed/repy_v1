@@ -526,6 +526,13 @@ def do_oddballtests():
 
   pid = p.pid
 
+  # See ticket #413
+  # This is a workaround for the possibility that the repy child was sleeping
+  if not running_on_windows:
+    # Send the SIGCONT signal to all python processes
+    os.system("killall -SIGCONT python >/dev/null 2>&1")
+    os.system("killall -SIGCONT Python >/dev/null 2>&1") # OSX is case sensitive
+    
   # Wait a bit 
   time.sleep(3)
   
@@ -928,7 +935,7 @@ else:
     glob.glob("py_n_*.py") + glob.glob("py_z_*.py") + glob.glob("py_b_*.py") + \
     glob.glob("py_u_*.py") + glob.glob("py_e_*.py"):
     run_test(testfile)
-  
+    
   do_oddballtests()
 
 print >> logstream, passcount,"tests passed,",failcount,"tests failed"
