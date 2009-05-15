@@ -111,6 +111,8 @@ import os
 import sys
 import shutil
 import time
+import nonportable
+import signal
 
 # Used to spawn subprocesses for tests. Fails on
 # WindowsCE so we use WindowsAPI instead
@@ -503,15 +505,14 @@ def do_oddballtests():
     endput = endput+"Stop Test 3\noutput or errput! out:"+testout+"err:"+ testerr+"\n\n"
 
 
-  import nonportable
-  running_on_windows = nonportable.ostype in ["Windows", "WindowsCE"]
 
   # oddball killing the parent test...
   logstream.write("Running test %-50s [" % "Kill Repy resource monitor.")
   logstream.flush()
 
-  # Get the location of python
-  if not running_on_windows:
+  # Mac or Linux...
+  if nonportable.ostype == 'Darwin' or nonportable.ostype == 'Linux':
+    # Get the location of python
     locationproc = subprocess.Popen("which python",shell=True,stdout=subprocess.PIPE)
     locationproc.wait()
     location = locationproc.stdout.read().strip()
@@ -519,20 +520,46 @@ def do_oddballtests():
 
     # Start the test
     p =  subprocess.Popen((location+" repy.py restrictions.default killp_writetodisk.py").split(),stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    
-  # Windows proc object  
-  else:
+    pid = p.pid
+
+    # give it a few seconds to start...
+    time.sleep(3)
+
+    # find the orphaned child's PID...  Different on Mac / Linux because of ps 
+    # options...
+    if nonportable.ostype == 'Darwin':
+      # run ps and print the 1st field (PID) of the line with 2nd field (PPID)
+      # equal to the parent pid...
+      childpidprocess = subprocess.Popen("ps -aO ppid | awk '{if ($2=="+str(pid)+") {print $1}}'",stdout=subprocess.PIPE, shell=True)
+      childpidstring = childpidprocess.stdout.read().strip()
+      childpidprocess.stdout.close()
+
+    elif nonportable.ostype == 'Linux':
+
+      # run ps and print the 2nd field (PID) of the line with 3rd field (PPID)
+      # equal to the parent pid...
+      childpidprocess = subprocess.Popen("ps -ef | awk '{if ($3=="+str(pid)+") {print $2}}'",stdout=subprocess.PIPE, shell=True)
+      childpidstring = childpidprocess.stdout.read().strip()
+      childpidprocess.stdout.close()
+
+    else: 
+      print "Internal Error re-examining OS type '"+nonportable.ostype+"'!"
+      sys.exit(1)
+      
+  # Windows 
+  elif nonportable.ostype == 'Windows' or nonportable.ostype == 'WindowsCE':
+    # this is much easier because we don't worry about the path or have 
+    # children to worry about.
     p = subprocess.Popen("python repy.py restrictions.default killp_writetodisk.py".split(),stdout=subprocess.PIPE,stderr=subprocess.PIPE)
 
-  pid = p.pid
+    pid = p.pid
 
-  # See ticket #413
-  # This is a workaround for the possibility that the repy child was sleeping
-  if not running_on_windows:
-    # Send the SIGCONT signal to all python processes
-    os.system("killall -SIGCONT python >/dev/null 2>&1")
-    os.system("killall -SIGCONT Python >/dev/null 2>&1") # OSX is case sensitive
-    
+  else:
+    print "Error: Unknown OS type '"+nonportable.ostype+"'!"
+    sys.exit(1)
+
+
+
   # Wait a bit 
   time.sleep(3)
   
@@ -543,6 +570,19 @@ def do_oddballtests():
   firstsize = os.path.getsize("junk_test.out")
   time.sleep(1)
   secondsize = os.path.getsize("junk_test.out")
+
+
+  # See ticket #413 and #421
+  # This is a workaround for the possibility that the repy child was sleeping
+  if nonportable.ostype == 'Darwin' or nonportable.ostype == 'Linux':
+    # Send SIGCONT to the child if the process still exists, it should wake up,
+    # get a read error when checking the pipe, and then exit...
+    try: 
+      os.kill(int(childpidstring), signal.SIGCONT)
+    except OSError:
+      # the child has likely exited
+      pass
+
 
   if firstsize == secondsize:
     passcount = passcount + 1
@@ -759,9 +799,6 @@ if len(sys.argv) > 1 and sys.argv[1] == "-nm-network":
   DEFAULT_IP = misc.getmyip()
   LOOPBACK_IP = "127.0.0.1"
   JUNK_IP = "128.0.0.255"
-  
-  # We need nonportable to check for network sockets
-  import nonportable
   
   # Get the osAPI
   osAPI = nonportable.osAPI
