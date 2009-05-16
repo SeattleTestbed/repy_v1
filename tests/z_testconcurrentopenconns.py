@@ -8,8 +8,8 @@ if callfunc == "initialize":
   # First openconn should work fine
   try:
     sock1 = openconn(remoteip, remoteport, ip, port)
-  except:
-    print "Unexpected Exception!"
+  except Exception, e:
+    print "Unexpected Exception! '"+str(e)+"'"
     exitall()
   
   # This should fail, sock1 is open
@@ -28,8 +28,8 @@ if callfunc == "initialize":
   # This should block, but we eventually get the socket
   try:
     sock2 = openconn(remoteip, remoteport, ip, port)
-  except:
-    print "Unexpected exception! We should block execution!"
+  except Exception, e:
+    print "Unexpected exception! '"+str(e)+"'.   We should block execution!"
   else:  
     sock2.close()
 
