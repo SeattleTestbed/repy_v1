@@ -49,6 +49,8 @@ import emulfile
 import emultimer
 import emulcomm
 import emulmisc
+import idhelper
+import nanny
 import restrictions
 import time
 import threading
@@ -188,6 +190,14 @@ def main(restrictionsfn, program, args):
   # call the initialize function
   usercontext['callfunc'] = 'initialize'
   usercontext['callargs'] = args[:]
+
+  try:
+    initialize_id = idhelper.getuniqueid()
+    nanny.tattle_add_item('events', initialize_id)
+  except Exception, e:
+    tracebackrepy.handle_internalerror("Failed to aquire event for '" + \
+        "initialize' event.")
+
   try:
     safe.safe_exec(usercode,usercontext)
   except SystemExit:
@@ -196,6 +206,9 @@ def main(restrictionsfn, program, args):
     # I think it makes sense to exit if their code throws an exception...
     tracebackrepy.handle_exception()
     nonportable.harshexit(6)
+  finally:
+    nanny.tattle_remove_item('events', initialize_id)
+
 
   # I've changed to the threading library, so this should increase if there are
   # pending events
@@ -210,6 +223,14 @@ def main(restrictionsfn, program, args):
   # call the user program to notify them that we are exiting...
   usercontext['callfunc'] = 'exit'
   usercontext['callargs'] = (None,)
+
+  try:
+    exit_id = idhelper.getuniqueid()
+    nanny.tattle_add_item('events', exit_id)
+  except Exception, e:
+    tracebackrepy.handle_internalerror("Failed to aquire event for '" + \
+        "exit' event.")
+
   try:
     safe.safe_exec(usercode,usercontext)
   except SystemExit:
@@ -218,6 +239,8 @@ def main(restrictionsfn, program, args):
     # I think it makes sense to exit if their code throws an exception...
     tracebackrepy.handle_exception()
     nonportable.harshexit(7)
+  finally:
+    nanny.tattle_remove_item('events', exit_id)
 
   # normal exit...
   nonportable.harshexit(0)
