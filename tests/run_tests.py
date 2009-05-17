@@ -527,7 +527,7 @@ def do_oddballtests():
 
     # find the orphaned child's PID...  Different on Mac / Linux because of ps 
     # options...
-    if nonportable.ostype == 'Darwin':
+    if nonportable.ostype == 'Darwin' or nonportable.osrealtype == 'FreeBSD':
       # run ps and print the 1st field (PID) of the line with 2nd field (PPID)
       # equal to the parent pid...
       childpidprocess = subprocess.Popen("ps -aO ppid | awk '{if ($2=="+str(pid)+") {print $1}}'",stdout=subprocess.PIPE, shell=True)
