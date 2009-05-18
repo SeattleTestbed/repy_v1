@@ -195,7 +195,6 @@ def main(restrictionsfn, program, args):
   try:
     nanny.tattle_add_item('events', initialize_id)
   except Exception, e:
-    print "er"
     tracebackrepy.handle_internalerror("Failed to aquire event for '" + \
         "initialize' event.\n(Exception was: %s)" % e.message, 140)
 
@@ -229,7 +228,6 @@ def main(restrictionsfn, program, args):
   try:
     nanny.tattle_add_item('events', exit_id)
   except Exception, e:
-    print "er"
     tracebackrepy.handle_internalerror("Failed to aquire event for '" + \
         "exit' event.\n(Exception was: %s)" % e.message, 141)
 
