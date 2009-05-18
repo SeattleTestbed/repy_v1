@@ -2,12 +2,13 @@
 if callfunc == "initialize":
   ip = getmyip()
   port = 12345
-  remoteip = gethostbyname_ex("google.com")[2][1]
+  # Use yahoo.com to avoid a conflict with the duplicateopenconn test
+  remoteip = gethostbyname_ex("yahoo.com")[2][1]
   remoteport = 80
   
   # First openconn should work fine
   try:
-    sock1 = openconn(remoteip, remoteport, ip, port)
+    sock1 = openconn(remoteip, remoteport, ip, port,timeout=300)
   except Exception, e:
     print "Unexpected Exception! '"+str(e)+"'"
     exitall()
@@ -27,7 +28,10 @@ if callfunc == "initialize":
   
   # This should block, but we eventually get the socket
   try:
-    sock2 = openconn(remoteip, remoteport, ip, port)
+    # Set a sufficiently long timeout that the socket should eventually get cleared
+    # The time wait state can take up to 10 minutes, but should not do so normally
+    # setting this too short causes failures for our unit tests on some platforms
+    sock2 = openconn(remoteip, remoteport, ip, port, timeout=600)
   except Exception, e:
     print "Unexpected exception! '"+str(e)+"'.   We should block execution!"
   else:  

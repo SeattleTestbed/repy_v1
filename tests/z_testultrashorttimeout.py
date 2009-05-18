@@ -5,7 +5,7 @@ if callfunc == "initialize":
     # This should timeout
     openconn("JUNKHOST!!!!",12345,timeout=0.0000000001)
   except Exception,e:
-    if "timed" in str(e):
+    if "timed" in str(e) or "Timed" in str(e):
       pass
     else:
       print "Unexpected error! Should timeout.",str(e)
