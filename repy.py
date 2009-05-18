@@ -191,12 +191,13 @@ def main(restrictionsfn, program, args):
   usercontext['callfunc'] = 'initialize'
   usercontext['callargs'] = args[:]
 
+  initialize_id = idhelper.getuniqueid()
   try:
-    initialize_id = idhelper.getuniqueid()
     nanny.tattle_add_item('events', initialize_id)
   except Exception, e:
+    print "er"
     tracebackrepy.handle_internalerror("Failed to aquire event for '" + \
-        "initialize' event.")
+        "initialize' event.\n(Exception was: %s)" % e.message, 140)
 
   try:
     safe.safe_exec(usercode,usercontext)
@@ -224,12 +225,13 @@ def main(restrictionsfn, program, args):
   usercontext['callfunc'] = 'exit'
   usercontext['callargs'] = (None,)
 
+  exit_id = idhelper.getuniqueid()
   try:
-    exit_id = idhelper.getuniqueid()
     nanny.tattle_add_item('events', exit_id)
   except Exception, e:
+    print "er"
     tracebackrepy.handle_internalerror("Failed to aquire event for '" + \
-        "exit' event.")
+        "exit' event.\n(Exception was: %s)" % e.message, 141)
 
   try:
     safe.safe_exec(usercode,usercontext)
