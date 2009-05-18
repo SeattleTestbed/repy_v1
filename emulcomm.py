@@ -488,6 +488,14 @@ def find_tipo_commhandle(socktype, ip, port, outgoing):
       return commhandle
   return None
 
+# Find an outgoing TCP commhandle, given local ip, local port, remote ip, remote port, 
+def find_outgoing_tcp_commhandle(localip, localport, remoteip, remoteport):
+  for commhandle in comminfo.keys():
+    if comminfo[commhandle]['type'] == "TCP" and comminfo[commhandle]['localip'] == localip \
+    and comminfo[commhandle]['localport'] == localport and comminfo[commhandle]['remotehost'] == remoteip \
+    and comminfo[commhandle]['remoteport'] == remoteport and comminfo[commhandle]['outgoing'] == True:
+      return commhandle
+  return None
 
 
 
@@ -939,7 +947,6 @@ def recvmess(localip, localport, function):
 
 
 
-
 # Public interface!!!
 def openconn(desthost, destport,localip=None, localport=0,timeout=5.0):
   """
@@ -988,19 +995,34 @@ def openconn(desthost, destport,localip=None, localport=0,timeout=5.0):
     localip = getmyip()
 
   restrictions.assertisallowed('openconn',desthost,destport,localip,localport)
+  
+  # Get our start time
+  starttime = nonportable.getruntime()
 
   # Armon: Check for any pre-existing sockets. If they are being closed, wait for them.
+  # This will also serve to check if repy has a pre-existing socket open on this same tuple
   exists = True
-  while exists:
+  while exists and nonportable.getruntime() - starttime < timeout:
     # Update the status
     (exists, status) = nonportable.osAPI.existsOutgoingNetworkSocket(localip,localport,desthost,destport)
     if exists:
       # Check the socket state
-      if "ESTABLISH" in status:
-        raise Exception, "Network socket is in use!"
+      if "ESTABLISH" in status or "CLOSE_WAIT" in status:
+        # Check if the socket is from this repy vessel
+        handle = find_outgoing_tcp_commhandle(localip, localport, desthost, destport)
+        
+        message = "Network socket is in use by an external process!"
+        if handle != None:
+          message = " Duplicate handle exists with name: "+str(handle)
+        
+        raise Exception, message
       else:
         # Wait for socket cleanup
         time.sleep(RETRY_INTERVAL)
+  else:
+    # Check if a socket exists still and we timed out
+    if exists:
+      raise Exception, "Timed out checking for socket cleanup!"
         
 
   if localport:
@@ -1008,7 +1030,7 @@ def openconn(desthost, destport,localip=None, localport=0,timeout=5.0):
 
   handle = idhelper.getuniqueid()
   nanny.tattle_add_item('outsockets',handle)
-
+  
   try:
     s = get_real_socket(localip,localport)
 
@@ -1029,9 +1051,6 @@ def openconn(desthost, destport,localip=None, localport=0,timeout=5.0):
  
     # Set the new timeout
     comminfo[handle]['socket'].settimeout(timeout)
-
-    # Get our start time
-    starttime = nonportable.getruntime()
 
     # Store exceptions until we exit the loop, default to timed out
     # in case we are given a very small timeout
