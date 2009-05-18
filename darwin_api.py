@@ -27,6 +27,9 @@ getInterfaceIPAddresses = nixAPI.getInterfaceIPAddresses
 # Get the standard library
 libc = ctypes.CDLL(ctypes.util.find_library("c"))
 
+# Get libproc
+libproc = ctypes.CDLL(ctypes.util.find_library("proc"))
+
 # Global Variables
 
 # Storing this information allows us to make a single call to update the structure,
@@ -37,8 +40,10 @@ lastProcInfoStruct = None   # The last structure
 
 # Functions
 _calloc = libc.calloc
-_proc_pidinfo = libc.proc_pidinfo
 _free = libc.free
+
+# Use libproc since Tiger does not include in libc
+_proc_pidinfo = libproc.proc_pidinfo
 
 # Constants
 PROC_PIDTASKINFO = 4
