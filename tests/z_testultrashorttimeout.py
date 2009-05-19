@@ -3,7 +3,7 @@
 if callfunc == "initialize":
   try:
     # This should timeout
-    openconn("JUNKHOST!!!!",12345,timeout=0.0000000001)
+    openconn("127.0.0.1",12345,timeout=0.0000000001)
   except Exception,e:
     if "timed" in str(e) or "Timed" in str(e):
       pass

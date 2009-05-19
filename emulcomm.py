@@ -204,6 +204,69 @@ def is_recoverable_network_exception(exceptionobj):
   return (errname in recoverable_errors)
 
 
+# Armon: This is used for semantics, to determine if we have a valid IP.
+def is_valid_ip_address(ipaddr):
+  """
+  <Purpose>
+    Determines if ipaddr is a valid IP address.
+    Address 0.0.0.0 is considered valid.
+
+  <Arguments>
+    ipaddr: String to check for validity. (It will check that this is a string).
+
+  <Returns>
+    True if a valid IP, False otherwise.
+  """
+  # Argument must be of the string type
+  if not type(ipaddr) == str:
+    return False
+
+  # A valid IP should have 4 segments, explode on the period
+  parts = ipaddr.split(".")
+
+  # Check that we have 4 parts
+  if len(parts) != 4:
+    return False
+
+  # Check that each segment is a number between 0 and 255 inclusively.
+  for part in parts:
+    # Check the length of each segment
+    digits = len(part)
+    if digits >= 1 and digits <= 3:
+      # Attempt to convert to an integer
+      try:
+        number = int(part)
+        if not (number >= 0 and number <= 255):
+          return False
+
+      except:
+        # There was an error converting to an integer, not an IP
+        return False
+    else:
+      return False
+
+  # At this point, assume the IP is valid
+  return True
+
+# Armon: This is used for semantics, to determine if the given port is valid
+def is_valid_network_port(port, allowzero=False):
+  """
+  <Purpose>
+    Determines if a given network port is valid. 
+
+  <Arguments>
+    port: A numeric type (this will be checked) port number.
+    allowzero: Allows 0 as a valid port if true
+
+  <Returns>
+    True if valid, False otherwise.
+  """
+  # Check the type is int or long
+  if not (type(port) == long or type(port) == int):
+    return False
+
+  return ((allowzero and port == 0) or (port >= 1 and port <= 65535))
+
 
 ########################### SocketSelector functions #########################
 
@@ -675,11 +738,17 @@ def stopcomm(commhandle):
 
   # if it has already been cleaned up, exit.
   if commhandle not in comminfo:
-    return
+    # Armon: Semantic update, stopcomm needs to return True/False
+    # since the handle does not exist we will return False
+    return False
 
   restrictions.assertisallowed('stopcomm',comminfo[commhandle])
 
   cleanup(commhandle)
+ 
+  # Armon: Semantic update, we successfully closed
+  # if we made it here, since cleanup blocks.
+  return True
 
 
 
@@ -728,7 +797,7 @@ def cleanup(handle):
 
 
 # Public interface!!!
-def sendmess(desthost, destport, message,localip=None,localport = 0):
+def sendmess(desthost, destport, message,localip=None,localport = None):
   """
    <Purpose>
       Send a message to a host / port
@@ -754,14 +823,28 @@ def sendmess(desthost, destport, message,localip=None,localport = 0):
    <Returns>
       The number of bytes sent on success
   """
+  # Check that if either localip or local port is specified, that both are
+  if (localip != None and localport == None) or (localport != None and localip == None):
+    raise Exception("Localip and localport must be specified simultaneously.")
+  
+  # Assign the default value to localport if none given
+  if localport == None:
+    localport = 0
+
   if not localip or localip == '0.0.0.0':
     localip = None
+  else:
+    if not is_valid_ip_address(localip):
+      raise Exception("Local IP address is invalid.")
 
-  if type(destport) is not int and type(destport) is not long:
-    raise Exception("Destination port number must be an integer")
+  if not is_valid_ip_address(desthost):
+    raise Exception("Destination host IP address is invalid.")
+  
+  if not is_valid_network_port(destport):
+    raise Exception("Destination port number must be an integer, between 1 and 65535.")
 
-  if type(localport) is not int and type(localport) is not long:
-    raise Exception("Local port number must be an integer")
+  if not is_valid_network_port(localport, True):
+    raise Exception("Local port number must be an integer, between 1 and 65535.")
 
   restrictions.assertisallowed('sendmess', desthost, destport, message,localip,localport)
 
@@ -881,8 +964,22 @@ def recvmess(localip, localport, function):
   if not localip or localip == '0.0.0.0':
     raise Exception("Must specify a local IP address")
 
-  if type(localport) is not int and type(localport) is not long:
-    raise Exception("Local port number must be an integer")
+  if not is_valid_ip_address(localip):
+    raise Exception("Local IP address is invalid.")
+
+  if not is_valid_network_port(localport):
+    raise Exception("Local port number must be an integer, between 1 and 65535.")
+
+  # Check that the user specified function exists and takes 4 arguments
+  try:
+    # Get the argument count
+    arg_count = function.func_code.co_argcount
+    
+    # We need the function to take 4 parameters
+    assert(arg_count == 4)
+  except:
+    # If this is not a function, an exception will be raised.
+    raise Exception("Specified function must be valid, and take 4 parameters. See recvmess.")
 
   restrictions.assertisallowed('recvmess',localip,localport)
 
@@ -948,7 +1045,7 @@ def recvmess(localip, localport, function):
 
 
 # Public interface!!!
-def openconn(desthost, destport,localip=None, localport=0,timeout=5.0):
+def openconn(desthost, destport,localip=None, localport=None,timeout=5.0):
   """
    <Purpose>
       Opens a connection, returning a socket-like object
@@ -975,14 +1072,36 @@ def openconn(desthost, destport,localip=None, localport=0,timeout=5.0):
       A socket-like object that can be used for communication.   Use send, 
       recv, and close just like you would an actual socket object in python.
   """
+  # Check that both localip and localport are given if either is specified
+  if localip != None and localport == None or localport != None and localip == None:
+    raise Exception("Localip and localport must be specified simultaneously.")
+
+  # Set the default value of localip
   if not localip or localip == '0.0.0.0':
     localip = None
+  else:
+    # Check that the localip is valid if given
+    if not is_valid_ip_address(localip):
+      raise Exception("Local IP address is invalid.")
 
-  if type(destport) is not int and type(destport) is not long:
-    raise Exception("Destination port number must be an integer")
+  # Assign the default value of localport if none is given.
+  if localport == None:
+    localport = 0
+ 
+  # Check the remote IP for validity
+  if not is_valid_ip_address(desthost):
+    raise Exception("Destination host IP address is invalid.")
 
-  if type(localport) is not int and type(localport) is not long:
-    raise Exception("Local port number must be an integer")
+  if not is_valid_network_port(destport):
+    raise Exception("Destination port number must be an integer, between 1 and 65535.")
+
+  # Allow the localport to be 0, which is the default.
+  if not is_valid_network_port(localport, True):
+    raise Exception("Local port number must be an integer, between 1 and 65535.")
+
+  # Check that the timeout is a number, greater than 0
+  if not (type(timeout) == float or type(timeout) == int or type(timeout) == long) or timeout <= 0.0:
+    raise Exception("Timeout parameter must be a numeric value greater than 0.")
 
   # Armon: Check if the specified local ip is allowed
   # this check only makes sense if the localip is specified
@@ -1121,8 +1240,22 @@ def waitforconn(localip, localport,function):
   if not localip or localip == '0.0.0.0':
     raise Exception("Must specify a local IP address")
 
-  if type(localport) is not int and type(localport) is not long:
-    raise Exception("Local port number must be an integer")
+  if not is_valid_ip_address(localip):
+    raise Exception("Local IP address is invalid.")
+  
+  if not is_valid_network_port(localport):
+    raise Exception("Local port number must be an integer, between 1 and 65535.")
+
+  # Check that the user specified function exists and takes 5 arguments
+  try:
+    # Get the argument count
+    arg_count = function.func_code.co_argcount
+    
+    # We need the function to take 5 parameters
+    assert(arg_count == 5)
+  except:
+    # If this is not a function, an exception will be raised.
+    raise Exception("Specified function must be valid, and take 5 parameters. See waitforconn.")
 
   restrictions.assertisallowed('waitforconn',localip,localport)
 
@@ -1215,7 +1348,10 @@ class emulated_socket:
     # prevent TOCTOU race with client changing the object's properties
     mycommid = self.commid
     restrictions.assertisallowed('socket.close',*args)
-    stopcomm(mycommid)
+    
+    # Armon: Semantic update, return whatever stopcomm does.
+    # This will result in socket.close() returning a True/False indicator
+    return stopcomm(mycommid)
 
 
 
