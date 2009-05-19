@@ -1391,32 +1391,32 @@ class emulated_socket:
           datarecvd = realsocket.recv(bytes)
           break
 
-      except socket.error, e:
-        # In windows either all or no sockets are blocking...   How odd
-        if e[0] == 10035 or e[0] == 11:
-          # these codes mean the socket would have needed to block
-          continue
-        # In Mac-OS-X sometimes we get a "resource temporarily unavailable"
-        if e[0] == 35:
-          continue
-        # the socket operation timed out.   Try again
-        if e[0] == "timed out":
-          continue
-        # The system call was interrupted...
-	if e[0] == 4:
-          continue
-        raise
-
       # they likely closed the connection
       except KeyError:
         raise Exception, "Socket closed"
-        
+
+      # Catch all other exceptions, check if they are recoverable
+      except Exception, e:
+        # Check if this error is recoverable
+        if is_recoverable_network_exception(e):
+          continue
+
+        # Otherwise, raise the exception
+        else:
+          raise
+
+    # Armon: Calculate the length of the data
+    data_length = len(datarecvd)
+    
+    # Raise an exception if there was no data
+    if data_length == 0:
+      raise Exception("Socket closed")
 
     # do accounting here...
     if this_is_loopback:
-      nanny.tattle_quantity('looprecv',len(datarecvd))
+      nanny.tattle_quantity('looprecv',data_length)
     else:
-      nanny.tattle_quantity('netrecv',len(datarecvd))
+      nanny.tattle_quantity('netrecv',data_length)
 
     return datarecvd
 
@@ -1446,21 +1446,16 @@ class emulated_socket:
       try:
         bytessent = comminfo[mycommid]['socket'].send(*args)
         break
-      except socket.error, e:
-        # In windows either all or no sockets are blocking...   How odd
-        if e[0] == 10035 or e[0] == 11:
-          # these codes mean the socket would have needed to block
-          continue
-        # In Mac-OS-X sometimes we get a "resource temporarily unavailable"
-        if e[0] == 35:
-          continue
-        # The system call was interrupted...
-	if e[0] == 4:
-          continue
-        raise
+      
       except KeyError:
         raise Exception, "Socket closed!"
 
+      except Exception,e:
+        # Determine if the exception is fatal
+        if is_recoverable_network_exception(e):
+          continue
+        else:
+          raise
 
     if this_is_loopback:
       nanny.tattle_quantity('loopsend',bytessent)
