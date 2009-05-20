@@ -870,12 +870,14 @@ def sendmess(desthost, destport, message,localip=None,localport = None):
 
   if not localip or localip == '0.0.0.0':
     localip = None
-  else:
-    if not is_valid_ip_address(localip):
-      raise Exception("Local IP address is invalid.")
+# JAC: removed since this breaks semantics
+#  else:
+#    if not is_valid_ip_address(localip):
+#      raise Exception("Local IP address is invalid.")
 
-  if not is_valid_ip_address(desthost):
-    raise Exception("Destination host IP address is invalid.")
+# JAC: removed since this breaks semantics
+#  if not is_valid_ip_address(desthost):
+#    raise Exception("Destination host IP address is invalid.")
   
   if not is_valid_network_port(destport):
     raise Exception("Destination port number must be an integer, between 1 and 65535.")
@@ -1001,8 +1003,9 @@ def recvmess(localip, localport, function):
   if not localip or localip == '0.0.0.0':
     raise Exception("Must specify a local IP address")
 
-  if not is_valid_ip_address(localip):
-    raise Exception("Local IP address is invalid.")
+# JAC: removed since this breaks semantics
+#  if not is_valid_ip_address(localip):
+#    raise Exception("Local IP address is invalid.")
 
   if not is_valid_network_port(localport):
     raise Exception("Local port number must be an integer, between 1 and 65535.")
@@ -1116,18 +1119,20 @@ def openconn(desthost, destport,localip=None, localport=None,timeout=5.0):
   # Set the default value of localip
   if not localip or localip == '0.0.0.0':
     localip = None
-  else:
+#  else:
+# JAC: removed since this breaks semantics
     # Check that the localip is valid if given
-    if not is_valid_ip_address(localip):
-      raise Exception("Local IP address is invalid.")
+#    if not is_valid_ip_address(localip):
+#      raise Exception("Local IP address is invalid.")
 
   # Assign the default value of localport if none is given.
   if localport == None:
     localport = 0
  
+# JAC: removed since this breaks semantics
   # Check the remote IP for validity
-  if not is_valid_ip_address(desthost):
-    raise Exception("Destination host IP address is invalid.")
+#  if not is_valid_ip_address(desthost):
+#    raise Exception("Destination host IP address is invalid.")
 
   if not is_valid_network_port(destport):
     raise Exception("Destination port number must be an integer, between 1 and 65535.")
@@ -1277,8 +1282,9 @@ def waitforconn(localip, localport,function):
   if not localip or localip == '0.0.0.0':
     raise Exception("Must specify a local IP address")
 
-  if not is_valid_ip_address(localip):
-    raise Exception("Local IP address is invalid.")
+# JAC: removed since this breaks semantics
+#  if not is_valid_ip_address(localip):
+#    raise Exception("Local IP address is invalid.")
   
   if not is_valid_network_port(localport):
     raise Exception("Local port number must be an integer, between 1 and 65535.")
