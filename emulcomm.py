@@ -204,6 +204,43 @@ def is_recoverable_network_exception(exceptionobj):
   return (errname in recoverable_errors)
 
 
+# Determines based on exception if the connection has been terminated
+def is_terminated_connection_exception(exceptionobj):
+  """
+  <Purpose>
+    Determines if the exception is indicated the connection is terminated.
+
+  <Arguments>
+    An exception object from a network call.
+
+  <Returns>
+    True if the connection is terminated, False otherwise.
+    False means we could not determine with certainty if the socket is closed.
+  """
+  # Get the type
+  exception_type = type(exceptionobj)
+
+  # We only want to continue if it is socket.error
+  if exception_type != socket.error:
+    return False
+
+  # Get the error number
+  errnum = exceptionobj[0]
+
+  # Store a list of errors which indicate connection closed
+  connection_closed_errors = ["EPIPE","EBADF","EBADR","ENOLINK","EBADFD","ENETRESET","ECONNRESET","WSAEBADF","WSAENOTSOCK","WSAECONNRESET",]
+
+  # Convert the errnum to an error string
+  try:
+    errname = errno.errorcode[errnum]
+  except:
+    # The error number is not defined...
+    errname = None
+
+  # Return whether the errname is in our pre-defined list
+  return (errname in connection_closed_errors)
+
+
 # Armon: This is used for semantics, to determine if we have a valid IP.
 def is_valid_ip_address(ipaddr):
   """
@@ -1403,7 +1440,11 @@ class emulated_socket:
 
         # Otherwise, raise the exception
         else:
-          raise
+          # Check if this is a connection termination
+          if is_terminated_connection_exception(e):
+            raise Exception("Socket closed")
+          else:
+            raise
 
     # Armon: Calculate the length of the data
     data_length = len(datarecvd)
@@ -1448,14 +1489,18 @@ class emulated_socket:
         break
       
       except KeyError:
-        raise Exception, "Socket closed!"
+        raise Exception, "Socket closed"
 
       except Exception,e:
         # Determine if the exception is fatal
         if is_recoverable_network_exception(e):
           continue
         else:
-          raise
+          # Check if this is a conn. term., and give a more specific exception.
+          if is_terminated_connection_exception(e):
+            raise Exception("Socket closed")
+          else:
+            raise
 
     if this_is_loopback:
       nanny.tattle_quantity('loopsend',bytessent)
