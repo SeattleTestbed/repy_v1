@@ -38,12 +38,16 @@ if callfunc == "initialize":
   # Try connecting 
   sendmess(ip,port,"ping")
   sleep(3)
+  if not (1 in mycontext):
+    print "Failed to connect when callback has variable number of arguments"
 
   # Switch the callback function
   mycontext["clientnum"] += 1
   waith = recvmess(ip,port,func2)
   sendmess(ip,port,"ping")
   sleep(3)
+  if not (2 in mycontext):
+    print "Failed to connect when callback has all parameters specified"
 
   # Get a "Thing" object
   th = Thing()
@@ -51,18 +55,19 @@ if callfunc == "initialize":
   waith = recvmess(ip,port,th.func3)
   sendmess(ip,port,"ping")
   sleep(3)
+  if not (3 in mycontext):
+    print "Failed to connect when callback is an object function with variable number of arguments"
 
   mycontext["clientnum"] += 1
   waith = recvmess(ip,port,th.func4)
   sendmess(ip,port,"ping")
   sleep(3)
+  if not (4 in mycontext):
+    print "Failed to connect when callback is an object function with all parameters specified."
 
   # Cancel the timer, cleanup and exit
   canceltimer(timeh)
   stopcomm(waith)
-
-  if not (mycontext[1] and mycontext[2] and mycontext[3] and mycontext[4]):
-    print "Not all connections worked!",mycontext
 
   exitall()
 

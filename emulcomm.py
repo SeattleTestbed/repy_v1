@@ -1010,6 +1010,8 @@ def recvmess(localip, localport, function):
   if not is_valid_network_port(localport):
     raise Exception("Local port number must be an integer, between 1 and 65535.")
 
+# Armon: Disabled function check since it is incompatible with functions that have
+# a variable number of parameters. e.g. func1(*args)
 #  # Check that the user specified function exists and takes 4 arguments
 #  try:
 #    # Get the argument count
@@ -1292,6 +1294,8 @@ def waitforconn(localip, localport,function):
   if not is_valid_network_port(localport):
     raise Exception("Local port number must be an integer, between 1 and 65535.")
 
+# Armon: Disabled function check since it is incompatible with functions that have
+# a variable number of parameters. e.g. func1(*args)
 #  # Check that the user specified function exists and takes 5 arguments
 #  try:
 #    # Get the argument count

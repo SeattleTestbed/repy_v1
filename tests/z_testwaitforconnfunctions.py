@@ -39,6 +39,8 @@ if callfunc == "initialize":
   sock1 = openconn(ip,port)
   sleep(3)
   sock1.close()
+  if not (1 in mycontext):
+    print "Failed to connect when callback has variable number of arguments"
 
   # Switch the callback function
   mycontext["clientnum"] += 1
@@ -46,6 +48,8 @@ if callfunc == "initialize":
   sock2 = openconn(ip,port)
   sleep(3)
   sock2.close()
+  if not (2 in mycontext):
+    print "Failed to connect when callback has all parameters specified"
 
   # Get a "Thing" object
   th = Thing()
@@ -54,20 +58,20 @@ if callfunc == "initialize":
   sock3 =openconn(ip,port)
   sleep(3)
   sock3.close()
+  if not (3 in mycontext):
+    print "Failed to connect when callback is an object function with variable number of arguments"
 
   mycontext["clientnum"] += 1
   waith = waitforconn(ip,port,th.func4)
   sock4 = openconn(ip,port)
   sleep(3)
   sock4.close()
+  if not (4 in mycontext):
+    print "Failed to connect when callback is an object function with all parameters specified."
 
   # Cancel the timer, cleanup and exit
   canceltimer(timeh)
   stopcomm(waith)
-
-  if not (mycontext[1] and mycontext[2] and mycontext[3] and mycontext[4]):
-    print "Not all connections worked!",mycontext
-
   exitall()
 
 
