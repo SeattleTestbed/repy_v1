@@ -591,6 +591,35 @@ def do_oddballtests():
     failcount = failcount + 1
     logstream.write("FAILED]\n")
     endput = endput+"Killing Repy's resource monitor did not stop repy!\n\n"
+
+  # Make sure repy.py works when invoked with options in a various order (to
+  # test that adding getopt worked.)
+  logstream.write("Running test %-50s [" % "repy.py takes args any order")
+  test_process = subprocess.Popen(["python", "repy.py", "--simple", "--logfile", "log.log", "restrictions.loose", "testoptions.py"])
+  test_process.wait()
+  
+  # Check that log was created.
+  if os.path.exists("log.log.old"):
+    os.remove("log.log.old")
+
+    test_process = subprocess.Popen(["python", "repy.py", "--logfile", "log.log", "--simple", "restrictions.loose", "testoptions.py"])
+    test_process.wait()
+    
+    # Check that log was created (again).
+    if os.path.exists("log.log.old"):
+      passcount += 1
+      logstream.write(" PASS ]\n")
+      os.remove("log.log.old")
+    else:
+      failcount += 1
+      logstream.write("FAILED]\n")
+      endput = endput+"Passing arguments in the opposite order failed!\n\n"
+  else:
+    failcount += 1
+    logstream.write("FAILED]\n")
+    endput = endput+"Test for passing arguments in the opposite order failed!\n\n"
+
+  logstream.flush()
   
   # Close the pipes
   p.stdout.close()
@@ -658,7 +687,7 @@ if len(sys.argv) > 1 and sys.argv[1] == '-ce':
   captureDir = sys.argv[2]
   sys.argv = sys.argv[2:]
   setup_test_capture()
-  
+
 # Check for the CPU flag
 # This is a constant for the benchmark interval, how many seconds are used to
 # determine the maximum number of iterations at full CPU
