@@ -3,6 +3,7 @@
   Justin Cappos
   Ivan Beschastnikh (12/24/08) -- added usage
   Brent Couvrette   (2/27/09) -- added servicelog commandline option
+  Conrad Meyer (5/22/09) -- switch option parsing to getopt
 
 <Start Date>
   June 26th, 2008
@@ -45,6 +46,7 @@ checkpythonversion.ensure_python_version_is_supported()
 
 import safe
 import sys
+import getopt
 import emulfile
 import emultimer
 import emulcomm
@@ -292,103 +294,95 @@ if __name__ == '__main__':
   global simpleexec
   global logfile
 
-  # Set up the simple variable if needed
   args = sys.argv[1:]
+
+  try:
+    optlist, fnlist = getopt.getopt(args, '', [
+      'simple', 'ip=', 'iface=', 'nootherips', 'logfile=',
+      'stop=', 'status=', 'cwd=', 'servicelog'
+      ])
+
+  except getopt.GetoptError:
+    usage()
+    sys.exit(1)
+
+  # Set up the simple variable if needed
   simpleexec = False
 
   # By default we don't want to use the service logger
   servicelog = False
 
-  if len(args) < 2:
+  # Default logfile (if the option --logfile isn't passed)
+  logfile = None
+
+  # Default stopfile (if the option --stopfile isn't passed)
+  stopfile = None
+
+  # Default stopfile (if the option --stopfile isn't passed)
+  statusfile = None
+
+  if len(fnlist) < 2:
     usage("Must supply a restrictions file and a program file to execute")
     sys.exit(1)
-  
-  try:
-    if sys.argv[1] == '--simple':
-      simpleexec = True
-      args = sys.argv[2:]
 
-    # Armon: Loop checking for additional --ip flags, since multiple IP's may be specified
-    while args[0] == '--ip':
-      # Set user preference to True
+  for option, value in optlist:
+    if option == '--simple':
+      simpleexec = True
+
+    elif option == '--ip':
       emulcomm.user_ip_interface_preferences = True
-      
-      # Append this IP to the list of available IP's if it is new
-      if (True, args[1]) not in emulcomm.user_specified_ip_interface_list:
-        emulcomm.user_specified_ip_interface_list.append((True, args[1]))
-      args = args[2:]
-    
-    # Armon: Loop checking for additional --iface flags, since multiple interfaces may be specified
-    while args[0] == '--iface':
-      # Set user preference to True
+
+      # Append this ip to the list of available ones if it is new, since
+      # multiple IP's may be specified
+      if (True, value) not in emulcomm.user_specified_ip_interface_list:
+        emulcomm.user_specified_ip_interface_list.append((True, value))
+
+    elif option == '--iface':
       emulcomm.user_ip_interface_preferences = True
       
       # Append this interface to the list of available ones if it is new
-      if (False,args[1]) not in emulcomm.user_specified_ip_interface_list:
-        emulcomm.user_specified_ip_interface_list.append((False,args[1]))
-      args = args[2:]
-    
+      if (False, value) not in emulcomm.user_specified_ip_interface_list:
+        emulcomm.user_specified_ip_interface_list.append((False, value))
+
     # Check if they have told us explicitly not to allow other IP's
-    if args[0] == '--nootherips':
+    elif option == '--nootherips':
       # Set user preference to True
       emulcomm.user_ip_interface_preferences = True
       # Disable nonspecified IP's
       emulcomm.allow_nonspecified_ips = False
-      args = args[1:]
     
-    if args[0] == '--logfile':
+    elif option == '--logfile':
       # set up the circular log buffer...
-      logfile = args[1]
-      args = args[2:]
+      logfile = value
 
-    else:
-      # use standard streams (stdout / stderr)
-      logfile = None
-    
-    stopfile = None
-    if args[0] == '--stop':
+    elif option == '--stop':
       # Watch for the creation of this file and abort when it happens...
-      stopfile = args[1]
-      args = args[2:]
+      stopfile = value
 
-    statusfile = None
-    if args[0] == '--status':
+    elif option == '--status':
       # Write status information into this file...
-      statusfile = args[1]
-      args = args[2:]
-      
-    # Armon: Set Current Working Directory
-    if args[0] == '--cwd':
-      # Move
-      os.chdir(args[1])
-      args = args[2:]
+      statusfile = value
 
-    # Brent: Enable logging of internal errors to the service logger.
-    if args[0] == '--servicelog':
+    # Set Current Working Directory
+    elif option == '--cwd':
+      os.chdir(value)
+
+    # Enable logging of internal errors to the service logger.
+    elif option == '--servicelog':
       servicelog = True
-      args = args[1:]
-    
-    # Update repy current directory
-    repy_constants.REPY_CURRENT_DIR = os.path.abspath(os.getcwd())
 
-  except IndexError:
-    usage("Option usage error")
-    sys.exit(1)
+  # Update repy current directory
+  repy_constants.REPY_CURRENT_DIR = os.path.abspath(os.getcwd())
 
-  if len(args) < 2:
-    usage("Must supply a restrictions file and a program file to execute")
-    sys.exit(1)
-
-  # Armon: Initialize the NM status interface
-  nmstatusinterface.init(stopfile,statusfile)
+  # Initialize the NM status interface
+  nmstatusinterface.init(stopfile, statusfile)
   
   # Write out our initial status
   statusstorage.write_status("Started")
 
-  restrictionsfn = args[0]
-  progname = args[1]
-  progargs = args[2:]
-
+  restrictionsfn = fnlist[0]
+  progname = fnlist[1]
+  progargs = fnlist[2:]
 
   # We also need to pass in whether or not we are going to be using the service
   # log for repy.  I am counting on this being called here being enough for
@@ -396,7 +390,7 @@ if __name__ == '__main__':
   tracebackrepy.initialize(progname, servicelog)
 
   try:
-    main(restrictionsfn, progname,progargs)
+    main(restrictionsfn, progname, progargs)
   except SystemExit:
     nonportable.harshexit(4)
   except:
