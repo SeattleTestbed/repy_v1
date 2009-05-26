@@ -22,7 +22,7 @@ if callfunc == 'initialize':
 
   # on many systems it will raise an exception here...   it also may or may
   # not raise an exception on different runs.
-  waitforconn(ip,12345,foo)
+  waith = waitforconn(ip,12345,foo)
   sockobj.send("Hello")
 
   data = sockobj.recv(4096)
@@ -32,3 +32,10 @@ if callfunc == 'initialize':
     exitall(1)
 
   sockobj.close()
+
+  # Armon: If we do not explicitly stop the second waitforconn, we will never exit
+  # This is because the second waitforconn has a different handle, and so when foo calls stopcomm(),
+  # That is not actually stopping the listener
+  stopcomm(waith)
+
+

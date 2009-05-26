@@ -19,7 +19,7 @@ if callfunc == 'initialize':
   ch1 = waitforconn(ip,<connport>,foo)
   junk = openconn(ip,<connport>) 
   stopcomm(ch1)
-  stopcomm(junk)
+  junk.close()
   sleep(1)   # it should be cleaned up now
   settimer(1.0, noop,())
   settimer(.5, exitall,())

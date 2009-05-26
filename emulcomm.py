@@ -305,6 +305,50 @@ def is_valid_network_port(port, allowzero=False):
   return ((allowzero and port == 0) or (port >= 1 and port <= 65535))
 
 
+# Constant prefix for comm handles.
+COMM_PREFIX = "_COMMH:"
+
+# Makes commhandles for networking functions
+def generate_commhandle():
+  """
+  <Purpose>
+    Generates a string commhandle that can be used to uniquely identify
+    a socket, while providing a means of "pseudo" verification.
+
+  <Returns>
+    A string handle.
+  """
+  # Get a unique value from idhelper
+  uniqueid = idhelper.getuniqueid()
+
+  # Return the id prefixed by the COMM_PREFIX
+  return (COMM_PREFIX + uniqueid)
+
+
+# Helps determine if a commhandle is valid
+def is_valid_commhandle(commhandle):
+  """
+  <Purpose>
+    Determines if the given commhandle is potentially valid.
+    This is not a guarentee of validity, e.g. the commhandle may not
+    exist.
+
+  <Arguments>
+    commhandle:
+      The handle to be checked for validity
+
+  <Returns>
+    True if the handle if valid, False otherwise.
+  """
+  # Check if the handle is a string, this is a requirement
+  if type(commhandle) != str:
+    return False
+
+  # Return if the handle starts with the correct prefix
+  # This way we are not relying on the format of idhelper.getuniqueid()
+  return commhandle.startswith(COMM_PREFIX)
+
+
 ########################### SocketSelector functions #########################
 
 
@@ -324,7 +368,6 @@ def find_socket_entry(socketobject):
     if comminfo[commhandle]['socket'] == socketobject:
       return comminfo[commhandle], commhandle
   raise KeyError, "Can't find commhandle"
-
 
 
 
@@ -420,9 +463,9 @@ def start_event(entry, handle,eventhandle):
       # they closed in the meantime?
       nanny.tattle_remove_item('events',eventhandle)
       return
-
+    
     # put this handle in the table
-    newhandle = idhelper.getuniqueid()
+    newhandle = generate_commhandle()
     safesocket = emulated_socket(newhandle)
     comminfo[newhandle] = {'type':'TCP','remotehost':addr[0], 'remoteport':addr[1],'localip':entry['localip'],'localport':entry['localport'],'socket':realsocket,'outgoing':True}
     # I don't think it makes sense to count this as an outgoing socket, does 
@@ -588,6 +631,7 @@ def find_tipo_commhandle(socktype, ip, port, outgoing):
       return commhandle
   return None
 
+
 # Find an outgoing TCP commhandle, given local ip, local port, remote ip, remote port, 
 def find_outgoing_tcp_commhandle(localip, localport, remoteip, remoteport):
   for commhandle in comminfo.keys():
@@ -596,8 +640,6 @@ def find_outgoing_tcp_commhandle(localip, localport, remoteip, remoteport):
     and comminfo[commhandle]['remoteport'] == remoteport and comminfo[commhandle]['outgoing'] == True:
       return commhandle
   return None
-
-
 
 
 
@@ -772,6 +814,9 @@ def stopcomm(commhandle):
    <Returns>
       None.
   """
+  # Armon: Check that the handle is valid, an exception needs to be raised otherwise.
+  if not is_valid_commhandle(commhandle):
+    raise Exception("Invalid commhandle specified!")
 
   # if it has already been cleaned up, exit.
   if commhandle not in comminfo:
@@ -1033,6 +1078,10 @@ def recvmess(localip, localport, function):
   # Armon: Check if the specified local ip is allowed
   if not ip_is_allowed(localip):
     raise Exception, "IP '"+localip+"' is not allowed."
+  
+  # Armon: Generate the new handle since we need it 
+  # to replace the old handle if it exists
+  handle = generate_commhandle()
 
   # check if I'm already listening on this port / ip
   # NOTE: I check as though there might be a socket open that is sending a
@@ -1043,11 +1092,20 @@ def recvmess(localip, localport, function):
   if oldhandle:
     # if it was already there, update the function and return
     comminfo[oldhandle]['function'] = function
-    return oldhandle
+
+    # Armon: Create a new comminfo entry with the same info
+    comminfo[handle] = comminfo[oldhandle]
+
+    # Remove the old entry
+    del comminfo[oldhandle]
+
+    # We need nanny to substitute the old handle with the new one
+    nanny.tattle_remove_item('insockets',oldhandle)
+    nanny.tattle_add_item('insockets',handle)
     
-
-  handle = idhelper.getuniqueid()
-
+    # Return the new handle
+    return handle
+    
   # we'll need to add it, so add a socket...
   nanny.tattle_add_item('insockets',handle)
 
@@ -1194,7 +1252,7 @@ def openconn(desthost, destport,localip=None, localport=None,timeout=5.0):
   if localport:
     nanny.tattle_check('connport',localport)
 
-  handle = idhelper.getuniqueid()
+  handle = generate_commhandle()
   nanny.tattle_add_item('outsockets',handle)
   
   try:
@@ -1318,15 +1376,29 @@ def waitforconn(localip, localport,function):
   if not ip_is_allowed(localip):
     raise Exception, "IP '"+localip+"' is not allowed."
 
+  # Get the new handle first, because we need to replace
+  # the oldhandle if it exists to match semantics
+  handle = generate_commhandle()
+  
   # check if I'm already listening on this port / ip
   oldhandle = find_tipo_commhandle('TCP', localip, localport, False)
   if oldhandle:
     # if it was already there, update the function and return
     comminfo[oldhandle]['function'] = function
-    return oldhandle
-    
 
-  handle = idhelper.getuniqueid()
+    # Armon: Create an entry for the handle, replicate the information
+    comminfo[handle] = comminfo[oldhandle]
+    
+    # Remove the entry for the old socket
+    del comminfo[oldhandle]
+
+    # Un "tattle" the old handle, re-add the new handle
+    nanny.tattle_remove_item('insockets',oldhandle)
+    nanny.tattle_add_item('insockets',handle)
+
+    # Give the new handle
+    return handle
+    
   # we'll need to add it, so add a socket...
   nanny.tattle_add_item('insockets',handle)
 
