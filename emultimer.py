@@ -55,7 +55,7 @@ def is_valid_eventhandle(eventhandle):
   """
   <Purpose>
     Determines if a given event handle is valid.
-    This does not guarentee validity, just proper form.
+    This does not guarantee validity, just proper form.
 
   <Arguments>
     eventhandle:
