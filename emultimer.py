@@ -30,6 +30,46 @@ timerinfo = {}
 # Table of timer structures:
 # {'timer':timerobj,'function':function}
 
+# Armon: Prefix for use with event handles
+EVENT_PREFIX = "_EVENT:"
+
+# Generates a valid event handle
+def generate_eventhandle():
+  """
+  <Purpose>
+    Generates a string event handle that can be used to uniquely identify an event.
+    It is formatted so that cursory verification can be performed.
+
+  <Returns>
+    A string event handle.
+  """
+  # Get a unique handle from idhelper
+  uniqueh = idhelper.getuniqueid()
+
+  # Return the unique handle prefixed with EVENT_PREFIX
+  return (EVENT_PREFIX + uniqueh)
+
+
+# Helps validate an event handle
+def is_valid_eventhandle(eventhandle):
+  """
+  <Purpose>
+    Determines if a given event handle is valid.
+    This does not guarentee validity, just proper form.
+
+  <Arguments>
+    eventhandle:
+      The event handle to be checked.
+
+  <Returns>
+    True if valid, False otherwise.
+  """
+  # The handle must be a string, check type first
+  if type(eventhandle) != str:
+    return False
+
+  # Check if the handle has the correct prefix
+  return eventhandle.startswith(EVENT_PREFIX)
 
 
 # Public interface!
@@ -88,7 +128,7 @@ def settimer(waittime, function, args):
   """
   restrictions.assertisallowed('settimer',waittime)
   
-  eventhandle = idhelper.getuniqueid()
+  eventhandle = generate_eventhandle()
 
   nanny.tattle_add_item('events',eventhandle)
 
@@ -158,6 +198,10 @@ def canceltimer(timerhandle):
   """
 
   restrictions.assertisallowed('canceltimer')
+
+  # Armon: Check that the given handle is valid
+  if not is_valid_eventhandle(timerhandle):
+    raise Exception("Invalid timer handle specified!")
 
   try:
     timerinfo[timerhandle]['timer'].cancel()
