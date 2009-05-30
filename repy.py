@@ -156,12 +156,7 @@ def main(restrictionsfn, program, args):
   global usercode
   global simpleexec
 
-  # start the nanny up and read the restrictions files.  
-  restrictions.init_restrictions(restrictionsfn)
-
-  # Armon: Update our IP cache
-  emulcomm.update_ip_cache()
-      
+  # Armon: Initialize the circular logger before forking in init_restrictions()
   if logfile:
     # time to set up the circular logger
     loggerfo = logging.circular_logger(logfile)
@@ -171,8 +166,13 @@ def main(restrictionsfn, program, args):
   else:
     # let's make it so that the output (via print) is always flushed
     sys.stdout = logging.flush_logger(sys.stdout)
+    
+  # start the nanny up and read the restrictions files.  
+  restrictions.init_restrictions(restrictionsfn)
 
-
+  # Armon: Update our IP cache
+  emulcomm.update_ip_cache()
+      
   # grab the user code from the file
   usercode = file(program).read()
 
