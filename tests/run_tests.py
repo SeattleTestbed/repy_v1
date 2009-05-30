@@ -446,12 +446,11 @@ def do_actual_test(testtype, restrictionfn, testname, is_python_test):
     raise Exception, "Unknown test type '"+str(testout)+"'"
 
 
-    
-
 def do_oddballtests():
   global passcount
   global failcount
   global endput
+
   # oddball "stop" tests...
   logstream.write("Running test %-50s [" % "Stop Test 1")
   logstream.flush()
@@ -504,7 +503,7 @@ def do_oddballtests():
     logstream.write("FAILED]\n")
     endput = endput+"Stop Test 3\noutput or errput! out:"+testout+"err:"+ testerr+"\n\n"
 
-
+  
 
   # oddball killing the parent test...
   logstream.write("Running test %-50s [" % "Kill Repy resource monitor.")
@@ -523,7 +522,7 @@ def do_oddballtests():
     pid = p.pid
 
     # give it a few seconds to start...
-    time.sleep(3)
+    time.sleep(4)
 
     # find the orphaned child's PID...  Different on Mac / Linux because of ps 
     # options...
@@ -553,25 +552,20 @@ def do_oddballtests():
     p = subprocess.Popen("python repy.py restrictions.default killp_writetodisk.py".split(),stdout=subprocess.PIPE,stderr=subprocess.PIPE)
 
     pid = p.pid
+    
+    # Wait while the process starts
+    time.sleep(4)
 
   else:
     print "Error: Unknown OS type '"+nonportable.ostype+"'!"
     sys.exit(1)
 
 
-
-  # Wait a bit 
-  time.sleep(3)
   
   # Kill the repy resource monitor
   nonportable.portablekill(pid)
-
-  # Make sure the file size is not changing
-  firstsize = os.path.getsize("junk_test.out")
   time.sleep(1)
-  secondsize = os.path.getsize("junk_test.out")
-
-
+  
   # See ticket #413 and #421
   # This is a workaround for the possibility that the repy child was sleeping
   if nonportable.ostype == 'Darwin' or nonportable.ostype == 'Linux':
@@ -582,11 +576,20 @@ def do_oddballtests():
     except OSError:
       # the child has likely exited
       pass
+      
+    # Wait for the signal to take effect
+    time.sleep(1)    
+
+  # Make sure the file size is not changing
+  firstsize = os.path.getsize("junk_test.out")
+  time.sleep(1)
+  secondsize = os.path.getsize("junk_test.out")
 
 
   if firstsize == secondsize:
     passcount = passcount + 1
     logstream.write(" PASS ]\n")
+    
   else:
     failcount = failcount + 1
     logstream.write("FAILED]\n")
@@ -601,7 +604,7 @@ def do_oddballtests():
   # Check that log was created.
   if os.path.exists("log.log.old"):
     os.remove("log.log.old")
-
+  
     test_process = subprocess.Popen(["python", "repy.py", "--logfile", "log.log", "--simple", "restrictions.loose", "testoptions.py"])
     test_process.wait()
     
@@ -986,6 +989,7 @@ failcount=0
 # tags with default values so that the tests can be successfully
 # run locally. - Brent
 testportfiller.main()
+
 
 # for each test... run it!
 # if the -n flag is specified, only run node manager tests
