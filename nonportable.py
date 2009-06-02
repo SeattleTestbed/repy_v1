@@ -652,6 +652,9 @@ def do_forked_resource_monitor():
       sys.stderr.flush()
     except:
       pass
+      
+    # Stop the nmstatusinterface, we don't want any more status updates
+    nmstatusinterface.stop()  
 
     # Kill repy
     portablekill(childpid)

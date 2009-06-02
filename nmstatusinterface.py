@@ -9,6 +9,9 @@
 # This is used to write out our status
 import statusstorage
 
+# This prevents updates to our current status when we are about to exit
+statuslock = statusstorage.statuslock
+
 # This is to sleep
 import time
 
@@ -141,8 +144,14 @@ class nm_interface_thread(threading.Thread):
       if have_lock: run_thread_lock.release()
       else: break
 
+      # Get the status lock
+      statuslock.acquire()
+
       # Write out our status
       statusstorage.write_status("Started")
+
+      # Release the status lock
+      statuslock.release()
 
       # Look for the stopfile
       if stopfilename != None and os.path.exists(stopfilename):
