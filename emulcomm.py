@@ -37,6 +37,9 @@ import time
 # Armon: Used for decoding the error messages
 import errno
 
+# Armon: Used for getting the constant IP values for resolving our external IP
+import repy_constants 
+
 # The architecture is that I have a thread which "polls" all of the sockets
 # that are being listened on using select.  If a connection
 # oriented socket has a connection pending, or a message-based socket has a
@@ -711,52 +714,74 @@ def getmyip():
     # Return the first allowed ip, there is always at least 1 element (loopback)
     return allowediplist[0]
   
-  # Open a connectionless socket
-  s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+  # Initialize these to None, so we can detect a failure
+  myip = None
+  
+  # It's possible on some platforms (Windows Mobile) that the IP will be
+  # 0.0.0.0 even when I have a public IP and the external IP is up. However, if
+  # I get a real connection with SOCK_STREAM, then I should get the real
+  # answer.
+  for conn_type in [socket.SOCK_DGRAM, socket.SOCK_STREAM]:
+        
+    # Try each stable IP  
+    for ip_addr in repy_constants.STABLE_PUBLIC_IPS:  
+      try:
+        # Try to resolve using the current connection type and 
+        # stable IP, using port 80 since some platforms panic
+        # when given 0 (FreeBSD)
+        myip = get_localIP_to_remoteIP(conn_type, ip_addr, 80)
+      except (socket.error, socket.timeout):
+        # We can ignore any networking related errors, since we want to try 
+        # the other connection types and IP addresses. If we fail,
+        # we will eventually raise an exception anyways.
+        pass
+      else:
+        # Return immediately if the IP address is good
+        if myip != None and myip != '' and myip != "0.0.0.0": 
+          return myip
 
-  # Tell it to connect to google (we assume that the DNS entry for this works)
-  # however, using port 0 causes some issues on FreeBSD!   I choose port 80 
-  # instead...
+
+  # Since we haven't returned yet, we must have failed.
+  # Raise an exception, we must not be connected to the internet
+  raise Exception("Cannot detect a connection to the Internet.")
+
+
+
+def get_localIP_to_remoteIP(connection_type, external_ip, external_port=80):
+  """
+  <Purpose>
+    Resolve the local ip used when connecting outbound to an external ip.
+  
+  <Arguments>
+    connection_type:
+      The type of connection to attempt. See socket.socket().
+    
+    external_ip:
+      The external IP to attempt to connect to.
+      
+    external_port:
+      The port on the remote host to attempt to connect to.
+  
+  <Exceptions>
+    As with socket.socket(), socketobj.connect(), etc.
+  
+  <Returns>
+    The locally assigned IP for the connection.
+  """
+  # Open a socket
+  sockobj = socket.socket(socket.AF_INET, connection_type)
+
   try:
-    s.connect(('google.com', 80))
-  except Exception, e:
-    # I reraise the exception from here because exceptions raised by connect
-    # are treated as "from a string" which confuses the traceback printer
-    # unless I re-raise it here (then it lists my line which is culled)
-    raise e
+    sockobj.connect((external_ip, external_port))
 
-  # and the IP of the interface this connects on is the first item of the tuple
-  (myip, localport) = s.getsockname() 
+    # Get the local connection information for this socket
+    (myip, localport) = sockobj.getsockname()
+      
+  # Always close the socket
+  finally:
+    sockobj.close()
   
-  s.close()
-
-
-  if myip == '' or myip == '0.0.0.0':
-    # It's possible on some platforms (Windows Mobile) that the IP will be
-    # 0.0.0.0 even when I have a public IP and google is up.   However, if
-    # I get a real connection with SOCK_STREAM, then I should get the real
-    # answer.   
-    # I'll do much the same as before, only using SOCK_STREAM, which 
-    # unfortunately will actually connect
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-      s.connect(('google.com', 80))
-    except Exception, e:
-      raise e
-    (myip, localport) = s.getsockname() 
-  
-    s.close()
-
-  if myip == '' or myip == '0.0.0.0':
-    # hmm, SOCK_STREAM failed too.   Let's raise an exception...
-    raise Exception, "Cannot get external IP despite successful name resolution.  Sockets do not seem to behave properly"
-  
-
   return myip
-
-
-
-
 
 
 

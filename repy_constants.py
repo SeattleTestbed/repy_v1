@@ -32,3 +32,14 @@ RESOURCE_POLLING_FREQ_WINCE = 2 # Mobile devices are pretty slow
 CPU_POLLING_FREQ_LINUX = .1 # Linux
 CPU_POLLING_FREQ_WIN = .1 # Windows
 CPU_POLLING_FREQ_WINCE = .5 # Mobile devices are pretty slow
+
+
+# These IP addresses are used to resolve our external IP address
+# We attempt to connect to these IP addresses, and then check our local IP
+# These addresses were choosen since they have been historically very stable
+# They are from public universities
+STABLE_PUBLIC_IPS = ["18.7.22.69",      # M.I.T
+                    "171.67.216.8",     # Stanford
+                    "169.229.131.81",   # Berkley
+                    "140.142.12.202"]   # Univ. of Washington
+
