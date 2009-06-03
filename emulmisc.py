@@ -7,11 +7,19 @@
 
    Miscellaneous functions for the sandbox.   Random, exitall, getruntime, 
    etc.
+
+   <Modified>
+     Anthony - May 7 2009, changed the source of random data which is
+     used in randomfloat. Now uses os.urandom to get random bytes,
+     transforms the bytes into a random integer then uses it to
+     create a float of 53bit resolution.
+     Modified scheme from the random() function of the SystemRandom class,
+     as defined in source code python 2.6.2 Lib/random.py 
 """
 
 import restrictions
 import nanny
-import random           # for random.random()
+import os               # for os.urandom(7)
 import nonportable      # for harshexit() and getruntime
 import threading        # for Lock()
 
@@ -19,26 +27,44 @@ import threading        # for Lock()
 def randomfloat():
   """
    <Purpose>
-      Return a random number in the range [0.0, 1.0)
+     Return a random number in the range [0.0, 1.0) using sources 
+     provided by the operating system (such as /dev/urandom on Unix or
+     CryptGenRandom on Windows).
 
    <Arguments>
-      None
+     None
 
    <Exceptions>
-      None.
+     NotImplementedError if a OS-specific source of randomness
+     is not found. 
 
    <Side Effects>
-      This function is metered because it may involve using a hardware
-      source of randomness.
+     This function is metered because it may involve using a hardware
+     source of randomness.
 
    <Returns>
-      The number (a float)
+     The number (a float)
   """
 
   restrictions.assertisallowed('randomfloat')
   nanny.tattle_quantity('random',1)
+  
+  # If an OS-specific source of randomness is not a found
+  # a NotImplementedError would be raised.
+  # Get 56 bits of random data
+  randombytes = os.urandom(7)
+  
+  randomint = 0L
+  for i in range(0, 7):
+    randomint = (randomint << 8) 
+    randomint = randomint + ord(randombytes[i]) 
 
-  return random.random()
+  # Trim off the excess bits to get 53bits
+  randomint = randomint >> 3
+  # randomint is a number between 0 and 2**(53) - 1
+  
+  return randomint * (2**(-53))
+
 
 # Public interface!
 def getruntime():
