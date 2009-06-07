@@ -27,10 +27,10 @@ call socket.send allow 			# let's not restrict
 call socket.recv allow 			# let's not restrict
 # open and file.__init__ both have built in restrictions...
 call open arg 0 is junk_test.out allow 	# can write to junk_test.out
-call open arg 1 is r allow 		# allow an explicit read
+call open arg 1 is rb allow 		# allow an explicit read
 call open noargs is 1 allow 		# allow an implicit read 
 call file.__init__ arg 0 is junk_test.out allow # can write to junk_test.out
-call file.__init__ arg 1 is r allow 	# allow an explicit read
+call file.__init__ arg 1 is rb allow 	# allow an explicit read
 call file.__init__ noargs is 1 allow 	# allow an implicit read 
 call file.close allow 			# shouldn't restrict
 call file.flush allow 			# they are free to use

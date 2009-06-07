@@ -123,7 +123,7 @@ usercode = None
 usercontext = {
     'mycontext':{},                     # set up a place for them to store state
     'open':emulfile.emulated_open,      # emulated open function
-    'file':emulfile.emulated_file,      # emulated file object
+    'file':emulfile.emulated_open,      # emulated file object
     'listdir':emulfile.listdir,         # List the files in the expts dir
     'removefile':emulfile.removefile,   # remove a file in the expts dir
     'getmyip':emulcomm.getmyip,         # provides an external IP

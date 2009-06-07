@@ -16,6 +16,9 @@ import nanny
 import os 
 import idhelper
 
+# needed for locking the fileinfo hash
+import threading
+
 # I need to rename file so that the checker doesn't complain...
 myfile = file
 
@@ -72,10 +75,17 @@ def removefile(filename):
   # Handle the case where the file is open via an exception to prevent the user
   # from removing a file to circumvent resource accounting
 
-  for filehandle in fileinfo:
-    if filename == fileinfo[filehandle]['filename']:
-      raise Exception, 'File "'+filename+'" is open with handle "'+filehandle+'"'
-  return os.remove(filename)
+  fileinfolock.acquire()
+  try:
+    for filehandle in fileinfo:
+      if filename == fileinfo[filehandle]['filename']:
+        raise Exception, 'File "'+filename+'" is open with handle "'+filehandle+'"'
+
+    result = os.remove(filename)
+  finally:
+    fileinfolock.release()
+
+  return result
    
 
 
@@ -85,34 +95,75 @@ def removefile(filename):
 def emulated_open(filename, mode="rb"):
   """
    <Purpose>
-      Allows the user program to open a file safely.   This function is meant
-      to resemble the builtin "open"
+      Allows the user program to open a file safely. This function is meant
+      to resemble the builtin "open".
 
    <Arguments>
       filename:
-         The file that should be operated on
+         The file that should be operated on.
       mode:
-         The mode (see open)
+         The mode (see open).
 
    <Exceptions>
-      As with open, this may raise a number of errors
+      As with open, this may raise a number of errors. Additionally:
+
+      TypeError if the mode is not a string.
+      ValueError if the modestring is invalid.
 
    <Side Effects>
-      Opens a file on disk, using a file descriptor.   When opened with "w"
+      Opens a file on disk, using a file descriptor. When opened with "w"
       it will truncate the existing file.
 
    <Returns>
-      A file-like object 
+      A file-like object.
   """
 
-  restrictions.assertisallowed('open',filename,mode)
+  if type(mode) is not str:
+    raise TypeError("Attempted to open file with invalid mode (must be a string).")
 
-  return emulated_file(filename, mode)
-   
+  restrictions.assertisallowed('open', filename, mode)
+
+  # We just filter out 'b' / 't' in modestrings because emulated_file opens
+  # everything in binary mode for us.
+
+  originalmode = mode
+
+  if 'b' in mode:
+    mode = mode.replace('b','')
+
+  if 't' in mode:
+    mode = mode.replace('t','')
+
+  # Now we use our very safe, cross-platform open-like function and other
+  # file-object methods to emulate ANSI file modes.
+
+  file_object = None
+  if mode == "r":
+    file_object = emulated_file(filename, "r")
+
+  elif mode == "r+":
+    file_object = emulated_file(filename, "rw")
+
+  elif mode == "w" or mode == "w+":
+    file_object = emulated_file(filename, "rw", create=True)
+    fileinfo[file_object.filehandle]['fobj'].truncate()
+
+  elif mode == "a" or mode == "a+":
+    file_object = emulated_file(filename, "rw", create=True)
+    file_object.seek(0, os.SEEK_END)
+
+
+  if file_object is None:
+    raise ValueError("Invalid or unsupported mode ('%s') passed to open()." % originalmode)
+
+  return file_object
+
+
 
 
 # This keeps the state for the files (the actual objects, etc.)
 fileinfo = {}
+fileinfolock = threading.Lock()
 
 
 
@@ -157,30 +208,90 @@ class emulated_file:
   name = None
   softspace = 0
 
-  def __init__(self, filename, mode="rb"):
-    restrictions.assertisallowed('file.__init__',filename,mode)
-   
-    # JAC: I'm fixing a bug that repy behaves differently with binary files on
-    # windows.   The issue seems to be that files are opened in text mode 
-    # instead of binary mode.   This should make it behave the same for all 
-    # file types on all platforms
-    if 't' in mode:
-      # We don't allow windows text mode opens...
-      mode.replace('t','')
-    if 'b' not in mode:
-      # It must have a 'b'
-      mode = mode + 'b'
+  def __init__(self, filename, mode="r", create=False):
+    """
+     <Purpose>
+        Allows the user program to open a file safely.   This function is not
+        meant to resemble the builtin "open".
 
-    assert_is_allowed_filename(filename)
+     <Arguments>
+        filename:
+           The file that should be operated on
+        mode:
+           The mode:
+              "r":  Open the file for reading.
+              "rw": Open the file for reading and writing.
 
-    self.filehandle = idhelper.getuniqueid()
+              These are the only valid modes accepted by this version of
+              open(). Note: files are always opened in "binary" mode.
+        create:
+           If True, create the file if it doesn't exist already.
 
-    nanny.tattle_add_item('filesopened',self.filehandle)
+     <Exceptions>
+        As with open, this may raise a number of errors. Additionally:
 
-    fileinfo[self.filehandle] = {'filename':filename, 'mode':mode,'fobj':myfile(filename,mode)}
-    self.name=filename
-    self.mode=mode
-    return None 
+        ValueError is raised if this is passed an invalid mode.
+
+     <Side Effects>
+        Opens a file on disk, using a file descriptor.
+
+     <Returns>
+        A file-like object 
+    """
+
+    # Only allow 'r' and 'rw'.
+
+    actual_mode = None
+    if mode == "r":
+      actual_mode = "rb"
+    elif mode == "rw":
+      actual_mode = "r+b"
+
+    if actual_mode is None:
+      raise ValueError("Valid modes for opening a file in repy are 'r' and 'rw'.")
+     
+    restrictions.assertisallowed('file.__init__', filename, actual_mode)
+
+    # Here we are checking that we only open a given file once in 'write' mode
+    # so that file access is more uniform across platforms. (On Microsoft
+    # Windows, for example, writing to the same file from two different file-
+    # handles throws an error because of the way Windows (by default) locks
+    # files opened for writing.)
+    fileinfolock.acquire()
+
+    try:
+      # Check the entire fileinfo dictionary for the same file already being
+      # open.
+      for fileinfokey in fileinfo.keys():
+
+        # If the filename matches this one, raise an exception.
+        if os.path.abspath(fileinfo[fileinfokey]['filename']) == \
+            os.path.abspath(filename):
+          raise ArgumentError(\
+              "A file is only allowed to have one open filehandle.")
+
+      assert_is_allowed_filename(filename)
+
+      # If the file doesn't exist and the create flag was passed, create the
+      # file first.
+      if create and not os.path.exists(filename):
+        # Create a file by opening it in write mode and then closing it.
+        restrictions.assertisallowed('file.__init__', filename, 'wb')
+
+        created_file = myfile(filename, 'wb')
+        created_file.close()
+
+      self.filehandle = idhelper.getuniqueid()
+
+      nanny.tattle_add_item('filesopened', self.filehandle)
+
+      fileinfo[self.filehandle] = {'filename':filename, \
+          'mode':actual_mode, 'fobj':myfile(filename, actual_mode)}
+      self.name = filename
+      self.mode = mode
+
+    finally:
+      fileinfolock.release()
 
 
   # We are iterable!
@@ -203,10 +314,15 @@ class emulated_file:
 
     nanny.tattle_remove_item('filesopened',myfilehandle)
 
-    returnvalue = fileinfo[myfilehandle]['fobj'].close()
+    fileinfolock.acquire()
+    try:
+      returnvalue = fileinfo[myfilehandle]['fobj'].close()
 
-    # delete the filehandle
-    del fileinfo[myfilehandle]
+      # delete the filehandle
+      del fileinfo[myfilehandle]
+
+    finally:
+      fileinfolock.release()
 
     return returnvalue
 

@@ -1,3 +1,10 @@
+# This test uses several threads to write 121-character strings of data to
+# its log. Then it strips the log of the original 11-character strings; if
+# there was no interleaving, there should be nothing left after this step.
+#
+# Note: this only looks at the last 16kiB of logs, so it's possible that up to
+# 10 characters are left after stripping.
+
 def foo(mystr):
   for num in range(100):
     sleep(randomfloat()/100.0)
@@ -29,11 +36,11 @@ if callfunc=='initialize':
   while mycontext['threadcount'] > 1:
     sleep(.1)
 
-  mylog = file("experiment.log.old","r")
+  mylog = file("experiment.log.old","rb")
   logdata = mylog.read()
   mylog.close()
 
-  mylog = file("experiment.log.new","r")
+  mylog = file("experiment.log.new","rb")
   logdata = logdata + mylog.read()
   mylog.close()
 
