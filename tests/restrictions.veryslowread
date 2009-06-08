@@ -16,6 +16,7 @@ resource messport 12345
 resource connport 12345
 
 call gethostbyname_ex allow
+call getruntime allow
 call sendmess allow
 call stopcomm allow 			# it doesn't make sense to restrict
 call recvmess allow

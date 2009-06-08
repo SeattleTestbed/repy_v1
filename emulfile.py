@@ -341,7 +341,14 @@ class emulated_file:
     myfilehandle = self.filehandle
     restrictions.assertisallowed('file.next')
 
-    return fileinfo[myfilehandle]['fobj'].next()
+    # wait if it's already over used
+    nanny.tattle_quantity('fileread',0)
+
+    readdata = fileinfo[myfilehandle]['fobj'].next()
+
+    nanny.tattle_quantity('fileread', len(readdata))
+
+    return readdata
 
 
 
