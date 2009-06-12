@@ -434,11 +434,11 @@ def do_actual_test(testtype, restrictionfn, testname, is_python_test):
         return False
         
       # Armon: Use this to test that logging from the external process is working   
-      elif "killing" in logdata:
+      elif "kill" in logdata:
         return True
         
       elif "Success" not in logdata:
-        endput = endput+testname+"\nString 'Success' or 'killing' not in logdata\n\n"
+        endput = endput+testname+"\nString 'Success' or 'kill' not in logdata\n\n"
         return False 
       else:
         return True
