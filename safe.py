@@ -60,8 +60,16 @@ Known limitations:
 # 2007-03-07: Removed 'EmptyNode', 'Global' from AST whitelist
 # 2007-03-07: Added import __builtin__; s/__builtins__/__builtin__ 
 
+import time         # This is to sleep
+import subprocess   # This is to start the external process
+import nonportable  # This is to kill the external process on timeout
 import compiler
 import __builtin__
+
+# Armon: This is how long we will wait for the external process
+# to validate the safety of the user code before we timeout, 
+# and exit with an exception
+EVALUTATION_TIMEOUT = 5
 
 class SafeException(Exception):
     """Base class for Safe Exceptions"""
@@ -166,7 +174,53 @@ def _builtin_restore():
     
 def safe_check(code):
     """Check the code to be safe."""
-    return _check_ast(code)
+    # NOTE: This code will not work in Windows Mobile due to the reliance on subprocess
+    
+    # Start a safety check process, reading from the user code and outputing to a pipe we can read
+    proc = subprocess.Popen("python safe_check.py",shell=True,stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    
+    # Write out the user code, close so the other end gets an EOF
+    proc.stdin.write(code)
+    proc.stdin.close()
+    
+    # Wait for the process to terminate
+    starttime = nonportable.getruntime()
+    status = None
+    
+    # Only wait up to EVALUTATION_TIMEOUT seconds before terminating
+    while status == None and (nonportable.getruntime() - starttime < EVALUTATION_TIMEOUT):
+      status = proc.poll()
+      time.sleep(0.1)
+      
+    else:
+      # Check if the process is still running
+      if status == None:
+        # Try to terminate the external process
+        try:
+          nonportable.portablekill(proc.pid)
+        except:
+          pass
+      
+        # Raise an exception
+        raise Exception, "Evaluation of code safety exceeded timeout threshold!"
+    
+    
+    # Read the output and close the pipe
+    output = proc.stdout.read()
+    proc.stdout.close()
+    
+    # Check the output, None is success, else it is a failure
+    if output == "None":
+      return True
+    
+    # If there is no output, this is a fatal error condition
+    elif output == "":
+      raise Exception, "Fatal error while evaluating code safety!"
+      
+    else:
+      # Raise the error from the output
+      raise SafeException, output
+
 
 def safe_run(code,context=None):
     """Exec code with only safe builtins on."""
