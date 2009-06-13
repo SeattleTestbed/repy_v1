@@ -509,6 +509,23 @@ def do_oddballtests():
     endput = endput+"Stop Test 3\noutput or errput! out:"+testout+"err:"+ testerr+"\n\n"
 
   
+  # Test running repy from a sub directory
+  logstream.write("Running test %-50s [" % "Sub-directory test")
+  logstream.flush()
+  
+  # Make a temporary directory
+  if not os.path.exists("subdirtest"):
+    os.mkdir("subdirtest")
+
+  (testout, testerr) = exec_repy_script("../n_testinit.py", "../restrictions.default", {'cwd':'subdirtest'})
+  if testout != '' and testerr == '':
+    passcount = passcount + 1
+    logstream.write(" PASS ]\n")
+  else:
+    failcount = failcount + 1
+    endput = endput+"Sub-directory test\nno output or errput! out:"+testout+"err:"+ testerr+"\n\n"
+    logstream.write("FAILED]\n")
+
 
   # oddball killing the parent test...
   logstream.write("Running test %-50s [" % "Kill Repy resource monitor.")
@@ -600,6 +617,11 @@ def do_oddballtests():
     logstream.write("FAILED]\n")
     endput = endput+"Killing Repy's resource monitor did not stop repy!\n\n"
 
+  # Close the pipes
+  p.stdout.close()
+  p.stderr.close()
+  
+
   # Make sure repy.py works when invoked with options in a various order (to
   # test that adding getopt worked.)
   logstream.write("Running test %-50s [" % "repy.py takes args any order")
@@ -629,9 +651,7 @@ def do_oddballtests():
 
   logstream.flush()
   
-  # Close the pipes
-  p.stdout.close()
-  p.stderr.close()
+
 
 def setup_test_capture():
   global captureDir

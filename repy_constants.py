@@ -21,6 +21,9 @@ PATH_SEATTLE_INSTALL = "Z:\\Projects\\seattle\\trunk\\repy\\"
 # Current Working directory
 REPY_CURRENT_DIR = "."
 
+# Stores the directory repy started in
+REPY_START_DIR = "."
+
 # Polling Frequency for different Platforms, This is for non-CPU resources
 # Poll non-cpu resources less often to reduce overhead
 # Memory may need to be tighted, since it is possible to debilitate a system in less time than this.

@@ -63,6 +63,8 @@ Known limitations:
 import time         # This is to sleep
 import subprocess   # This is to start the external process
 import nonportable  # This is to kill the external process on timeout
+import os           # This is for some path manipulation
+import repy_constants # This is to get our start-up directory
 import compiler
 import __builtin__
 
@@ -176,8 +178,11 @@ def safe_check(code):
     """Check the code to be safe."""
     # NOTE: This code will not work in Windows Mobile due to the reliance on subprocess
     
+    # Get the path to safe_check.py by using the original start directory of python
+    path_to_safe_check = os.path.join(repy_constants.REPY_START_DIR, "safe_check.py")
+    
     # Start a safety check process, reading from the user code and outputing to a pipe we can read
-    proc = subprocess.Popen("python safe_check.py",shell=True,stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    proc = subprocess.Popen("python "+path_to_safe_check,shell=True,stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     
     # Write out the user code, close so the other end gets an EOF
     proc.stdin.write(code)
@@ -241,8 +246,6 @@ def safe_exec(code,context = None):
     safe_check(code)
     safe_run(code,context)
     
-
-
 
 
 

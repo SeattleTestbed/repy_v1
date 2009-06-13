@@ -68,6 +68,11 @@ import repy_constants
 
 import os
 
+# Armon: Store our original start-up directory, before we change directories
+# We only want to do this if we are being run, not imported.
+if __name__ == "__main__":
+  repy_constants.REPY_START_DIR = os.path.abspath(os.getcwd())
+
 ## we'll use tracebackrepy to print our exceptions
 import tracebackrepy
 
