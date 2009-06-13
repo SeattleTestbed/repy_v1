@@ -239,7 +239,9 @@ def main(restrictionsfn, program, args):
         "exit' event.\n(Exception was: %s)" % e.message, 141)
 
   try:
-    safe.safe_exec(usercode,usercontext)
+    # Armon: for the second run of the user code there is no reason to re do the
+    # safety check, so by just doing a safe_run() we can save some time and memory
+    safe.safe_run(usercode,usercontext)
   except SystemExit:
     raise
   except:
