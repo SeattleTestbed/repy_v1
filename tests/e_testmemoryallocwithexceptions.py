@@ -1,10 +1,9 @@
+lst = [[1],[2],[3],[4]]
 
-lst = [1]
-
-while getruntime() < 10:
+while getruntime() < 20:
   try:
    # Keep allocating memory
-   lst = lst + lst
+   lst = lst + lst + lst + lst
    
    raise Exception, "Junk!"
   except:
