@@ -842,13 +842,13 @@ def calculate_granularity():
     
   elif ostype == "Linux":
     # We don't know if the granularity is correct yet
-    correctGranularity = False
+    correct_granularity = False
     
     # How many times have we tested
     tests = 0
     
     # Loop while the granularity is incorrect, up to 10 times
-    while not correctGranularity and tests <= 10:
+    while not correct_granularity and tests <= 10:
       current_granularity = os_api.get_uptime_granularity()
       uptime_pre = os_api.get_system_uptime()
       time.sleep(current_granularity / 10)
@@ -856,7 +856,7 @@ def calculate_granularity():
     
       diff = uptime_post - uptime_pre
     
-      correctGranularity = int(diff / current_granularity) == (diff / current_granularity)
+      correct_granularity = int(diff / current_granularity) == (diff / current_granularity)
       tests += 1
     
     granularity = current_granularity
