@@ -68,11 +68,6 @@ import repy_constants
 
 import os
 
-# Armon: Store our original start-up directory, before we change directories
-# We only want to do this if we are being run, not imported.
-if __name__ == "__main__":
-  repy_constants.REPY_START_DIR = os.path.abspath(os.getcwd())
-
 ## we'll use tracebackrepy to print our exceptions
 import tracebackrepy
 
@@ -301,6 +296,24 @@ if __name__ == '__main__':
   global simpleexec
   global logfile
 
+  # Armon: The CMD line path to repy is the first argument
+  repy_location = sys.argv[0]
+
+  # Get the directory repy is in
+  repy_directory = os.path.dirname(repy_location)
+  
+  # Translate into an absolute path
+  if os.path.isabs(repy_directory):
+    absolute_repy_directory = repy_directory
+  
+  else:
+    # This will join the currect directory with the relative path
+    # and then get the absolute path to that location
+    absolute_repy_directory = os.path.abspath(os.path.join(os.getcwd(), repy_directory))
+  
+  # Store the absolute path as the repy startup directory
+  repy_constants.REPY_START_DIR = absolute_repy_directory
+  
   args = sys.argv[1:]
 
   try:
