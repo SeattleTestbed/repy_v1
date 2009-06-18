@@ -3,8 +3,8 @@ def foo():
 
 if callfunc=='initialize':
   
-  myval = settimer(1,foo,())
-  sleep(.1)
+  myval = settimer(3,foo,())
+  sleep(.01)
   canceltimer(myval)
   
 
