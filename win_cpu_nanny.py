@@ -10,7 +10,7 @@ import time
 import sys
 import tracebackrepy
 import nonportable
-import windows_api as windowsAPI
+import windows_api as windows_api
 
 def main():
   if len(sys.argv) != 4:
@@ -36,7 +36,7 @@ def main():
         time.sleep(freq-slept)
     
       # see if the process exited...
-      status = windowsAPI.processExitCode(ppid)
+      status = windows_api.process_exit_code(ppid)
       # Amazing! They rely on the programmer to not return 259 to know when 
       # something actually exited.   Luckily, I do control the return codes...
       if status != 259:
@@ -45,7 +45,7 @@ def main():
   except SystemExit:
     pass
 
-  except windowsAPI.DeadProcess:
+  except windows_api.DeadProcess:
     # This can be caused when getting process times for a dead thread or
     # Trying to timeout a dead thread, either way, we just exit
     sys.exit(0)
@@ -56,7 +56,7 @@ def main():
     
     # kill the program we're monitoring
     # Use newer api to kill process
-    windowsAPI.killProcess(ppid)
+    windows_api.kill_process(ppid)
 
 if __name__ == '__main__':
   main()

@@ -93,98 +93,98 @@ EXCLUDED_THREADS = []
 # Also abstracts the linking library for each function for more portability
 
 # Load the Functions that have a common library between desktop and CE
-#_suspendThread = kerneldll.SuspendThread # Puts a thread to sleep
+#_suspend_thread = kerneldll.SuspendThread # Puts a thread to sleep
 # This workaround is needed to keep the Python Global Interpreter Lock (GIL)
 # Normal ctypes CFUNCTYPE or WINFUNCTYPE prototypes will release the GIL
 # Which causes the process to infinitely deadlock
 # The downside to this method, is that a ValueError Exception is always thrown
-_suspendThreadProto = ctypes.PYFUNCTYPE(DWORD)
-def _suspendThreadErrCheck(result, func, args):
+_suspend_thread_proto = ctypes.PYFUNCTYPE(DWORD)
+def _suspend_thread_err_check(result, func, args):
   return result
-_suspendThreadErr = _suspendThreadProto(("SuspendThread", kerneldll))
-_suspendThreadErr.errcheck = _suspendThreadErrCheck
+_suspend_thread_err = _suspend_thread_proto(("SuspendThread", kerneldll))
+_suspend_thread_err.errcheck = _suspend_thread_err_check
 
-def _suspendThread(handle):
+def _suspend_thread(handle):
   result = 0
   try:
-    result = _suspendThreadErr(handle)
+    result = _suspend_thread_err(handle)
   except ValueError:
     pass
   return result
       
-_resumeThread = kerneldll.ResumeThread # Resumes Thread execution
-_openProcess = kerneldll.OpenProcess # Returns Process Handle
-_createProcess = kerneldll.CreateProcessW # Launches new process
-_setThreadPriority = kerneldll.SetThreadPriority # Sets a threads scheduling priority
+_resume_thread = kerneldll.ResumeThread # Resumes Thread execution
+_open_process = kerneldll.OpenProcess # Returns Process Handle
+_create_process = kerneldll.CreateProcessW # Launches new process
+_set_thread_priority = kerneldll.SetThreadPriority # Sets a threads scheduling priority
 
-_processExitCode = kerneldll.GetExitCodeProcess # Gets Process Exit code
-_terminateProcess = kerneldll.TerminateProcess # Kills a process
-_closeHandle = kerneldll.CloseHandle # Closes any(?) handle object
-_getLastError = kerneldll.GetLastError # Gets last error number of last error
-_waitForSingleObject = kerneldll.WaitForSingleObject # Waits to acquire mutex
-_createMutex = kerneldll.CreateMutexW # Creates a Mutex, Unicode version
-_releaseMutex = kerneldll.ReleaseMutex # Releases mutex
+_process_exit_code = kerneldll.GetExitCodeProcess # Gets Process Exit code
+_terminate_process = kerneldll.TerminateProcess # Kills a process
+_close_handle = kerneldll.CloseHandle # Closes any(?) handle object
+_get_last_error = kerneldll.GetLastError # Gets last error number of last error
+_wait_for_single_object = kerneldll.WaitForSingleObject # Waits to acquire mutex
+_create_mutex = kerneldll.CreateMutexW # Creates a Mutex, Unicode version
+_release_mutex = kerneldll.ReleaseMutex # Releases mutex
 
 try:
-  _getTickCount = kerneldll.GetTickCount64 # Try to get the 64 bit variant
+  _get_tick_count = kerneldll.GetTickCount64 # Try to get the 64 bit variant
 except AttributeError: # This means the function does not exist
-  _getTickCount = kerneldll.GetTickCount # Use the 32bit version
+  _get_tick_count = kerneldll.GetTickCount # Use the 32bit version
 
-_freeDiskSpace = kerneldll.GetDiskFreeSpaceExW # Determines free disk space
+_free_disk_space = kerneldll.GetDiskFreeSpaceExW # Determines free disk space
 
 # Load CE Specific function
 if MobileCE:
   # Uses kernel, but is slightly different on desktop
-  _globalMemoryStatus = kerneldll.GlobalMemoryStatus
+  _global_memory_status = kerneldll.GlobalMemoryStatus
   
   # Things using toolhelp
-  _createSnapshot = toolhelp.CreateToolhelp32Snapshot # Makes snapshot of threads 
-  _closeSnapshot = toolhelp.CloseToolhelp32Snapshot # destroys a snapshot 
-  _firstThread = toolhelp.Thread32First # Reads from Thread from snapshot
-  _nextThread = toolhelp.Thread32Next # Reads next Thread from snapshot
+  _create_snapshot = toolhelp.CreateToolhelp32Snapshot # Makes snapshot of threads 
+  _close_snapshot = toolhelp.CloseToolhelp32Snapshot # destroys a snapshot 
+  _first_thread = toolhelp.Thread32First # Reads from Thread from snapshot
+  _next_thread = toolhelp.Thread32Next # Reads next Thread from snapshot
   
   # Things using kernel
   # Windows CE uses thread identifiers and handles interchangably
   # Use internal ce method to handle this
-  # _openThreadCE
+  # _open_thread_ce
   
   # Gets CPU time data for a thread
-  # This is used by _processTimesCE
-  _threadTimes = kerneldll.GetThreadTimes 
+  # This is used by _process_times_ce
+  _thread_times = kerneldll.GetThreadTimes 
 
   # Non-Supported functions:
-  # _processTimes, there is no tracking of this on a process level
-  # _processMemory, CE does not track memory usage
-  # _currentThreadId, CE has this defined inline in a header file, so we need to do it
+  # _process_times, there is no tracking of this on a process level
+  # _process_memory, CE does not track memory usage
+  # _current_thread_id, CE has this defined inline in a header file, so we need to do it
   # These must be handled specifically
   # We override this later
-  _currentThreadId = None 
+  _current_thread_id = None 
   
   # Heap functions only needed on CE for getting memory info
-  _heapListFirst = toolhelp.Heap32ListFirst # Initializes Heap List
-  _heapListNext = toolhelp.Heap32ListNext # Iterates through the heap list
-  _heapFirst = toolhelp.Heap32First # Initializes Heap Entry
-  _heapNext = toolhelp.Heap32Next # Iterates through the Heaps
+  _heap_list_first = toolhelp.Heap32ListFirst # Initializes Heap List
+  _heap_list_next = toolhelp.Heap32ListNext # Iterates through the heap list
+  _heap_first = toolhelp.Heap32First # Initializes Heap Entry
+  _heap_next = toolhelp.Heap32Next # Iterates through the Heaps
   
   # Non-officially supported methods
-  _getCurrentPermissions = kerneldll.GetCurrentPermissions
-  _setProcessPermissions = kerneldll.SetProcPermissions
+  _get_current_permissions = kerneldll.GetCurrentPermissions
+  _set_process_permissions = kerneldll.SetProcPermissions
 # Load the Desktop Specific functions
 else:
   # These are in the kernel library on the desktop
-  _openThread = kerneldll.OpenThread # Returns Thread Handle
-  _createSnapshot = kerneldll.CreateToolhelp32Snapshot # Makes snapshot of threads 
-  _firstThread = kerneldll.Thread32First # Reads from Thread from snapshot
-  _nextThread = kerneldll.Thread32Next # Reads next Thread from snapshot
-  _globalMemoryStatus = kerneldll.GlobalMemoryStatusEx # Gets global memory info
-  _currentThreadId = kerneldll.GetCurrentThreadId # Returns the ThreadID of the current thread
+  _open_thread = kerneldll.OpenThread # Returns Thread Handle
+  _create_snapshot = kerneldll.CreateToolhelp32Snapshot # Makes snapshot of threads 
+  _first_thread = kerneldll.Thread32First # Reads from Thread from snapshot
+  _next_thread = kerneldll.Thread32Next # Reads next Thread from snapshot
+  _global_memory_status = kerneldll.GlobalMemoryStatusEx # Gets global memory info
+  _current_thread_id = kerneldll.GetCurrentThreadId # Returns the thread_id of the current thread
   
   # These process specific functions are only available on the desktop
-  _processTimes = kerneldll.GetProcessTimes # Returns data about Process CPU use
-  _processMemory = memdll.GetProcessMemoryInfo # Returns data on Process mem use
+  _process_times = kerneldll.GetProcessTimes # Returns data about Process CPU use
+  _process_memory = memdll.GetProcessMemoryInfo # Returns data on Process mem use
   
   # This is only available for desktop, sets the process wide priority
-  _setProcessPriority = kerneldll.SetPriorityClass 
+  _set_process_priority = kerneldll.SetPriorityClass 
   
 
 # Classes
@@ -194,7 +194,7 @@ else:
 class _THREADENTRY32(ctypes.Structure): 
     _fields_ = [('dwSize', DWORD), 
                 ('cntUsage', DWORD), 
-                ('th32ThreadID', DWORD), 
+                ('th32thread_id', DWORD), 
                 ('th32OwnerProcessID', DWORD),
                 ('tpBasePri', LONG),
                 ('tpDeltaPri', LONG),
@@ -205,7 +205,7 @@ class _THREADENTRY32(ctypes.Structure):
 class _THREADENTRY32CE(ctypes.Structure): 
     _fields_ = [('dwSize', DWORD), 
                 ('cntUsage', DWORD), 
-                ('th32ThreadID', DWORD), 
+                ('th32thread_id', DWORD), 
                 ('th32OwnerProcessID', DWORD),
                 ('tpBasePri', LONG),
                 ('tpDeltaPri', LONG),
@@ -347,16 +347,16 @@ class FailedMutex(Exception):
 # Global variables
 
 # For each Mutex, record the lock count to properly release
-_MutexLockCount = {}
+_mutex_lock_count = {}
    
 # High level functions
 
 # When getProcessTheads is called, it iterates through all the
 # system threads, and this global counter stores the thead count
-_systemThreadCount = 0
+_system_thread_count = 0
 
-# Returns list with the Thread ID of all threads associated with the PID
-def getProcessThreads(PID):
+# Returns list with the Thread ID of all threads associated with the pid
+def get_process_threads(pid):
   """
   <Purpose>
     Many of the Windows functions for altering processes and threads require
@@ -364,60 +364,60 @@ def getProcessThreads(PID):
     gets all of the threads associated with a given process
   
   <Arguments>
-    PID:
+    pid:
            The Process Identifier number for which the associated threads should be returned
   
   <Returns>
     Array of Thread Identifiers, these are not thread handles
   """
-  global _systemThreadCount
+  global _system_thread_count
   
   # Mobile requires different structuer
   if MobileCE:
-    threadClass = _THREADENTRY32CE
+    thread_class = _THREADENTRY32CE
   else:
-    threadClass = _THREADENTRY32
+    thread_class = _THREADENTRY32
     
   threads = [] # List object for threads
-  currentThread = threadClass() # Current Thread Pointer
-  currentThread.dwSize = ctypes.sizeof(threadClass)
+  current_thread = thread_class() # Current Thread Pointer
+  current_thread.dwSize = ctypes.sizeof(thread_class)
   
   # Create Handle to snapshot of all system threads
-  handle = _createSnapshot(TH32CS_SNAPTHREAD, 0)
+  handle = _create_snapshot(TH32CS_SNAPTHREAD, 0)
   
   # Check if handle was created successfully
   if handle == INVALID_HANDLE_VALUE:
-    _closeHandle( handle )
+    _close_handle( handle )
     return []
   
   # Attempt to read snapshot
-  if not _firstThread( handle, ctypes.pointer(currentThread)):
-    _closeHandle( handle )
+  if not _first_thread( handle, ctypes.pointer(current_thread)):
+    _close_handle( handle )
     return []
   
   # Reset the global counter
-  _systemThreadCount = 0
+  _system_thread_count = 0
   
   # Loop through threads, check for threads associated with the right process
-  moreThreads = True
-  while (moreThreads):
+  more_threads = True
+  while (more_threads):
     # Increment the global counter
-    _systemThreadCount += 1
+    _system_thread_count += 1
     
     # Check if current thread belongs to the process were looking for
-    if currentThread.th32OwnerProcessID == ctypes.c_ulong(PID).value: 
-      threads.append(currentThread.th32ThreadID)
-    moreThreads = _nextThread(handle, ctypes.pointer(currentThread))
+    if current_thread.th32OwnerProcessID == ctypes.c_ulong(pid).value: 
+      threads.append(current_thread.th32thread_id)
+    more_threads = _next_thread(handle, ctypes.pointer(current_thread))
   
   # Cleanup snapshot
   if MobileCE:
-    _closeSnapshot(handle)
-  _closeHandle(handle)
+    _close_snapshot(handle)
+  _close_handle(handle)
     
   return threads  
 
 
-def getSystemThreadCount():
+def get_system_thread_count():
   """
   <Purpose>
     Returns the number of active threads running on the system.
@@ -425,29 +425,29 @@ def getSystemThreadCount():
   <Returns>
     The thread count.
   """
-  global _systemThreadCount
+  global _system_thread_count
   
-  # Call getProcessThreads to update the global counter
-  getProcessThreads(os.getpid())  # Use our own PID
+  # Call get_process_threads to update the global counter
+  get_process_threads(os.getpid())  # Use our own pid
   
   # Return the global thread count
-  return _systemThreadCount
+  return _system_thread_count
 
 
-# Returns a handle for ThreadID  
-def getThreadHandle(ThreadID):
+# Returns a handle for thread_id  
+def get_thread_handle(thread_id):
   """
     <Purpose>
       Returns a thread handle for a given thread identifier. This is useful
       because a thread identified cannot be used directly for most operations.
   
     <Arguments>
-      ThreadID:
+      thread_id:
              The Thread Identifier, for which a handle is returned
   
    <Side Effects>
      If running on a mobile CE platform, execution permissions will be elevated.
-     closeThreadHandle must be called before getThreadHandle is called again,
+     close_thread_handle must be called before get_thread_handle is called again,
      or permissions will not be set to their original level.
      
     <Exceptions>
@@ -459,20 +459,20 @@ def getThreadHandle(ThreadID):
   # Check if it is CE
   if MobileCE:
     # Use the CE specific function
-    handle = _openThreadCE(ThreadID)
+    handle = _open_thread_ce(thread_id)
   else:
     # Open handle to thread
-    handle = _openThread(THREAD_SUS_RES_setINFO, 0, ThreadID)
+    handle = _open_thread(THREAD_SUS_RES_setINFO, 0, thread_id)
   
   # Check for a successful handle
   if handle: 
     return handle
   else: # Raise exception on failure
-    raise DeadThread, "Error opening thread handle! ThreadID: " + str(ThreadID) + " Error Str: " + str(ctypes.WinError())  
+    raise DeadThread, "Error opening thread handle! thread_id: " + str(thread_id) + " Error Str: " + str(ctypes.WinError())  
 
 
 # Closes a thread handle
-def closeThreadHandle(TheadHandle):
+def close_thread_handle(thread_handle):
   """
     <Purpose>
       Closes a given thread handle.
@@ -486,21 +486,21 @@ def closeThreadHandle(TheadHandle):
   if MobileCE:
     # Opening a thread raises permissions,
     # so we need to revert to default
-    _revertPermissions();
+    _revert_permissions();
   
   # Close thread handle
-  _closeHandle(TheadHandle)
+  _close_handle(thread_handle)
     
     
-# Suspend a thread with given ThreadID
-def suspendThread(ThreadID):
+# Suspend a thread with given thread_id
+def suspend_thread(thread_id):
   """
     <Purpose>
       Suspends the execution of a thread.
       Will not execute on currently executing thread.
   
     <Arguments>
-      ThreadID:
+      thread_id:
              The thread identifier for the thread to be suspended.
   
     <Exceptions>
@@ -515,17 +515,17 @@ def suspendThread(ThreadID):
   global EXCLUDED_THREADS
 
   # Check if it is a white listed thread
-  if ThreadID in EXCLUDED_THREADS:
+  if thread_id in EXCLUDED_THREADS:
     return True
       
   # Open handle to thread
-  handle = getThreadHandle(ThreadID)
+  handle = get_thread_handle(thread_id)
   
   # Try to suspend thread, save status of call
-  status = _suspendThread(handle)
+  status = _suspend_thread(handle)
   
   # Close thread handle
-  closeThreadHandle(handle)
+  close_thread_handle(handle)
   
   # -1 is returned on failure, anything else on success
   # Translate this to True and False
@@ -533,14 +533,14 @@ def suspendThread(ThreadID):
 
 
 
-# Resume a thread with given ThreadID
-def resumeThread(ThreadID):
+# Resume a thread with given thread_id
+def resume_thread(thread_id):
   """
     <Purpose>
       Resumes the execution of a thread.
   
     <Arguments>
-      ThreadID:
+      thread_id:
              The thread identifier for the thread to be resumed
   
     <Exceptions>
@@ -554,13 +554,13 @@ def resumeThread(ThreadID):
     """
     
   # Get thread Handle
-  handle = getThreadHandle(ThreadID)
+  handle = get_thread_handle(thread_id)
   
   # Attempt to resume thread, save status of call
-  val = _resumeThread(handle)
+  val = _resume_thread(handle)
   
   # Close Thread Handle
-  closeThreadHandle(handle)
+  close_thread_handle(handle)
   
   # -1 is returned on failure, anything else on success
   # Translate this to True and False
@@ -568,15 +568,15 @@ def resumeThread(ThreadID):
 
 
 
-# Suspend a process with given PID
-def suspendProcess(PID):
+# Suspend a process with given pid
+def suspend_process(pid):
   """
   <Purpose>
     Instead of manually getting a list of threads for a process and individually
     suspending each, this function will do the work transparently.
   
   <Arguments>
-    PID:
+    pid:
       The Process Identifier number to be suspended.
   
   <Side Effects>
@@ -587,7 +587,7 @@ def suspendProcess(PID):
   """
 
   # Get List of threads related to Process
-  threads = getProcessThreads(PID)
+  threads = get_process_threads(pid)
 
   # Suspend each thread serially
   for t in threads:
@@ -598,7 +598,7 @@ def suspendProcess(PID):
         return False
       attempt = attempt + 1
       try:
-        sleep = suspendThread(t)
+        sleep = suspend_thread(t)
       except DeadThread:
         # If the thread is dead, lets just say its asleep and continue
         sleep = True
@@ -607,15 +607,15 @@ def suspendProcess(PID):
 
 
 
-# Resume a process with given PID
-def resumeProcess(PID):
+# Resume a process with given pid
+def resume_process(pid):
   """
   <Purpose>
     Instead of manually resuming each thread in a process, this functions
     handles that transparently.
   
   <Arguments>
-    PID:
+    pid:
       The Process Identifier to be resumed.
   
   <Side Effects>
@@ -626,7 +626,7 @@ def resumeProcess(PID):
   """
   
   # Get list of threads related to Process
-  threads = getProcessThreads(PID)
+  threads = get_process_threads(pid)
   
   # Resume each thread
   for t in threads:
@@ -637,7 +637,7 @@ def resumeProcess(PID):
         return False
       attempt = attempt + 1
       try:
-        wake = resumeThread(t)
+        wake = resume_thread(t)
       except DeadThread:
         # If the thread is dead, its hard to wake it up, so contiue
         wake = True
@@ -646,13 +646,13 @@ def resumeProcess(PID):
 
 
 # Suspends a process and restarts after a given time interval
-def timeoutProcess(PID, stime):
+def timeout_process(pid, stime):
   """
   <Purpose>
-    Calls suspendProcess and resumeProcess with a specified period of sleeping.
+    Calls suspend_process and resume_process with a specified period of sleeping.
   
   <Arguments>
-    PID:
+    pid:
       The process identifier to timeout execution.
     stime:
       The time period in seconds to timeout execution.
@@ -672,13 +672,13 @@ def timeoutProcess(PID, stime):
     return True
   try:
     # Attempt to suspend process, return immediately on failure
-    if suspendProcess(PID):
+    if suspend_process(pid):
       
       # Sleep for user defined period
       time.sleep (stime)
   
       # Attempt to resume process and return whether that succeeded
-      return resumeProcess(PID)
+      return resume_process(pid)
     else:
       return False
   except DeadThread: # Escalate DeadThread to DeadProcess, because that is the underlying cause
@@ -686,7 +686,7 @@ def timeoutProcess(PID, stime):
 
 
 # Sets the current threads priority level
-def setCurrentThreadPriority(priority=THREAD_PRIORITY_NORMAL,exclude=True):
+def set_current_thread_priority(priority=THREAD_PRIORITY_NORMAL,exclude=True):
   """
   <Purpose>
     Sets the priority level of the currently executing thread.
@@ -698,7 +698,7 @@ def setCurrentThreadPriority(priority=THREAD_PRIORITY_NORMAL,exclude=True):
     exclude: If true, the thread will not be put to sleep when compensating for CPU use.
 
   <Exceptions>
-    See getThreadHandle
+    See get_thread_handle
   
   <Returns>
     True on success, False on failure.
@@ -706,24 +706,24 @@ def setCurrentThreadPriority(priority=THREAD_PRIORITY_NORMAL,exclude=True):
   global EXCLUDED_THREADS
 
   # Get thread identifier
-  ThreadID = _currentThreadId()
+  thread_id = _current_thread_id()
   
   # Check if we should exclude this thread
   if exclude:
     # Use a list copy, so that our swap doesn't cause any issues
     # if the CPU scheduler is already running
     new_list = EXCLUDED_THREADS[:]
-    new_list.append(ThreadID)
+    new_list.append(thread_id)
     EXCLUDED_THREADS = new_list
      
   # Open handle to thread
-  handle = getThreadHandle(ThreadID)
+  handle = get_thread_handle(thread_id)
   
   # Try to change the priority
-  status = _setThreadPriority(handle, priority)
+  status = _set_thread_priority(handle, priority)
   
   # Close thread handle
-  closeThreadHandle(handle)
+  close_thread_handle(handle)
   
   # Return the status of this call
   if status == 0:
@@ -732,13 +732,13 @@ def setCurrentThreadPriority(priority=THREAD_PRIORITY_NORMAL,exclude=True):
     return True
 
 # Gets a process handle
-def getProcessHandle(PID):
+def get_process_handle(pid):
   """
   <Purpose>
     Get a process handle for a specified process identifier
   
   <Arguments>
-    PID:
+    pid:
       The process identifier for which a handle is returned.
   
   <Exceptions>
@@ -749,17 +749,17 @@ def getProcessHandle(PID):
   """
   
   # Get handle to process
-  handle = _openProcess( PROCESS_SET_QUERY_AND_TERMINATE, 0, PID)
+  handle = _open_process(PROCESS_SET_QUERY_AND_TERMINATE, 0, pid)
   
   # Check if we successfully got a handle
   if handle:
     return handle
   else: # Raise exception on failure
-    raise DeadProcess, "Error opening process handle! Process ID: " + str(PID) + " Error Str: " + str(ctypes.WinError())
+    raise DeadProcess, "Error opening process handle! Process ID: " + str(pid) + " Error Str: " + str(ctypes.WinError())
 
 
 # Launches a new process
-def launchProcess(application,cmdline = None, priority = NORMAL_PRIORITY_CLASS):
+def launch_process(application,cmdline = None, priority = NORMAL_PRIORITY_CLASS):
   """
   <Purpose>
     Launches a new process.
@@ -779,57 +779,57 @@ def launchProcess(application,cmdline = None, priority = NORMAL_PRIORITY_CLASS):
     Process ID on success, None on failure.
   """
   # Create struct to hold process info
-  processInfo = _PROCESS_INFORMATION()
-  processInfoAddr = ctypes.pointer(processInfo)
+  process_info = _PROCESS_INFORMATION()
+  process_info_addr = ctypes.pointer(process_info)
   
   # Determine what is the cmdline Parameter
   if not (cmdline == None):
-    cmdlineParam = unicode(cmdline)
+    cmdline_param = unicode(cmdline)
   else:
-    cmdlineParam = None
+    cmdline_param = None
   
   # Adjust for CE
   if MobileCE:
     # Not Supported on CE
     priority = 0
-    windowInfoAddr = 0
+    window_info_addr = 0
     # Always use absolute path
     application = unicode(os.path.abspath(application))
   else:
     # For some reason, Windows Desktop uses the first part of the second parameter as the
     # Application... This is documented on MSDN under CreateProcess in the user comments
     # Create struct to hold window info
-    windowInfo = _STARTUPINFO()
-    windowInfoAddr = ctypes.pointer(windowInfo)
-    cmdlineParam = unicode(application) + " " + cmdlineParam
+    window_info = _STARTUPINFO()
+    window_info_addr = ctypes.pointer(window_info)
+    cmdline_param = unicode(application) + " " + cmdline_param
     application = None
   
   # Lauch process, and save status
-  status = _createProcess(
+  status = _create_process(
     application, 
-    cmdlineParam,
+    cmdline_param,
     None,
     None,
     False,
     priority,
     None,
     None,
-    windowInfoAddr,
-    processInfoAddr)
+    window_info_addr,
+    process_info_addr)
   
   # Did we succeed?
   if status:
     # Close handles that we don't need
-    _closeHandle(processInfo.hProcess)
-    _closeHandle(processInfo.hThread)
+    _close_handle(process_info.hProcess)
+    _close_handle(process_info.hThread)
     
-    # Return PID
-    return processInfo.dwProcessId
+    # Return pid
+    return process_info.dwProcessId
   else:
     return None
 
 # Helper function to launch a python script with some parameters
-def launchPythonScript(script, params=""):
+def launch_python_script(script, params=""):
   """
   <Purpose>
     Launches a python script with parameters
@@ -855,13 +855,13 @@ def launchPythonScript(script, params=""):
   cmd = repy_constants.PYTHON_DEFAULT_FLAGS + " " + script + " " + params
   
   # Launch process and store return value
-  retval = launchProcess(repy_constants.PATH_PYTHON_INSTALL,cmd)
+  retval = launch_process(repy_constants.PATH_PYTHON_INSTALL,cmd)
   
   return retval
 
 
 # Sets the current process priority level
-def setCurrentProcessPriority(priority=PROCESS_NORMAL_PRIORITY_CLASS):
+def set_current_process_priority(priority=PROCESS_NORMAL_PRIORITY_CLASS):
   """
   <Purpose>
     Sets the priority level of the currently executing process.
@@ -871,7 +871,7 @@ def setCurrentProcessPriority(priority=PROCESS_NORMAL_PRIORITY_CLASS):
     See PROCESS_NORMAL_PRIORITY_CLASS, PROCESS_BELOW_NORMAL_PRIORITY_CLASS and PROCESS_ABOVE_NORMAL_PRIORITY_CLASS
 
   <Exceptions>
-    See getProcessHandle
+    See get_process_handle
 
   <Returns>
     True on success, False on failure.
@@ -880,17 +880,17 @@ def setCurrentProcessPriority(priority=PROCESS_NORMAL_PRIORITY_CLASS):
   if MobileCE:
     return True
     
-  # Get our PID
-  PID = os.getpid()
+  # Get our pid
+  pid = os.getpid()
   
   # Get process handle
-  handle = getProcessHandle(PID)
+  handle = get_process_handle(pid)
 
   # Try to change the priority
-  status = _setProcessPriority(handle, priority)
+  status = _set_process_priority(handle, priority)
 
   # Close Process Handle
-  _closeHandle(handle)
+  _close_handle(handle)
 
   # Return the status of this call
   if status == 0:
@@ -898,14 +898,14 @@ def setCurrentProcessPriority(priority=PROCESS_NORMAL_PRIORITY_CLASS):
   else:
     return True
     
-# Kill a process with specified PID
-def killProcess(PID):
+# Kill a process with specified pid
+def kill_process(pid):
   """
   <Purpose>
     Terminates a process.
   
   <Arguments>
-    PID:
+    pid:
       The process identifier to be killed.
   
   <Exceptions>
@@ -920,7 +920,7 @@ def killProcess(PID):
   
   try:
     # Get process handle
-    handle = getProcessHandle(PID)
+    handle = get_process_handle(pid)
   except DeadProcess: # This is okay, since we're trying to kill it anyways
     return True
   
@@ -930,33 +930,33 @@ def killProcess(PID):
   # Keep hackin' away at it
   while not dead:
     if (attempt > ATTEMPT_MAX):
-      raise DeadProcess, "Failed to kill process! Process ID: " + str(PID) + " Error Str: " + str(ctypes.WinError())
+      raise DeadProcess, "Failed to kill process! Process ID: " + str(pid) + " Error Str: " + str(ctypes.WinError())
   
     # Increment attempt count
     attempt = attempt + 1 
   
     # Attempt to terminate process
     # 0 is return code for failure, convert it to True/False
-    dead = not 0 == _terminateProcess(handle, 0)
+    dead = not 0 == _terminate_process(handle, 0)
   
   # Close Process Handle
-  _closeHandle(handle)
+  _close_handle(handle)
   
   return True
 
 
 
 # Get information about a process CPU use times
-def processTimes(PID):
+def process_times(pid):
   """
   <Purpose>
     Gets information about a processes CPU time utilization.
     Because Windows CE does not keep track of this information at a process level,
-    if a thread terminates (belonging to the PID), then it is possible for the 
+    if a thread terminates (belonging to the pid), then it is possible for the 
     KernelTime and UserTime to be lower than they were previously.
   
   <Arguments>
-    PID:
+    pid:
       The process identifier about which the information is returned
   
   <Exceptions>
@@ -972,60 +972,60 @@ def processTimes(PID):
   # Check if it is CE
   if MobileCE:
     # Use the CE specific function
-    return _processTimesCE(PID)
+    return _process_times_ce(pid)
   
   # Open process handle
-  handle = getProcessHandle(PID)
+  handle = get_process_handle(pid)
   
   # Create all the structures needed to make API Call
-  creationTime = _FILETIME()
-  exitTime = _FILETIME()
-  kernelTime = _FILETIME()
-  userTime = _FILETIME()
+  creation_time = _FILETIME()
+  exit_time = _FILETIME()
+  kernel_time = _FILETIME()
+  user_time = _FILETIME()
   
-  # Pass all the structures as pointers into processTimes
-  _processTimes(handle, ctypes.pointer(creationTime), ctypes.pointer(exitTime), ctypes.pointer(kernelTime), ctypes.pointer(userTime))
+  # Pass all the structures as pointers into process_times
+  _process_times(handle, ctypes.pointer(creation_time), ctypes.pointer(exit_time), ctypes.pointer(kernel_time), ctypes.pointer(user_time))
   
   # Close Process Handle
-  _closeHandle(handle)
+  _close_handle(handle)
   
   # Extract the values from the structures, and return then in a dictionary
-  return {"CreationTime":creationTime.dwLowDateTime,"KernelTime":kernelTime.dwLowDateTime,"UserTime":userTime.dwLowDateTime}
+  return {"CreationTime":creation_time.dwLowDateTime,"KernelTime":kernel_time.dwLowDateTime,"UserTime":user_time.dwLowDateTime}
 
 # Wait for a process to exit
-def waitForProcess(PID):
+def wait_for_process(pid):
   """
   <Purpose>
     Blocks execution until the specified Process finishes execution.
   
   <Arguments>
-    PID:
+    pid:
       The process identifier to wait for
   """
   try:
     # Get process handle
-    handle = getProcessHandle(PID)
+    handle = get_process_handle(pid)
   except DeadProcess:
     # Process is likely dead, so just return
     return
 
   # Pass in code as a pointer to store the output
-  status = _waitForSingleObject(handle, INFINITE)
+  status = _wait_for_single_object(handle, INFINITE)
   if status != WAIT_OBJECT_0:
     raise EnvironmentError, "Failed to wait for Process!"
   
   # Close the Process Handle
-  _closeHandle(handle)
+  _close_handle(handle)
   
 
 # Get the exit code of a process
-def processExitCode(PID):
+def process_exit_code(pid):
   """
   <Purpose>
     Get the exit code of a process
   
   <Arguments>
-    PID:
+    pid:
       The process identifier for which the exit code is returned.
   
   <Returns>
@@ -1034,7 +1034,7 @@ def processExitCode(PID):
   
   try:
     # Get process handle
-    handle = getProcessHandle(PID)
+    handle = get_process_handle(pid)
   except DeadProcess:
     # Process is likely dead, so give anything other than 259
     return 0
@@ -1043,16 +1043,16 @@ def processExitCode(PID):
   code = ctypes.c_int(0)
   
   # Pass in code as a pointer to store the output
-  _processExitCode(handle, ctypes.pointer(code))
+  _process_exit_code(handle, ctypes.pointer(code))
   
   # Close the Process Handle
-  _closeHandle(handle)
+  _close_handle(handle)
   return code.value
 
 
 
 # Get information on process memory use
-def processMemoryInfo(PID):
+def process_memory_info(pid):
   """
   <Purpose>
     Get information about a processes memory usage.
@@ -1061,7 +1061,7 @@ def processMemoryInfo(PID):
     and all of the indices are only returned for compatibility reasons.
   
   <Arguments>
-    PID:
+    pid:
       The process identifier for which memory info is returned
   
   <Exceptions>
@@ -1074,19 +1074,19 @@ def processMemoryInfo(PID):
   # Check if it is CE
   if MobileCE:
     # Use the CE specific function
-    return _processMemoryInfoCE(PID)
+    return _process_memory_info_ce(pid)
     
   # Open process Handle
-  handle = getProcessHandle(PID)
+  handle = get_process_handle(pid)
   
   # Define structure to hold memory data
   meminfo = _PROCESS_MEMORY_COUNTERS()
   
   # Pass pointer to meminfo to processMemory to store the output
-  _processMemory(handle, ctypes.pointer(meminfo), ctypes.sizeof(_PROCESS_MEMORY_COUNTERS))
+  _process_memory(handle, ctypes.pointer(meminfo), ctypes.sizeof(_PROCESS_MEMORY_COUNTERS))
   
   # Close Process Handle
-  _closeHandle(handle)
+  _close_handle(handle)
   
   # Extract data from meminfo structure and return as python
   # dictionary structure
@@ -1101,16 +1101,16 @@ def processMemoryInfo(PID):
           'PeakPagefileUsage':meminfo.PeakPagefileUsage}  
 
 
-# INFO: Pertaining to _MutexLockCount:
+# INFO: Pertaining to _mutex_lock_count:
 # With Mutexes, each time they are acquired, they must be released the same number of times.
-# For this reason we account for the number of times a mutex has been acquired, and releaseMutex
+# For this reason we account for the number of times a mutex has been acquired, and release_mutex
 # will call the underlying release enough that the mutex will actually be released.
-# The entry for _MutexLockCount is initialized in createMutex, incremented in acquireMutex
-# and zero'd out in releaseMutex
+# The entry for _mutex_lock_count is initialized in create_mutex, incremented in acquire_mutex
+# and zero'd out in release_mutex
           
 
 # Creates and returns a handle to a Mutex
-def createMutex(name):
+def create_mutex(name):
   """
   <Purpose>
     Creates and returns a handle to a mutex
@@ -1129,29 +1129,29 @@ def createMutex(name):
     handle to the mutex.
   """
   # Attempt to create Mutex
-  handle = _createMutex(None, 0, unicode(name))
+  handle = _create_mutex(None, 0, unicode(name))
   
   # Check for a successful handle
   if not handle == False: 
     # Try to acquire the mutex for 200 milliseconds, check if it is abandoned
-    val = _waitForSingleObject(handle, 200)
+    val = _wait_for_single_object(handle, 200)
     
     # If the mutex is signaled, or abandoned release it
     # If it was abandoned, it will become normal now
     if (val == WAIT_OBJECT_0) or (val == WAIT_ABANDONED):
-      _releaseMutex(handle)
+      _release_mutex(handle)
     
     # Initialize the lock count to 0, since it has not been signaled yet.
-    _MutexLockCount[handle] = 0
+    _mutex_lock_count[handle] = 0
     return handle
   else: # Raise exception on failure
-    raise FailedMutex, (_getLastError(), "Error creating mutex! Mutex name: " + str(name) + " Error Str: " + str(ctypes.WinError()))
+    raise FailedMutex, (_get_last_error(), "Error creating mutex! Mutex name: " + str(name) + " Error Str: " + str(ctypes.WinError()))
 
 
 
 # Waits for specified interval to acquire Mutex
 # time should be in milliseconds
-def acquireMutex(handle, time):
+def acquire_mutex(handle, time):
   """
   <Purpose>
     Acquires exclusive control of a mutex
@@ -1170,10 +1170,10 @@ def acquireMutex(handle, time):
   """
   
   # Wait up to time to acquire lock, fail otherwise
-  val = _waitForSingleObject(handle, time)
+  val = _wait_for_single_object(handle, time)
   
   # Update lock count
-  _MutexLockCount[handle] += 1
+  _mutex_lock_count[handle] += 1
   
   # WAIT_OBJECT_0 is returned on success, other on failure
   return (val == WAIT_OBJECT_0) or (val == WAIT_ABANDONED)
@@ -1181,7 +1181,7 @@ def acquireMutex(handle, time):
 
 
 # Releases a mutex
-def releaseMutex(handle):
+def release_mutex(handle):
   """
   <Purpose>
     Releases control of a mutex
@@ -1202,26 +1202,26 @@ def releaseMutex(handle):
   """
   
   # Get the lock count
-  count = _MutexLockCount[handle]
+  count = _mutex_lock_count[handle]
   
   # 0 out the count
-  _MutexLockCount[handle] = 0
+  _mutex_lock_count[handle] = 0
   
   # Attempt to release a Mutex
   for i in range(0, count):
     try:
-      release = _releaseMutex(handle)
+      release = _release_mutex(handle)
   
       # 0 return value means failure
       if release == 0:
-        raise FailedMutex, (_getLastError(), "Error releasing mutex! Mutex id: " + str(handle) + " Error Str: " + str(ctypes.WinError()))
+        raise FailedMutex, (_get_last_error(), "Error releasing mutex! Mutex id: " + str(handle) + " Error Str: " + str(ctypes.WinError()))
     except FailedMutex, e:
       if (e[0] == 288): # 288 is for non-owned mutex, which is ok
         pass
       else:
         raise
 
-def existsOutgoingNetworkSocket(localip, localport, remoteip, remoteport):
+def exists_outgoing_network_socket(localip, localport, remoteip, remoteport):
   """
   <Purpose>
     Determines if there exists a network socket with the specified unique tuple.
@@ -1249,16 +1249,16 @@ def existsOutgoingNetworkSocket(localip, localport, remoteip, remoteport):
   remotesocket = remoteip+":"+str(remoteport)+" "
 
   # Construct the command
-  cmdStr = 'netstat -an |find "'+localsocket+'" | find "'+remotesocket+'" | find /I "tcp" '
+  cmdstr = 'netstat -an |find "'+localsocket+'" | find "'+remotesocket+'" | find /I "tcp" '
   
   # Launch up a shell, get the feed back
-  processObject = subprocess.Popen(cmdStr, stdout=subprocess.PIPE, shell=True)
+  process_obj = subprocess.Popen(cmdstr, stdout=subprocess.PIPE, shell=True)
   
   # Get the output
-  socketentries = processObject.stdout.readlines()
+  socketentries = process_obj.stdout.readlines()
   
   # Close the pipe
-  processObject.stdout.close()
+  process_obj.stdout.close()
   
   # Check each line, to make sure the local socket comes before the remote socket
   # Since we are just using find, the "order" is not imposed, so if the remote socket
@@ -1284,7 +1284,7 @@ def existsOutgoingNetworkSocket(localip, localport, remoteip, remoteport):
   else:
     return (False, None)
 
-def existsListeningNetworkSocket(ip, port, tcp):
+def exists_listening_network_socket(ip, port, tcp):
   """
   <Purpose>
     Determines if there exists a network socket with the specified ip and port which is the LISTEN state.
@@ -1402,7 +1402,7 @@ def _fetch_ipconfig_infomation():
   return info_dict    
 
 
-def getAvailableInterfaces():
+def get_available_interfaces():
   """
   <Purpose>
     Returns a list of available network interfaces.
@@ -1428,7 +1428,7 @@ def getAvailableInterfaces():
   return ipconfig_data_keys
 
 
-def getInterfaceIPAddresses(interfaceName):
+def get_interface_ip_addresses(interfaceName):
   """
   <Purpose>
     Returns the IP address associated with the interface.
@@ -1461,42 +1461,42 @@ def getInterfaceIPAddresses(interfaceName):
 
 # Get information about a process CPU use times
 # Windows CE does not have a GetProcessTimes function, so we will emulate it
-def _processTimesCE(PID):
+def _process_times_ce(pid):
   # Get List of threads related to Process
-  threads = getProcessThreads(PID)
+  threads = get_process_threads(pid)
   
   # Create all the structures needed to make API Call
-  creationTime = _FILETIME()
-  exitTime = _FILETIME()
-  kernelTime = _FILETIME()
-  userTime = _FILETIME()
+  creation_time = _FILETIME()
+  exit_time = _FILETIME()
+  kernel_time = _FILETIME()
+  user_time = _FILETIME()
   
   # Create counters for each category
   # Only adds the "low date time" (see _FILETIME()), since thats what we return
-  creationTimeSum = 0
-  exitTimeSum = 0 # We don't return this, but we keep it anyways
-  kernelTimeSum = 0
-  userTimeSum = 0
+  creation_time_sum = 0
+  exit_time_sum = 0 # We don't return this, but we keep it anyways
+  kernel_time_sum = 0
+  user_time_sum = 0
   
   # Get the process times for each thread
   for t in threads:
     # Open handle to thread
-    handle = getThreadHandle(t)
+    handle = get_thread_handle(t)
   
     # Pass all the structures as pointers into threadTimes
-    _threadTimes(handle, ctypes.pointer(creationTime), ctypes.pointer(exitTime), ctypes.pointer(kernelTime), ctypes.pointer(userTime))
+    _thread_times(handle, ctypes.pointer(creation_time), ctypes.pointer(exit_time), ctypes.pointer(kernel_time), ctypes.pointer(user_time))
   
     # Close thread Handle
-    closeThreadHandle(handle)
+    close_thread_handle(handle)
     
     # Update all the counters
-    creationTimeSum += creationTime.dwLowDateTime
-    exitTimeSum += exitTime.dwLowDateTime
-    kernelTimeSum += kernelTime.dwLowDateTime
-    userTimeSum += userTime.dwLowDateTime
+    creation_time_sum += creation_time.dwLowDateTime
+    exit_time_sum += exit_time.dwLowDateTime
+    kernel_time_sum += kernel_time.dwLowDateTime
+    user_time_sum += user_time.dwLowDateTime
   
   # Return the proper values in a dictionaries
-  return {"CreationTime":creationTimeSum,"KernelTime":kernelTimeSum,"UserTime":userTimeSum}
+  return {"CreationTime":creation_time_sum,"KernelTime":kernel_time_sum,"UserTime":user_time_sum}
 
 
 
@@ -1504,94 +1504,94 @@ def _processTimesCE(PID):
 # so memory usage may be more inaccurate
 # We iterate over all of the process's heap spaces, and tally up the
 # total size, and return that value for all types of usage
-def _processMemoryInfoCE(PID):
-  heapSize = 0 # Keep track of heap size
-  heapList = _HEAPLIST32() # List of heaps
-  heapEntry = _HEAPENTRY32() # Current Heap entry
+def _process_memory_info_ce(pid):
+  heap_size = 0 # Keep track of heap size
+  heap_list = _HEAPLIST32() # List of heaps
+  heap_entry = _HEAPENTRY32() # Current Heap entry
   
-  heapList.dwSize = ctypes.sizeof(_HEAPLIST32)
-  heapEntry.dwSize = ctypes.sizeof(_HEAPENTRY32)
+  heap_list.dwSize = ctypes.sizeof(_HEAPLIST32)
+  heap_entry.dwSize = ctypes.sizeof(_HEAPENTRY32)
   
   # Create Handle to snapshot of all system threads
-  handle = _createSnapshot(TH32CS_SNAPHEAPLIST, PID)
+  handle = _create_snapshot(TH32CS_SNAPHEAPLIST, pid)
   
   # Check if handle was created successfully
   if handle == INVALID_HANDLE_VALUE:
     return {}
   
   # Attempt to read snapshot
-  if not _heapListFirst( handle, ctypes.pointer(heapList)):
-    _closeSnapshot(handle)
-    _closeHandle(handle)
+  if not _heap_list_first( handle, ctypes.pointer(heap_list)):
+    _close_snapshot(handle)
+    _close_handle(handle)
     return {}
   
   # Loop through threads, check for threads associated with the right process
-  moreHeaps = True
-  while (moreHeaps):
+  more_heaps = True
+  while (more_heaps):
     
     # Check if there is a heap entry here
-    if _heapFirst(handle, ctypes.pointer(heapEntry), heapList.th32ProcessID, heapList.th32HeapID):
+    if _heap_first(handle, ctypes.pointer(heap_entry), heap_list.th32ProcessID, heap_list.th32HeapID):
       
       # Loop through available heaps
-      moreEntries = True
-      while moreEntries:
+      more_entries = True
+      while more_entries:
         # Increment the total heap size by the current heap size
-        heapSize += heapEntry.dwBlockSize
+        heap_size += heap_entry.dwBlockSize
         
-        heapEntry.dwSize = ctypes.sizeof(_HEAPENTRY32)
-        moreEntries = _heapNext(handle, ctypes.pointer(heapEntry)) # Go to next Heap entry
+        heap_entry.dwSize = ctypes.sizeof(_HEAPENTRY32)
+        more_entries = _heap_next(handle, ctypes.pointer(heap_entry)) # Go to next Heap entry
     
-    heapList.dwSize = ctypes.sizeof(_HEAPLIST32)
-    moreHeaps = _heapListNext(handle, ctypes.pointer(heapList)) # Go to next Heap List
+    heap_list.dwSize = ctypes.sizeof(_HEAPLIST32)
+    more_heaps = _heap_list_next(handle, ctypes.pointer(heap_list)) # Go to next Heap List
   
   # Cleanup snapshot
-  _closeSnapshot(handle)
-  _closeHandle(handle)
+  _close_snapshot(handle)
+  _close_handle(handle)
   
   # Since we only have one value, return that for all different possible sets
-  return {'PageFaultCount':heapSize,
-          'PeakWorkingSetSize':heapSize,
-          'WorkingSetSize':heapSize,
-          'QuotaPeakPagedPoolUsage':heapSize,
-          'QuotaPagedPoolUsage':heapSize,
-          'QuotaPeakNonPagedPoolUsage':heapSize,
-          'QuotaNonPagedPoolUsage':heapSize,
-          'PagefileUsage':heapSize,
-          'PeakPagefileUsage':heapSize}  
+  return {'PageFaultCount':heap_size,
+          'PeakWorkingSetSize':heap_size,
+          'WorkingSetSize':heap_size,
+          'QuotaPeakPagedPoolUsage':heap_size,
+          'QuotaPagedPoolUsage':heap_size,
+          'QuotaPeakNonPagedPoolUsage':heap_size,
+          'QuotaNonPagedPoolUsage':heap_size,
+          'PagefileUsage':heap_size,
+          'PeakPagefileUsage':heap_size}  
 
 
 # Windows CE does not have a separate handle for threads
 # Since handles and identifiers are interoperable, just return the ID
 # Set process permissions higher or else this will fail
-def _openThreadCE(ThreadID):
+def _open_thread_ce(thread_id):
 	# Save original permissions
-	global _originalPermissionsCE
-	_originalPermissionsCE = _getProcessPermissions()
+	global _original_permissions_ce
+	_original_permissions_ce = _get_process_permissions()
 	
 	# Get full system control
-	_setCurrentProcPermissions(CE_FULL_PERMISSIONS)
+	_set_current_proc_permissions(CE_FULL_PERMISSIONS)
 	
-	return ThreadID
+	return thread_id
 
 # Sets the permission level of the current process
-def _setCurrentProcPermissions(permission):
-	_setProcessPermissions(permission)
+def _set_current_proc_permissions(permission):
+	_set_process_permissions(permission)
 
 # Global variable to store permissions
-_originalPermissionsCE = None
+_original_permissions_ce = None
 
 # Returns the permission level of the current process
-def _getProcessPermissions():
-	return _getCurrentPermissions()
+def _get_process_permissions():
+	return _get_current_permissions()
 
 # Reverts permissions to original
-def _revertPermissions():
-	global _originalPermissionsCE
-	if not _originalPermissionsCE == None:
-		_setCurrentProcPermissions(_originalPermissionsCE)
+def _revert_permissions():
+	global _original_permissions_ce
+	if not _original_permissions_ce == None:
+		_set_current_proc_permissions(_original_permissions_ce)
 
 # Returns ID of current thread on WinCE
-def _currentThreadIdCE():
+def _current_thread_id_ce():
   # We need to check this specific memory address
   loc = ctypes.cast(0xFFFFC808, ctypes.POINTER(ctypes.c_ulong))
   # Then follow the pointer to get the value there
@@ -1599,14 +1599,14 @@ def _currentThreadIdCE():
 
 # Over ride this for CE
 if MobileCE:
-  _currentThreadId = _currentThreadIdCE
+  _current_thread_id = _current_thread_id_ce
   
 ## Resource Determining Functions
 # For number of CPU's check the %NUMBER_OF_PROCESSORS% Environment variable 
 
 
 # Determines available and used disk space
-def diskUtil(directory):
+def disk_util(directory):
   """"
   <Purpose>
     Gets information about disk utilization, and free space.
@@ -1622,29 +1622,29 @@ def diskUtil(directory):
   <Returns>
     Dictionary with the following indices:
     bytesAvailable: The number of bytes available to the current user
-    totalBytes: The total number of bytes
+    total_bytes: The total number of bytes
     freeBytes: The total number of free bytes
   """  
   # Define values that need to be passed to the function
-  bytesFree = ULARGE_INTEGER(0)
-  totalBytes = ULARGE_INTEGER(0)
-  totalFreeBytes = ULARGE_INTEGER(0)
+  bytes_free = ULARGE_INTEGER(0)
+  total_bytes = ULARGE_INTEGER(0)
+  total_free_bytes = ULARGE_INTEGER(0)
   
   # Allow for a Null parameter
   dirchk = None
   if not directory == None:
     dirchk = unicode(directory)
   
-  status = _freeDiskSpace(dirchk, ctypes.pointer(bytesFree), ctypes.pointer(totalBytes), ctypes.pointer(totalFreeBytes))
+  status = _free_disk_space(dirchk, ctypes.pointer(bytes_free), ctypes.pointer(total_bytes), ctypes.pointer(total_free_bytes))
     
   # Check if we succeded
   if status == 0:
     raise EnvironmentError("Failed to determine free disk space: Directory: "+directory)
   
-  return {"bytesAvailable":bytesFree.value,"totalBytes":totalBytes.value,"freeBytes":totalFreeBytes.value}
+  return {"bytesAvailable":bytes_free.value,"total_bytes":total_bytes.value,"freeBytes":total_free_bytes.value}
 
 # Get global memory information
-def globalMemoryInfo():
+def global_memory_info():
   """"
   <Purpose>
     Gets information about memory utilization
@@ -1665,44 +1665,44 @@ def globalMemoryInfo():
   # Check if it is CE
   if MobileCE:
     # Use the CE specific function
-    return _globalMemoryInfoCE()
+    return _global_memory_info_ce()
     
   # Initialize the data structure
-  memInfo = _MEMORYSTATUSEX() # Memory usage ints
-  memInfo.dwLength = ctypes.sizeof(_MEMORYSTATUSEX)
+  mem_info = _MEMORYSTATUSEX() # Memory usage ints
+  mem_info.dwLength = ctypes.sizeof(_MEMORYSTATUSEX)
   
   # Make the call, save the status
-  status = _globalMemoryStatus(ctypes.pointer(memInfo))
+  status = _global_memory_status(ctypes.pointer(mem_info))
  
   # Check if we succeded
   if status == 0:
     raise EnvironmentError("Failed to get global memory info!")
 
   # Return Dictionary
-  return {"load":memInfo.dwMemoryLoad,
-  "totalPhysical":memInfo.ullTotalPhys,
-  "availablePhysical":memInfo.ullAvailPhys,
-  "totalPageFile":memInfo.ullTotalPageFile,
-  "availablePageFile":memInfo.ullAvailPageFile,
-  "totalVirtual":memInfo.ullTotalVirtual,
-  "availableVirtual":memInfo.ullAvailVirtual}
+  return {"load":mem_info.dwMemoryLoad,
+  "totalPhysical":mem_info.ullTotalPhys,
+  "availablePhysical":mem_info.ullAvailPhys,
+  "totalPageFile":mem_info.ullTotalPageFile,
+  "availablePageFile":mem_info.ullAvailPageFile,
+  "totalVirtual":mem_info.ullTotalVirtual,
+  "availableVirtual":mem_info.ullAvailVirtual}
     
-def _globalMemoryInfoCE():
+def _global_memory_info_ce():
   # Initialize the data structure
-  memInfo = _MEMORYSTATUS() # Memory usage ints
-  memInfo.dwLength = ctypes.sizeof(_MEMORYSTATUS)
+  mem_info = _MEMORYSTATUS() # Memory usage ints
+  mem_info.dwLength = ctypes.sizeof(_MEMORYSTATUS)
   
   # Make the call
-  _globalMemoryStatus(ctypes.pointer(memInfo))
+  _global_memory_status(ctypes.pointer(mem_info))
   
   # Return Dictionary
-  return {"load":memInfo.dwMemoryLoad,
-  "totalPhysical":memInfo.dwTotalPhys,
-  "availablePhysical":memInfo.dwAvailPhys,
-  "totalPageFile":memInfo.dwTotalPageFile,
-  "availablePageFile":memInfo.dwAvailPageFile,
-  "totalVirtual":memInfo.dwTotalVirtual,
-  "availableVirtual":memInfo.dwAvailVirtual}
+  return {"load":mem_info.dwMemoryLoad,
+  "totalPhysical":mem_info.dwTotalPhys,
+  "availablePhysical":mem_info.dwAvailPhys,
+  "totalPageFile":mem_info.dwTotalPageFile,
+  "availablePageFile":mem_info.dwAvailPageFile,
+  "totalVirtual":mem_info.dwTotalVirtual,
+  "availableVirtual":mem_info.dwAvailVirtual}
   
   
   

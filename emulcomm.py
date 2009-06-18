@@ -134,7 +134,7 @@ def update_ip_cache():
       else:
         try:
           # Get the IP's associated with the NIC
-          interface_ips = nonportable.osAPI.getInterfaceIPAddresses(value)
+          interface_ips = nonportable.os_api.get_interface_ip_addresses(value)
           for interface_ip in interface_ips:
             unique_append(allowed_list, interface_ip)
         except:
@@ -892,7 +892,7 @@ def cleanup(handle):
       # another process binds to the ip/port we are checking. This would cause us to detect
       # the socket from the other process and we would block indefinately while that socket
       # is open.
-      while nonportable.osAPI.existsListeningNetworkSocket(ip,port, tcp):
+      while nonportable.os_api.exists_listening_network_socket(ip,port, tcp):
         time.sleep(RETRY_INTERVAL)
         
 
@@ -1253,7 +1253,7 @@ def openconn(desthost, destport,localip=None, localport=None,timeout=5.0):
   exists = True
   while exists and nonportable.getruntime() - starttime < timeout:
     # Update the status
-    (exists, status) = nonportable.osAPI.existsOutgoingNetworkSocket(localip,localport,desthost,destport)
+    (exists, status) = nonportable.os_api.exists_outgoing_network_socket(localip,localport,desthost,destport)
     if exists:
       # Check the socket state
       if "ESTABLISH" in status or "CLOSE_WAIT" in status:

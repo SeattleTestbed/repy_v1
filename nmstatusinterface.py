@@ -134,7 +134,7 @@ class nm_interface_thread(threading.Thread):
     # On Windows elevate our priority above the user code.
     if nonportable.ostype in ["Windows", "WindowsCE"]:
       # Elevate our priority, above normal is higher than the usercode
-      nonportable.windowsAPI.setCurrentThreadPriority(nonportable.windowsAPI.THREAD_PRIORITY_ABOVE_NORMAL)
+      nonportable.windows_api.set_current_thread_priority(nonportable.windows_api.THREAD_PRIORITY_ABOVE_NORMAL)
     
     while True:
       # Attempt to get the lock

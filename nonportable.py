@@ -29,11 +29,10 @@ import traceback
 # This may fail on Windows CE
 try:
   import subprocess
-  mobileNoSubprocess = False
+  mobile_no_subprocess = False
 except ImportError:
   # Set flag to avoid using subprocess
-  mobileNoSubprocess = True 
-  pass
+  mobile_no_subprocess = True 
 
 # used for select (duh)
 import select
@@ -58,13 +57,12 @@ statuslock = statusstorage.statuslock
 
 # This will fail on non-windows systems
 try:
-  import windows_api as windowsAPI
+  import windows_api as windows_api
 except:
-  windowsAPI = None
-  pass
+  windows_api = None
 
 # Armon: This is a place holder for the module that will be imported later
-osAPI = None
+os_api = None
 
 # Armon: See additional imports at the bottom of the file
 
@@ -179,7 +177,7 @@ def monitor_cpu_disk_and_mem():
     if ostype == 'WindowsCE':
       nannypath = "\"" + repy_constants.PATH_SEATTLE_INSTALL + 'win_cpu_nanny.py' + "\""
       cmdline = str(os.getpid())+" "+str(nanny.resource_limit("cpu"))+" "+str(repy_constants.CPU_POLLING_FREQ_WINCE)
-      windowsAPI.launchPythonScript(nannypath, cmdline)
+      windows_api.launch_python_script(nannypath, cmdline)
     else:
       WinCPUNannyThread().start()
     
@@ -238,7 +236,7 @@ def portablekill(pid):
 
   elif ostype == 'Windows' or ostype == 'WindowsCE':
     # Use new api
-    windowsAPI.killProcess(pid)
+    windows_api.kill_process(pid)
     
   else:
     raise UnsupportedSystemException, "Unsupported system type: '"+osrealtype+"' (alias: "+ostype+")"
@@ -292,7 +290,7 @@ def getruntime():
   
   # Check if Linux or BSD/Mac
   if ostype in ["Linux", "Darwin"]:
-    uptime = osAPI.getSystemUptime()
+    uptime = os_api.get_system_uptime()
 
     # Check if time is going backward
     if uptime < last_uptime:
@@ -368,13 +366,13 @@ class WindowsNannyThread(threading.Thread):
   def run(self):
     # Calculate how often disk should be checked
     if ostype == "WindowsCE":
-      diskInterval = int(repy_constants.RESOURCE_POLLING_FREQ_WINCE / repy_constants.CPU_POLLING_FREQ_WINCE)
+      disk_interval = int(repy_constants.RESOURCE_POLLING_FREQ_WINCE / repy_constants.CPU_POLLING_FREQ_WINCE)
     else:
-      diskInterval = int(repy_constants.RESOURCE_POLLING_FREQ_WIN / repy_constants.CPU_POLLING_FREQ_WIN)
-    currentInterval = 0 # What cycle are we on  
+      disk_interval = int(repy_constants.RESOURCE_POLLING_FREQ_WIN / repy_constants.CPU_POLLING_FREQ_WIN)
+    current_interval = 0 # What cycle are we on  
     
     # Elevate our priority, above normal is higher than the usercode, and is enough for disk/mem
-    windowsAPI.setCurrentThreadPriority(windowsAPI.THREAD_PRIORITY_ABOVE_NORMAL)
+    windows_api.set_current_thread_priority(windows_api.THREAD_PRIORITY_ABOVE_NORMAL)
     
     # need my pid to get a process handle...
     mypid = os.getpid()
@@ -383,17 +381,17 @@ class WindowsNannyThread(threading.Thread):
     while True:
       try:
         # Check memory use, get the WorkingSetSize or RSS
-        memused = windowsAPI.processMemoryInfo(mypid)['WorkingSetSize']
+        memused = windows_api.process_memory_info(mypid)['WorkingSetSize']
         
         if memused > nanny.resource_limit("memory"):
           # We will be killed by the other thread...
           raise Exception, "Memory use '"+str(memused)+"' over limit '"+str(nanny.resource_limit("memory"))+"'"
         
         # Increment the interval we are on
-        currentInterval += 1
+        current_interval += 1
 
         # Check if we should check the disk
-        if (currentInterval % diskInterval) == 0:
+        if (current_interval % disk_interval) == 0:
           # Check diskused
           diskused = misc.compute_disk_use(repy_constants.REPY_CURRENT_DIR)
           if diskused > nanny.resource_limit("diskused"):
@@ -404,7 +402,7 @@ class WindowsNannyThread(threading.Thread):
         else:
           time.sleep(repy_constants.CPU_POLLING_FREQ_WIN)
         
-      except windowsAPI.DeadProcess:
+      except windows_api.DeadProcess:
         #  Process may be dead, or die while checking memory use
         #  In any case, there is no reason to continue running, just exit
         harshexit(99)
@@ -424,7 +422,7 @@ def win_check_cpu_use(cpulim, pid):
   
   # get use information and time...
   now = getruntime()
-  usedata = windowsAPI.processTimes(pid)
+  usedata = windows_api.process_times(pid)
 
   # Add kernel and user time together...   It's in units of 100ns so divide
   # by 10,000,000
@@ -457,7 +455,7 @@ def win_check_cpu_use(cpulim, pid):
   stoptime = nanny.calculate_cpu_sleep_interval(cpulim, percentused,elapsedtime)
 
   # Call new api to suspend/resume process and sleep for specified time
-  if windowsAPI.timeoutProcess(pid, stoptime):
+  if windows_api.timeout_process(pid, stoptime):
     # Return how long we slept so parent knows whether it should sleep
     return stoptime
   else:
@@ -476,11 +474,11 @@ class WinCPUNannyThread(threading.Thread):
       
   def run(self):
     # Elevate our priority, set us to the highest so that we can more effectively throttle
-    success = windowsAPI.setCurrentThreadPriority(windowsAPI.THREAD_PRIORITY_HIGHEST)
+    success = windows_api.set_current_thread_priority(windows_api.THREAD_PRIORITY_HIGHEST)
     
     # If we failed to get HIGHEST priority, try above normal, else we're still at default
     if not success:
-      windowsAPI.setCurrentThreadPriority(windowsAPI.THREAD_PRIORITY_ABOVE_NORMAL)
+      windows_api.set_current_thread_priority(windows_api.THREAD_PRIORITY_ABOVE_NORMAL)
     
     # Run while the process is running
     while True:
@@ -498,7 +496,7 @@ class WinCPUNannyThread(threading.Thread):
         elif (slept < frequency):
           time.sleep(frequency-slept)
 
-      except windowsAPI.DeadProcess:
+      except windows_api.DeadProcess:
         #  Process may be dead
         harshexit(97)
         
@@ -613,7 +611,7 @@ class parent_process_checker(threading.Thread):
 
 
 # For *NIX systems, there is an external process, and the 
-# PID for the actual repy process is stored here
+# pid for the actual repy process is stored here
 repy_process_id = None
 
 # Forks Repy. The child will continue execution, and the parent
@@ -666,7 +664,7 @@ def do_forked_resource_monitor():
       pass
   
   try:
-    # Some OS's require that you wait on the PID at least once
+    # Some OS's require that you wait on the pid at least once
     # before they do any accounting
     (pid, status) = os.waitpid(childpid,os.WNOHANG)
     
@@ -702,48 +700,48 @@ def resource_monitor(childpid):
     
   <Arguments>
     childpid:
-      The child pid, e.g. the PID of repy
+      The child pid, e.g. the pid of repy
   """
   # Get our pid
   ourpid = os.getpid()
   
   # Calculate how often disk should be checked
-  diskInterval = int(repy_constants.RESOURCE_POLLING_FREQ_LINUX / repy_constants.CPU_POLLING_FREQ_LINUX)
-  currentInterval = 0 # What cycle are we on  
+  disk_interval = int(repy_constants.RESOURCE_POLLING_FREQ_LINUX / repy_constants.CPU_POLLING_FREQ_LINUX)
+  current_interval = 0 # What cycle are we on  
   
   # Store time of the last interval
-  lastTime = getruntime()
-  lastCPUTime = 0
-  resumeTime = 0 
+  last_time = getruntime()
+  last_CPU_time = 0
+  resume_time = 0 
   
   # Run forever...
   while True:
     ########### Check CPU ###########
     # Get elasped time
     currenttime = getruntime()
-    elapsedtime1 = currenttime - lastTime     # Calculate against last run
-    elapsedtime2 = currenttime - resumeTime   # Calculate since we last resumed repy
+    elapsedtime1 = currenttime - last_time     # Calculate against last run
+    elapsedtime2 = currenttime - resume_time   # Calculate since we last resumed repy
     elapsedtime = min(elapsedtime1, elapsedtime2) # Take the minimum interval
-    lastTime = currenttime  # Save the current time
+    last_time = currenttime  # Save the current time
     
     # Safety check, prevent ZeroDivisionError
     if elapsedtime == 0.0:
       continue
     
     # Get the total cpu at this point
-    totalCPU =  osAPI.getProcessCPUTime(ourpid)   # Our own usage
-    totalCPU += osAPI.getProcessCPUTime(childpid) # Repy's usage
+    totalCPU =  os_api.get_process_cpu_time(ourpid)   # Our own usage
+    totalCPU += os_api.get_process_cpu_time(childpid) # Repy's usage
     
     # Calculate percentage of CPU used
-    percentused = (totalCPU - lastCPUTime) / elapsedtime
+    percentused = (totalCPU - last_CPU_time) / elapsedtime
     
     # Do not throttle for the first interval, wrap around
     # Store the totalCPU for the next cycle
-    if lastCPUTime == 0:
-      lastCPUTime = totalCPU    
+    if last_CPU_time == 0:
+      last_CPU_time = totalCPU    
       continue
     else:
-      lastCPUTime = totalCPU
+      last_CPU_time = totalCPU
       
     # Calculate stop time
     stoptime = nanny.calculate_cpu_sleep_interval(nanny.resource_limit("cpu"), percentused, elapsedtime)
@@ -760,7 +758,7 @@ def resource_monitor(childpid):
       os.kill(childpid, signal.SIGCONT)
       
       # Save the resume time
-      resumeTime = getruntime()
+      resume_time = getruntime()
       
     
     ########### End Check CPU ###########
@@ -768,7 +766,7 @@ def resource_monitor(childpid):
     ########### Check Memory ###########
     
     # Get how much memory repy is using
-    memused = osAPI.getProcessRSS()
+    memused = os_api.get_process_rss()
     
     # Check if it is using too much memory
     if memused > nanny.resource_limit("memory"):
@@ -778,12 +776,12 @@ def resource_monitor(childpid):
     # 
     ########### Check Disk Usage ###########
     # Increment our current cycle
-    currentInterval += 1;
+    current_interval += 1;
     
     # Check if it is time to check the disk usage
-    if (currentInterval % diskInterval) == 0:
+    if (current_interval % disk_interval) == 0:
       # Reset the interval
-      currentInterval = 0
+      current_interval = 0
        
       # Calculate disk used
       diskused = misc.compute_disk_use(repy_constants.REPY_CURRENT_DIR)
@@ -851,10 +849,10 @@ def calculate_granularity():
     
     # Loop while the granularity is incorrect, up to 10 times
     while not correctGranularity and tests <= 10:
-      current_granularity = osAPI.getUptimeGranularity()
-      uptime_pre = osAPI.getSystemUptime()
+      current_granularity = os_api.get_uptime_granularity()
+      uptime_pre = os_api.get_system_uptime()
       time.sleep(current_granularity / 10)
-      uptime_post = osAPI.getSystemUptime()
+      uptime_post = os_api.get_system_uptime()
     
       diff = uptime_post - uptime_pre
     
@@ -864,7 +862,7 @@ def calculate_granularity():
     granularity = current_granularity
     
   elif ostype == "Darwin":
-    granularity = osAPI.getUptimeGranularity()
+    granularity = os_api.get_uptime_granularity()
     
     
 # Call init_ostype!!!
@@ -872,14 +870,14 @@ init_ostype()
 
 # Import the proper system wide API
 if osrealtype == "Linux":
-  import linux_api as osAPI
+  import linux_api as os_api
 elif osrealtype == "Darwin":
-  import darwin_api as osAPI
+  import darwin_api as os_api
 elif osrealtype == "FreeBSD":
-  import freebsd_api as osAPI
+  import freebsd_api as os_api
 elif ostype == "Windows" or ostype == "WindowsCE":
   # There is no real reason to do this, since windows is imported separately
-  import windows_api as osAPI
+  import windows_api as os_api
 else:
   # This is a non-supported OS
   raise UnsupportedSystemException, "The current Operating System is not supported! Fatal Error."

@@ -15,13 +15,13 @@ import ctypes.util  # Helps to find the C library
 import os           # Provides some convenience functions
 import subprocess
 
-import nix_common_api as nixAPI # Import the Common API
+import nix_common_api as nix_api # Import the Common API
 
 # Manually import the common functions we want
-existsOutgoingNetworkSocket = nixAPI.existsOutgoingNetworkSocket
-existsListeningNetworkSocket = nixAPI.existsListeningNetworkSocket
-getAvailableInterfaces = nixAPI.getAvailableInterfaces
-getInterfaceIPAddresses = nixAPI.getInterfaceIPAddresses
+exists_outgoing_network_socket = nix_api.exists_outgoing_network_socket
+exists_listening_network_socket = nix_api.exists_listening_network_socket
+get_available_interfaces = nix_api.get_available_interfaces
+get_interface_ip_addresses = nix_api.get_interface_ip_addresses
 
 # Get the standard library
 libc = ctypes.CDLL(ctypes.util.find_library("c"))
@@ -30,13 +30,13 @@ libc = ctypes.CDLL(ctypes.util.find_library("c"))
 myopen = open # This is an annoying restriction of repy
 
 # Globals
-lastStatData = None   # Store the last array of data from _getProcInfoByPID
+last_stat_data = None   # Store the last array of data from _get_proc_info_by_pid
 
 # Constants
 JIFFIES_PER_SECOND = 100.0
 PAGE_SIZE = os.sysconf('SC_PAGESIZE')
 
-# Maps each field in /proc/{PID}/stat to an index when split by spaces
+# Maps each field in /proc/{pid}/stat to an index when split by spaces
 FIELDS = {
 "pid":0,
 "state":1,
@@ -82,18 +82,18 @@ FIELDS = {
 }
 
 
-def _getProcInfoByPID(PID):
+def _get_proc_info_by_pid(pid):
   """
   <Purpose>
     Reads in the data from a process stat file, and stores it
   
   <Arguments>
-    PID: The process identifier for which data should be fetched.  
+    pid: The process identifier for which data should be fetched.  
   """
-  global lastStatData
+  global last_stat_data
 
   # Get the file in proc
-  fileo = open("/proc/"+str(PID)+"/stat","r")
+  fileo = open("/proc/"+str(pid)+"/stat","r")
 
   # Read in all the data
   data = fileo.read()
@@ -105,76 +105,76 @@ def _getProcInfoByPID(PID):
   data = data.strip("\n")
 
   # Remove the substring that says "(python)", since it changes the field alignment
-  startIndex = data.find("(")
-  if startIndex != -1:
-    endIndex = data.find(")",startIndex)
-    data = data[:startIndex-1] + data[endIndex+1:]
+  start_index = data.find("(")
+  if start_index != -1:
+    end_index = data.find(")", start_index)
+    data = data[:start_index-1] + data[end_index+1:]
 
   # Break the data into an array by spaces
-  lastStatData = data.split(" ")
+  last_stat_data = data.split(" ")
   
   # Check the state, raise an exception if the process is a zombie
-  if "Z" in lastStatData[FIELDS["state"]]:
+  if "Z" in last_stat_data[FIELDS["state"]]:
     raise Exception, "Queried Process is a zombie (dead)!"
   
   
-def getProcessCPUTime(PID):
+def get_process_cpu_time(pid):
   """
   <Purpose>
     Returns the total CPU time used by a process.
     
   <Arguments>
-    PID: The process identifier for the process to query.
+    pid: The process identifier for the process to query.
   
   <Returns>
     The total cpu time.
   """
-  global lastStatData
+  global last_stat_data
   
   # Update our data
-  _getProcInfoByPID(PID)
+  _get_proc_info_by_pid(pid)
   
   # Get the raw usertime and system time
-  totalTimeRaw = int(lastStatData[FIELDS["utime"]])+int(lastStatData[FIELDS["stime"]])
+  total_time_raw = int(last_stat_data[FIELDS["utime"]])+int(last_stat_data[FIELDS["stime"]])
   
   # Adjust by the number of jiffies per second
-  totalTime = totalTimeRaw / JIFFIES_PER_SECOND
+  total_time = total_time_raw / JIFFIES_PER_SECOND
   
-  return totalTime
+  return total_time
 
 
-def getProcessRSS(forceUpdate=False,PID=None):
+def get_process_rss(force_update=False, pid=None):
   """
   <Purpose>
     Returns the Resident Set Size of a process. By default, this will
-    return the information cached by the last call to _getProcInfoByPID.
-    This call is used in getProcessCPUTime.
+    return the information cached by the last call to _get_proc_info_by_pid.
+    This call is used in get_process_cpu_time.
 
   <Arguments>
-    forceUpdate:
+    force_update:
       Allows the caller to force a data update, instead of using the cached data.
 
-    PID:
-      If forceUpdate is True, this parameter must be specified to force the update.
+    pid:
+      If force_update is True, this parameter must be specified to force the update.
 
   <Returns>
     The RSS of the process in bytes.
   """
-  global lastStatData
+  global last_stat_data
 
   # Check if an update is being forced
-  if forceUpdate and PID != None:
+  if force_update and pid != None:
     # Update the info
-    _getProcInfoByPID(PID)
+    _get_proc_info_by_pid(pid)
 
   # Fetch the RSS, convert to an integer
-  RSS_Pages = int(lastStatData[FIELDS["rss"]])
-  RSS_Bytes = RSS_Pages * PAGE_SIZE
+  rss_pages = int(last_stat_data[FIELDS["rss"]])
+  rss_bytes = rss_pages * PAGE_SIZE
 
   # Return the info
-  return RSS_Bytes
+  return rss_bytes
 
-def getSystemUptime():
+def get_system_uptime():
   """
   <Purpose>
     Returns the system uptime.
@@ -187,25 +187,25 @@ def getSystemUptime():
   """
   if os.path.exists("/proc/uptime"):
     # Open the file
-    fileHandle = myopen('/proc/uptime', 'r')
+    fh = myopen('/proc/uptime', 'r')
     
     # Read in the whole file
-    data = fileHandle.read() 
+    data = fh.read() 
     
     # Split the file by commas, grap the first number and convert to a float
     uptime = float(data.split(" ")[0])
     
     # Close the file
-    fileHandle.close()
+    fh.close()
     
     return uptime
   else:
     raise Exception, "Could not find /proc/uptime!"
   
-def getUptimeGranularity():
+def get_uptime_granularity():
   """
   <Purpose>
-    Determines the granularity of the getSystemUptime call.
+    Determines the granularity of the get_system_uptime call.
   
   <Exception>
     Raises Exception if /proc/uptime is unavailable
@@ -216,19 +216,19 @@ def getUptimeGranularity():
   """
   if os.path.exists("/proc/uptime"):
     # Open the file
-    fileHandle = myopen('/proc/uptime', 'r')
+    fh = myopen('/proc/uptime', 'r')
   
     # Read in the whole file
-    data = fileHandle.read()
+    data = fh.read()
   
     # Split the file by commas, grap the first number
     uptime = data.split(" ")[0]
-    uptimeDigits = len(uptime.split(".")[1])
+    uptime_digits = len(uptime.split(".")[1])
   
     # Close the file
-    fileHandle.close()
+    fh.close()
   
-    granularity = uptimeDigits
+    granularity = uptime_digits
     
     # Convert granularity to a number
     return pow(10, 0-granularity)
@@ -236,7 +236,7 @@ def getUptimeGranularity():
     raise Exception, "Could not find /proc/uptime!"  
 
 
-def getSystemThreadCount():
+def get_system_thread_count():
   """
   <Purpose>
     Returns the number of active threads running on the system.

@@ -18,13 +18,13 @@ import subprocess
 
 import freebsd_kinfo  # Imports the kinfo structure, along with others
 
-import nix_common_api as nixAPI # Import the Common API
+import nix_common_api as nix_api # Import the Common API
 
 # Manually import the common functions we want
-existsOutgoingNetworkSocket = nixAPI.existsOutgoingNetworkSocket
-existsListeningNetworkSocket = nixAPI.existsListeningNetworkSocket
-getAvailableInterfaces = nixAPI.getAvailableInterfaces
-getInterfaceIPAddresses = nixAPI.getInterfaceIPAddresses
+exists_outgoing_network_socket = nix_api.exists_outgoing_network_socket
+exists_listening_network_socket = nix_api.exists_listening_network_socket
+get_available_interfaces = nix_api.get_available_interfaces
+get_interface_ip_addresses = nix_api.get_interface_ip_addresses
 
 # Get the standard library
 libc = ctypes.CDLL(ctypes.util.find_library("c"))
@@ -32,8 +32,8 @@ libc = ctypes.CDLL(ctypes.util.find_library("c"))
 # Globals
 # Cache the last process info struct so as to avoid redundant memory allocation
 # and to fetch additional info without constantly updating
-lastProcInfoStruct = None
-lastProcInfoSize   = 0    # Stores the size of the struct
+last_proc_info_struct = None
+last_proc_info_size   = 0    # Stores the size of the struct
 
 # Functions
 _sysctl = libc.sysctl # Makes system calls
@@ -57,24 +57,24 @@ class timeval(ctypes.Structure):
 # This functions helps to conveniently retrieve the errno
 # of the last call. This is a bit tedious to do, since 
 # Python doesn't understand that this is a globally defined int
-def getCtypesErrno():
-  errnoPointer = ctypes.cast(libc.errno, ctypes.POINTER(ctypes.c_int32))
-  errVal = errnoPointer.contents
-  return errVal.value
+def get_ctypes_errno():
+  errno_pointer = ctypes.cast(libc.errno, ctypes.POINTER(ctypes.c_int32))
+  err_val = errno_pointer.contents
+  return err_val.value
 
 # Returns the string version of the errno  
-def getCtypesErrorStr():
-  errornum = getCtypesErrno()
+def get_ctypes_error_str():
+  errornum = get_ctypes_errno()
   return ctypes.cast(libc.strerror(errornum), ctypes.c_char_p).value
   
 
-def _getProcInfoByPID(PID):
+def _get_proc_info_by_pid(pid):
   """
   <Purpose>
     Immediately updates the internal kinfo_proc structure.
   
   <Arguments>
-    PID: The Process Identifier for which data should be retrieved
+    pid: The Process Identifier for which data should be retrieved
   
   <Exceptions>
     Raises an Exception if there is an error.
@@ -82,56 +82,56 @@ def _getProcInfoByPID(PID):
   <Returns>
     Nothing
   """
-  global lastProcInfoStruct
-  global lastProcInfoSize
+  global last_proc_info_struct
+  global last_proc_info_size
   
   # Create the argument array
-  mib = FourIntegers(CTL_KERN, KERN_PROC, KERN_PROC_PID, PID)
+  mib = FourIntegers(CTL_KERN, KERN_PROC, KERN_PROC_PID, pid)
   
   # Check if we need to allocate a structure
-  if lastProcInfoStruct == None:
+  if last_proc_info_struct == None:
     # Allocate a kinfo structure
-    lastProcInfoStruct = kinfo_proc(0)
-    lastProcInfoSize  = ctypes.c_int(0)
+    last_proc_info_struct = kinfo_proc(0)
+    last_proc_info_size  = ctypes.c_int(0)
     
     # Make a system call without a pointer to the kinfo structure, this sets
     # ths proper size of the structure for future system calls
-    status = _sysctl(mib, 4, None, ctypes.byref(lastProcInfoSize), None, 0)
+    status = _sysctl(mib, 4, None, ctypes.byref(last_proc_info_size), None, 0)
     
     # Check the status
     if status != 0:
-      raise Exception,"Fatal error with sysctl. Errno:"+str(getCtypesErrno())+", Error: "+getCtypesErrorStr()
+      raise Exception,"Fatal error with sysctl. Errno:"+str(get_ctypes_errno())+", Error: "+get_ctypes_error_str()
   
   
   # Make the call to update
-  status = _sysctl(mib, 4, ctypes.byref(lastProcInfoStruct), ctypes.byref(lastProcInfoSize), None, 0)
+  status = _sysctl(mib, 4, ctypes.byref(last_proc_info_struct), ctypes.byref(last_proc_info_size), None, 0)
   
   # Check the status
   if status != 0:
-    raise Exception,"Fatal error with sysctl. Errno:"+str(getCtypesErrno())+", Error: "+getCtypesErrorStr()
+    raise Exception,"Fatal error with sysctl. Errno:"+str(get_ctypes_errno())+", Error: "+get_ctypes_error_str()
     
 
-def getProcessCPUTime(PID):
+def get_process_cpu_time(pid):
   """
   <Purpose>
     Returns the total CPU time used by a process.
 
   <Arguments>
-    PID: The process identifier for the process to query.
+    pid: The process identifier for the process to query.
 
   <Exceptions>
-    See _getProcInfoByPID.
+    See _get_proc_info_by_pid.
 
   <Returns>
     The total cpu time.
   """
-  global lastProcInfoStruct
+  global last_proc_info_struct
   
   # Update the info
-  _getProcInfoByPID(PID)
+  _get_proc_info_by_pid(pid)
   
   # Get the rusage field in the structure
-  ru = lastProcInfoStruct.ki_rusage
+  ru = last_proc_info_struct.ki_rusage
   
   # Calculate user time and system, for the process and its children,
   # divide by 1 million since the usec field is in microseconds
@@ -139,54 +139,54 @@ def getProcessCPUTime(PID):
   stime = ru.ru_stime.tv_sec + ru.ru_stime.tv_usec/1000000.0
 
   # Switch ru to the child structure
-  ru = lastProcInfoStruct.ki_rusage_ch
+  ru = last_proc_info_struct.ki_rusage_ch
 
   utime_ch = ru.ru_utime.tv_sec + ru.ru_utime.tv_usec/1000000.0
   stime_ch = ru.ru_stime.tv_sec + ru.ru_stime.tv_usec/1000000.0
   
   # Calculate the total time
-  totalTime = utime + stime + utime_ch + stime_ch
+  total_time = utime + stime + utime_ch + stime_ch
   
-  return totalTime
+  return total_time
 
 
 
-def getProcessRSS(forceUpdate=False,PID=None):
+def get_process_rss(force_update=False, pid=None):
   """
   <Purpose>
     Returns the Resident Set Size of a process. By default, this will
-    return the information cached by the last call to _getProcInfoByPID.
-    This call is used in getProcessCPUTime.
+    return the information cached by the last call to _get_proc_info_by_pid.
+    This call is used in get_process_cpu_time.
 
   <Arguments>
-    forceUpdate:
+    force_update:
       Allows the caller to force a data update, instead of using the cached data.
 
-    PID:
-      If forceUpdate is True, this parameter must be specified to force the update.
+    pid:
+      If force_update is True, this parameter must be specified to force the update.
 
   <Exceptions>
-    See _getProcInfoByPID.
+    See _get_proc_info_by_pid.
 
   <Returns>
     The RSS of the process in bytes.
   """
-  global lastProcInfoStruct
+  global last_proc_info_struct
   
   # Check if an update is being forced
-  if forceUpdate and PID != None:
+  if force_update and pid != None:
     # Update the info
-    _getProcInfoByPID(PID)
+    _get_proc_info_by_pid(pid)
   
   # Get RSS
-  rss_pages = lastProcInfoStruct.ki_rssize
+  rss_pages = last_proc_info_struct.ki_rssize
   rss_bytes = rss_pages * PAGE_SIZE
   
   return rss_bytes
 
 
 # Return the timeval struct with our boottime
-def _getBoottimeStruct():
+def _get_boottime_struct():
   # Get an array with 2 elements, set the syscall parameters
   mib = TwoIntegers(CTL_KERN, KERN_BOOTTIME)
 
@@ -199,7 +199,7 @@ def _getBoottimeStruct():
   
   return boottime
 
-def getSystemUptime():
+def get_system_uptime():
   """
   <Purpose>
     Returns the system uptime.
@@ -208,24 +208,24 @@ def getSystemUptime():
     The system uptime.  
   """
   # Get the boot time struct
-  boottime = _getBoottimeStruct()
+  boottime = _get_boottime_struct()
 
   # Calculate uptime from current time
   uptime = time.time() - boottime.tv_sec+boottime.tv_usec*1.0e-6
 
   return uptime
 
-def getUptimeGranularity():
+def get_uptime_granularity():
   """
   <Purpose>
-    Determines the granularity of the getSystemUptime call.
+    Determines the granularity of the get_system_uptime call.
 
   <Returns>
     A numerical representation of the minimum granularity.
     E.g. 2 digits of granularity would return 0.01
   """
   # Get the boot time struct
-  boottime = _getBoottimeStruct()
+  boottime = _get_boottime_struct()
   
   # Check if the number of nano seconds is 0
   if boottime.tv_usec == 0:
@@ -233,23 +233,23 @@ def getUptimeGranularity():
   
   else:
     # Convert nanoseconds to string
-    nanoSecStr = str(boottime.tv_usec)
+    nanosecondstr = str(boottime.tv_usec)
     
     # Justify with 0's to 9 digits
-    nanoSecStr = nanoSecStr.rjust(9,"0")
+    nanosecondstr = nanosecondstr.rjust(9,"0")
     
     # Strip the 0's on the other side
-    nanoSecStr = nanoSecStr.rstrip("0")
+    nanosecondstr = nanosecondstr.rstrip("0")
     
     # Get granularity from the length of the string
-    granularity = len(nanoSecStr)
+    granularity = len(nanosecondstr)
 
   # Convert granularity to a number
   return pow(10, 0-granularity)
 
 
 
-def getSystemThreadCount():
+def get_system_thread_count():
   """
   <Purpose>
     Returns the number of active threads running on the system.
