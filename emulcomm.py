@@ -51,8 +51,8 @@ import repy_constants
 
 
 # Table of communications structures:
-# {'type':'UDP','localip':ip, 'localport':port,'function':func,'socket':s, outgoing:True}
-# {'type':'TCP','remotehost':None, 'remoteport':None,'localip':None,'localport':None, 'socket':s, 'function':func, outgoing:False}
+# {'type':'UDP','localip':ip, 'localport':port,'function':func,'socket':s, outgoing:True, 'closing_lock':lockobj}
+# {'type':'TCP','remotehost':None, 'remoteport':None,'localip':None,'localport':None, 'socket':s, 'function':func, outgoing:False, 'closing_lock':lockobj}
 
 comminfo = {}
 
@@ -470,7 +470,7 @@ def start_event(entry, handle,eventhandle):
     # put this handle in the table
     newhandle = generate_commhandle()
     safesocket = emulated_socket(newhandle)
-    comminfo[newhandle] = {'type':'TCP','remotehost':addr[0], 'remoteport':addr[1],'localip':entry['localip'],'localport':entry['localport'],'socket':realsocket,'outgoing':True}
+    comminfo[newhandle] = {'type':'TCP','remotehost':addr[0], 'remoteport':addr[1],'localip':entry['localip'],'localport':entry['localport'],'socket':realsocket,'outgoing':True, 'closing_lock':threading.Lock()}
     # I don't think it makes sense to count this as an outgoing socket, does 
     # it?
 
@@ -864,38 +864,54 @@ RETRY_INTERVAL = 0.2 # In seconds
 
 # Private
 def cleanup(handle):
+  # Armon: lock the cleanup so that only one thread will do the cleanup, but
+  # all the others will block as well
   try:
-    comminfo[handle]['socket'].close()
-  except:
-    pass
+    handle_lock = comminfo[handle]['closing_lock']
+  except KeyError:
+    # Handle a possible race condition, the socket has already been cleaned up.
+    return
+  
+  # Acquire the lock       
+  handle_lock.acquire()
 
   # if it's in the table then remove the entry and tattle...
-  if handle in comminfo:    
-    info = comminfo[handle]  # Store the info
-    del comminfo[handle]
-
-    if info['outgoing']:
-      nanny.tattle_remove_item('outsockets', handle)
-    else:
-      nanny.tattle_remove_item('insockets', handle)
+  try:
+    if handle in comminfo:
+      try:
+        comminfo[handle]['socket'].close()
+      except:
+        pass
       
-      # Armon: Block while the socket is not yet cleaned up
-      # Get the socket info
-      ip = info['localip']
-      port = info['localport']
-      socketType = info['type']
-      tcp = (socketType == 'TCP') # Check if this is a TCP typed connection
-      
-      # Loop until the socket no longer exists
-      # BUG: There exists a potential race condition here. The problem is that
-      # the socket may be cleaned up and then before we are able to check for it again
-      # another process binds to the ip/port we are checking. This would cause us to detect
-      # the socket from the other process and we would block indefinately while that socket
-      # is open.
-      while nonportable.os_api.exists_listening_network_socket(ip,port, tcp):
-        time.sleep(RETRY_INTERVAL)
-        
+      info = comminfo[handle]  # Store the info
 
+      if info['outgoing']:
+        nanny.tattle_remove_item('outsockets', handle)
+      else:
+        nanny.tattle_remove_item('insockets', handle)
+    
+        # Armon: Block while the socket is not yet cleaned up
+        # Get the socket info
+        ip = info['localip']
+        port = info['localport']
+        socketType = info['type']
+        tcp = (socketType == 'TCP') # Check if this is a TCP typed connection
+    
+        # Loop until the socket no longer exists
+        # BUG: There exists a potential race condition here. The problem is that
+        # the socket may be cleaned up and then before we are able to check for it again
+        # another process binds to the ip/port we are checking. This would cause us to detect
+        # the socket from the other process and we would block indefinately while that socket
+        # is open.
+        while nonportable.os_api.exists_listening_network_socket(ip,port, tcp):
+          time.sleep(RETRY_INTERVAL)
+      
+      # Delete the entry last, so that other stopcomm operations will block
+      del comminfo[handle]
+    
+  finally:
+    # Always release the lock
+    handle_lock.release()
 
 
 
@@ -1149,7 +1165,7 @@ def recvmess(localip, localport, function):
     raise
 
   # set up our table entry
-  comminfo[handle] = {'type':'UDP','localip':localip, 'localport':localport,'function':function,'socket':s, 'outgoing':False}
+  comminfo[handle] = {'type':'UDP','localip':localip, 'localport':localport,'function':function,'socket':s, 'outgoing':False, 'closing_lock':threading.Lock() }
 
   # start the selector if it's not running already
   check_selector()
@@ -1285,7 +1301,7 @@ def openconn(desthost, destport,localip=None, localport=None,timeout=5.0):
 
   
     # add the socket to the comminfo table
-    comminfo[handle] = {'type':'TCP','remotehost':None, 'remoteport':None,'localip':localip,'localport':localport,'socket':s, 'outgoing':True}
+    comminfo[handle] = {'type':'TCP','remotehost':None, 'remoteport':None,'localip':localip,'localport':localport,'socket':s, 'outgoing':True, 'closing_lock':threading.Lock()}
   except:
     # the socket wasn't passed to the user prog...
     nanny.tattle_remove_item('outsockets',handle)
@@ -1433,7 +1449,7 @@ def waitforconn(localip, localport,function):
     # NOTE: Should this be anything other than a hardcoded number?
     mainsock.listen(5)
     # set up our table entry
-    comminfo[handle] = {'type':'TCP','remotehost':None, 'remoteport':None,'localip':localip,'localport':localport,'socket':mainsock, 'outgoing':False, 'function':function}
+    comminfo[handle] = {'type':'TCP','remotehost':None, 'remoteport':None,'localip':localip,'localport':localport,'socket':mainsock, 'outgoing':False, 'function':function, 'closing_lock':threading.Lock()}
   except:
     nanny.tattle_remove_item('insockets',handle)
     raise
