@@ -190,11 +190,6 @@ def run_test(fulltestname):
   else:
     failcount = failcount + 1
     logstream.write("FAILED]\n")
-
-    # TODO REMOVE TEMPORARY
-    print endput
-    sys.exit(1)
-    # END TEMPORARY
   logstream.flush()
 
 
