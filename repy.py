@@ -97,6 +97,9 @@ safe._BUILTIN_OK.append("setattr")
 # needed to allow primitive marshalling to be built
 safe._BUILTIN_OK.append("ord")
 safe._BUILTIN_OK.append("chr")
+# should not be used!   Use exitall instead.
+safe._BUILTIN_OK.remove("exit")
+safe._BUILTIN_OK.remove("quit")
 # __repr__ should be harmless, but do we really want to add it?
 safe._STR_OK.append("__repr__")
 # allow __ in strings.   I'm 99% sure this is okay (do I want to risk it?)
