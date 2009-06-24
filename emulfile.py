@@ -267,7 +267,7 @@ class emulated_file:
         # If the filename matches this one, raise an exception.
         if os.path.abspath(fileinfo[fileinfokey]['filename']) == \
             os.path.abspath(filename):
-          raise ArgumentError(\
+          raise ValueError(\
               "A file is only allowed to have one open filehandle.")
 
       assert_is_allowed_filename(filename)
