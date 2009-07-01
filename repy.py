@@ -408,9 +408,9 @@ if __name__ == '__main__':
   progargs = fnlist[2:]
 
   # We also need to pass in whether or not we are going to be using the service
-  # log for repy.  I am counting on this being called here being enough for
-  # its use in all of the various repy modules.  -Brent
-  tracebackrepy.initialize(progname, servicelog)
+  # log for repy.  We provide the repy directory so that the vessel information
+  # can be found regardless of where we are called from...
+  tracebackrepy.initialize(progname, servicelog, absolute_repy_directory)
 
   try:
     main(restrictionsfn, progname, progargs)

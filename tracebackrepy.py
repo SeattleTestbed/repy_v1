@@ -25,6 +25,11 @@ userfilename = None
 # errors.  Defaults to false. -Brent
 servicelog = False
 
+# this is the directory where the node manager resides.   We will use this
+# when deciding where to write our service log.
+logdirectory = None
+
+
 # We need the service logger to log internal errors -Brent
 import servicelogger
 
@@ -35,14 +40,20 @@ import nonportable
 # I'll import the module so I can check the exceptions
 import safe
 
+# needed to get the PID
+import os
+
 
 # sets the user's file name.
 # also sets whether or not the servicelogger is used. -Brent
-def initialize(ufn, log=False):
+def initialize(ufn, useservlog=False, logdir = '.'):
   global userfilename
   global servicelog
+  global logdirectory
   userfilename = ufn
-  servicelog = log
+  servicelog = useservlog
+  logdirectory = logdir
+
 
 # Public: this prints the previous exception in a readable way...
 def handle_exception():
@@ -84,6 +95,8 @@ def handle_exception():
     print >> sys.stderr, "Exception (with "+str(exceptiontype)[1:-1]+"):", exceptionvalue
   else:
     print >> sys.stderr, "Exception (with type "+str(exceptiontype)+"):", exceptionvalue
+
+
 
 
 def handle_internalerror(error_string, exitcode):
@@ -132,18 +145,26 @@ def handle_internalerror(error_string, exitcode):
         # the current pid should avoid any attempts to write to the same file at
         # the same time.
         identifier = str(os.getpid())
-  
-      if identifier == '':
-        # Handle the case where os.cwd might end in a slash.  This probably 
-        # isn't necesary, but the documentation is unclear, so I am including 
-        # it just in case.
-        identifier = str(os.getpid())
+      else:
+        if identifier == '':
+          # If the identifier is blank, use the PID.
+          identifier = str(os.getpid())
     
       # Again we want to ensure that even if we fail to log, we still exit.
       try:
-        servicelogger.multi_process_log(exceptionstring, identifier, '..')
+        servicelogger.multi_process_log(exceptionstring, identifier, logdirectory)
+      except Exception, e:
+        # if an exception occurs, log it (unfortunately, to the user's log)
+        print 'Inner abort of servicelogger'
+        print e,type(e)
+        traceback.print_exc()
       finally:
         nonportable.harshexit(exitcode)
 
+  except Exception, e:
+    # if an exception occurs, log it (unfortunately, to the user's log)
+    print 'Outer abort of servicelogger'
+    print e,type(e)
+    traceback.print_exc()
   finally:
     nonportable.harshexit(842)
