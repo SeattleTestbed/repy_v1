@@ -488,16 +488,13 @@ def do_oddballtests():
     endput = endput+"Stop Test 2\noutput or no errput! out:"+testout+"err:"+ testerr+"\n\n"
 
 
-  # remove the junk file...
-  try:
-    os.remove("junk_test.out")
-  except: 
-    pass
-
-
   # oddball "stop" test3...
   logstream.write("Running test %-50s [" % "Stop Test 3")
   logstream.flush()
+
+  # clean up the stop file if it already exists...
+  if os.path.exists('junk_test.out'):
+    os.remove('junk_test.out')
 
   (testout, testerr) = exec_repy_script('stop_testsleepwrite.py', "restrictions.default", {'stop':'junk_test.out','status':'foo'})
   if testout == '' and testerr == '':
@@ -507,6 +504,29 @@ def do_oddballtests():
     failcount = failcount + 1
     logstream.write("FAILED]\n")
     endput = endput+"Stop Test 3\noutput or errput! out:"+testout+"err:"+ testerr+"\n\n"
+
+
+
+  # "stop" test3, however with an absolute path to the stop file
+  logstream.write("Running test %-50s [" % "Absolute Path Stop Test")
+  logstream.flush()
+
+  # clean up the stop file if it already exists...
+  if os.path.exists('junk_test.out'):
+    os.remove('junk_test.out')
+
+  currentdirectory = os.getcwd()
+  stopfilename = os.path.join(currentdirectory,'junk_test.out')
+
+  (testout, testerr) = exec_repy_script('stop_testsleepwrite.py', "restrictions.default", {'stop':stopfilename,'status':'foo'})
+  if testout == '' and testerr == '':
+    passcount = passcount + 1
+    logstream.write(" PASS ]\n")
+  else:
+    failcount = failcount + 1
+    logstream.write("FAILED]\n")
+    endput = endput+"Absolute Path Stop Test\noutput or errput! out:"+testout+"err:"+ testerr+"\n\n"
+
 
   
   # Test running repy from a sub directory
