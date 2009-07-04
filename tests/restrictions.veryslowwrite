@@ -48,3 +48,4 @@ call exitall allow			# should be harmless
 call log.write allow
 call log.writelines allow
 call getmyip allow
+call getruntime allow

@@ -432,13 +432,12 @@ class emulated_file:
     # wait if it's already over used
     nanny.tattle_quantity('filewrite',0)
 
-    retval = fileinfo[myfilehandle]['fobj'].writelines(writelist)
-    writeamt = 0
     for writeitem in writelist:
-      writeamt = writeamt + len(str(writeitem))
+      strtowrite = str(writeitem)
+      fileinfo[myfilehandle]['fobj'].write(strtowrite)
+      nanny.tattle_quantity('filewrite', len(strtowrite))
 
-    nanny.tattle_quantity('filewrite',writeamt)
-    return retval
+    return None   # python documentation states there is no return value
 
 
 # End of emulated_file class
