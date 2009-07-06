@@ -517,6 +517,8 @@ def do_oddballtests():
 
   currentdirectory = os.getcwd()
   stopfilename = os.path.join(currentdirectory,'junk_test.out')
+  # This is needed when a space is in the directory where the tests are run
+  stopfilename = '"'+stopfilename+'"'
 
   (testout, testerr) = exec_repy_script('stop_testsleepwrite.py', "restrictions.default", {'stop':stopfilename,'status':'foo'})
   if testout == '' and testerr == '':
