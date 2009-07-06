@@ -14,12 +14,16 @@
      transforms the bytes into a random integer then uses it to
      create a float of 53bit resolution.
      Modified scheme from the random() function of the SystemRandom class,
-     as defined in source code python 2.6.2 Lib/random.py 
+     as defined in source code python 2.6.2 Lib/random.py
+     
+     Anthony - Jun 25 2009, will now use tracebackrepy.handle_internalerror
+     to log when os.urandom raises a NotImplementedError.
 """
 
 import restrictions
 import nanny
 import os               # for os.urandom(7)
+import tracebackrepy    # for os.urandom so exception can be logged internally
 import nonportable      # for harshexit() and getruntime
 import threading        # for Lock()
 
@@ -35,24 +39,40 @@ def randomfloat():
      None
 
    <Exceptions>
-     NotImplementedError if a OS-specific source of randomness
-     is not found. 
+     None
 
    <Side Effects>
      This function is metered because it may involve using a hardware
      source of randomness.
+     
+     If os.urandom raises a NotImplementedError then we will log the
+     exception as interalerror and a harshexit will occur. A machine
+     that raised this exception has not been observed but it is best
+     that the problemed be logged. os.urandom will raise the exception
+     if a source of OS-specific random numbers is not found.
 
    <Returns>
      The number (a float)
+
   """
 
   restrictions.assertisallowed('randomfloat')
   nanny.tattle_quantity('random',1)
   
   # If an OS-specific source of randomness is not a found
-  # a NotImplementedError would be raised.
+  # a NotImplementedError would be raised. 
+  # Anthony - a NotImplementedError will be logged as an internal
+  # error so that we will hopefully be able to identify the system,
+  # the exception is not passed on because the problem was not
+  # caused by the user. The exit code 217 was chosen to be
+  # unique from all other exit calls in repy.
   # Get 56 bits of random data
-  randombytes = os.urandom(7)
+  try:
+    randombytes = os.urandom(7)
+  except NotImplementedError, e:
+    tracebackrepy.handle_internalerror("os.urandom is not implemented " + \
+        "(Exception was: %s)" % e.message, 217)
+
   
   randomint = 0L
   for i in range(0, 7):
