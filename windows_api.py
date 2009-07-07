@@ -1243,22 +1243,28 @@ def exists_outgoing_network_socket(localip, localport, remoteip, remoteport):
   # This only works if all are not of the None type
   if not (localip and localport and remoteip and remoteport):
     return (False, None)
+
+  # Conrad: The way subprocess works on Windows is to re-encode the list of parameters into one
+  # command string. The "find" command *requires* its arguments be surrounded by double-quotes (").
+  # So, the parameters to find all have spaces after them, so that subprocess' auto-quoting will
+  # feed "find" arguments in the way it expects them. Keep this in mind when making changes to
+  # this code.
   
   # Construct search strings, add a space so port 8 wont match 80
   localsocket = localip+":"+str(localport)+" "
   remotesocket = remoteip+":"+str(remoteport)+" "
 
-  # Construct the command
-  cmdstr = 'netstat -an |find "'+localsocket+'" | find "'+remotesocket+'" | find /I "tcp" '
-  
-  # Launch up a shell, get the feed back
-  process_obj = subprocess.Popen(cmdstr, stdout=subprocess.PIPE, shell=True)
+  # Launch up a shell, get the feedback
+  netstat_process = subprocess.Popen(["netstat", "-an"], stdout=subprocess.PIPE)
+  find_process1 = subprocess.Popen(["find", localsocket], stdin=netstat_process.stdout, stdout=subprocess.PIPE)
+  find_process2 = subprocess.Popen(["find", remotesocket], stdin=find_process1.stdout, stdout=subprocess.PIPE)
+  find_process3 = subprocess.Popen(["find", "/I", "tcp "], stdin=find_process2.stdout, stdout=subprocess.PIPE)
   
   # Get the output
-  socketentries = process_obj.stdout.readlines()
+  socketentries = find_process3.stdout.readlines()
   
   # Close the pipe
-  process_obj.stdout.close()
+  find_process3.stdout.close()
   
   # Check each line, to make sure the local socket comes before the remote socket
   # Since we are just using find, the "order" is not imposed, so if the remote socket
@@ -1311,20 +1317,21 @@ def exists_listening_network_socket(ip, port, tcp):
   else:
     find = ["udp"]
 
-  # Construct the command
-  cmd = 'netstat -an | find "'+ip+':'+str(port)+' "' # Basic netstat with preliminary grep
-
-  for term in find:   # Add additional grep's
-    cmd +=  '| find /I "'+term+'" '
-
   # Launch up a shell, get the feed back
-  process = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
+  netstat_process = subprocess.Popen(["netstat", "-an"], stdout=subprocess.PIPE)
+  find_process1 = subprocess.Popen(["find", ip+':'+str(port)+' '], stdin=netstat_process.stdout, stdout=subprocess.PIPE)
+
+  prev_process = find_process1
+  for term in find:   # Add additional grep's
+    # Conrad: I don't think this can be improved upon here, since we need to force the quoted argument to find.
+    prev_process = subprocess.Popen("find /I \"%s\"" % term, stdin=prev_process.stdout, stdout=subprocess.PIPE)
+
 
   # Get the output
-  num = process.stdout.readlines()
+  num = prev_process.stdout.readlines()
 
   # Close the pipe
-  process.stdout.close()
+  prev_process.stdout.close()
 
   # Convert to an integer
   num = len(num)
@@ -1340,10 +1347,9 @@ def _fetch_ipconfig_infomation():
   <Returns>
     A dictionary object.
   """
-  cmdstring = "ipconfig /all"
   
-  # Launch up a shell, get the feed back
-  process = subprocess.Popen(cmdstring, stdout=subprocess.PIPE, shell=True)
+  # Launch up a shell, get the feedback
+  process = subprocess.Popen(["ipconfig", "/all"], stdout=subprocess.PIPE)
 
   # Get the output
   outputdata = process.stdout.readlines()

@@ -36,16 +36,18 @@ def exists_outgoing_network_socket(localip, localport, remoteip, remoteport):
   remoteip = remoteip.replace("*",".*")  
 
   # Construct the command
-  cmdstr = 'netstat -an |grep -e "'+localip+'[:\.]'+str(localport)+'[ \\t]*'+remoteip+'[:\.]'+str(remoteport)+'[ \\t]"|grep -i tcp'
+  netstat_process = subprocess.Popen(["netstat", "-an"], stdout=subprocess.PIPE, close_fds=True)
+  grep_process1 = subprocess.Popen(['grep', '-e', localip + '[:\.]' + str(localport) + '[ \\t]*' + remoteip + \
+      '[:\.]' + str(remoteport) + '[ \\t]'], stdin=netstat_process.stdout, stdout=subprocess.PIPE, close_fds=True)
+  grep_process2 = subprocess.Popen(['grep', '-i', 'tcp'], stdin=grep_process1.stdout, stdout=subprocess.PIPE, close_fds=True)
   
   # Launch up a shell, get the feed back
-  process_obj = subprocess.Popen(cmdstr, stdout=subprocess.PIPE, shell=True, close_fds=True)
   
   # Get the output
-  entries = process_obj.stdout.readlines()
+  entries = grep_process2.stdout.readlines()
   
   # Close the pipe
-  process_obj.stdout.close()
+  grep_process2.stdout.close()
  
   # Check if there is any entries
   if len(entries) > 0:
@@ -91,26 +93,28 @@ def exists_listening_network_socket(ip, port, tcp):
   else:
     grep_terms = ["udp"]
   
-  # Construct the command
-  cmdstr = 'netstat -an |grep -e "'+ip+'[:\.]'+str(port)+'[ \\t]" |' # Basic netstat with preliminary grep
-  for term in grep_terms:   # Add additional grep's
-    cmdstr +=  'grep -i '+term+' |'
-  # Count up the lines.   
+  # Launch up a shell, get the feedback
+  netstat_process = subprocess.Popen(["netstat", "-an"], stdout=subprocess.PIPE, close_fds=True)
+  grep_process1 = subprocess.Popen(["grep", "-e", ip+'[:\.]'+str(port)+'[ \\t]'], stdin=netstat_process.stdout, stdout=subprocess.PIPE, close_fds=True)
+  prev_process = grep_process1
+  for term in grep_terms:
+    # Daisy-chain grep processes
+    cur_process = subprocess.Popen(["grep", "-i", term], stdin=prev_process.stdout, stdout=subprocess.PIPE, close_fds=True)
+    prev_process = cur_process
+
+  wc_process = subprocess.Popen(["wc", "-l"], stdin=prev_process.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True)
+
   # JAC: To fix the wc error messages mentioned in #402, we need to discard
   # stderr.   I don't think we can do anything smarter because our process may
   # have died at that point.
-  cmdstr += "wc -l 2> /dev/null"  
-       
-
-
-  # Launch up a shell, get the feed back
-  process_obj = subprocess.Popen(cmdstr, stdout=subprocess.PIPE, shell=True, close_fds=True)
+  wc_process.stderr.read()
+  wc_process.stderr.close()
   
   # Get the output
-  number_of_sockets = process_obj.stdout.read()
+  number_of_sockets = wc_process.stdout.read()
   
   # Close the pipe
-  process_obj.stdout.close()
+  wc_process.stdout.close()
   
   # Convert to an integer
   number_of_sockets = int(number_of_sockets)
@@ -130,19 +134,21 @@ def get_available_interfaces():
   # This list contains common header elements so that they can be stripped
   common_headers_list = ["Name", "Kernel", "Iface"]
   
-  # Netstat will return all interfaces, but also has some duplication
-  # Sed will filter the output to only return the interface names
-  # Uniq, is somewhat obvious, it will only return the unique interfaces to remove duplicates
-  cmdstring = "netstat -i | sed -e 's/^\\([a-zA-Z0-9]\\{1,\\}\\)\\([ ^I]*\\)\\(.*\\)$/\\1/' | uniq"
-
-  # Launch up a shell, get the feed back
-  process_obj = subprocess.Popen(cmdstring, stdout=subprocess.PIPE, shell=True, close_fds=True)
+  # Netstat will return all interfaces, but also has some duplication.
+  # Cut will get the first field from each line, which is the interface name.
+  # Sort prepares the input for uniq, which only works on sorted lists.
+  # Uniq, is somewhat obvious, it will only return the unique interfaces to remove duplicates.
+  # Launch up a shell, get the feedback
+  netstat_process = subprocess.Popen(["netstat", "-i"], stdout=subprocess.PIPE, close_fds=True)
+  cut_process = subprocess.Popen(["cut", "-d ", "-f1"], stdin=netstat_process.stdout, stdout=subprocess.PIPE, close_fds=True)
+  sort_process = subprocess.Popen(["sort"], stdin=cut_process.stdout, stdout=subprocess.PIPE, close_fds=True)
+  uniq_process = subprocess.Popen(["uniq"], stdin=sort_process.stdout, stdout=subprocess.PIPE, close_fds=True)
 
   # Get the output
-  output_array = process_obj.stdout.readlines()
+  output_array = uniq_process.stdout.readlines()
   
   # Close the pipe
-  process_obj.stdout.close()
+  uniq_process.stdout.close()
   
   # Create an array for the interfaces
   interfaces_list = []
@@ -170,20 +176,25 @@ def get_interface_ip_addresses(interfaceName):
   <Returns>
     A list of IP addresses associated with the interface.
   """
-  # We use ifconfig with the interface name, redirect errors to null so as not to mess us up
-  cmdstring = "/sbin/ifconfig "+interfaceName.strip()+" 2>/dev/null "
-  cmdstring += "| grep inet " # Simple grep to reduce to lines that include inet
-  # This complicated sed expression extracts the first IP address on the line, and ignores everything else
-  cmdstring += "| sed -n -e 's|\\([a-zA-Z ^I]*[a-zA-Z][ ^I:]\\)\\([0-9]\\{1,3\\}[\\.][0-9]\\{1,3\\}[\\.][0-9]\\{1,3\}[\\.][0-9]\\{1,3\\}\\)\\{1,\\}.*|\\2|p'"
 
   # Launch up a shell, get the feed back
-  process_obj = subprocess.Popen(cmdstring, stdout=subprocess.PIPE, shell=True, close_fds=True)
+  # We use ifconfig with the interface name.
+  ifconfig_process = subprocess.Popen(["/sbin/ifconfig", interfaceName.strip()], stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True)
+  # Simple grep to reduce to lines that include inet
+  grep_process = subprocess.Popen(["grep", "inet"], stdin=ifconfig_process.stdout, stdout=subprocess.PIPE, close_fds=True)
+  # This complicated sed expression extracts the first IPv4 address on the line, and ignores everything else
+  sed_process = subprocess.Popen(["sed", "-n", "-e", "s|\\([a-zA-Z ^I]*[a-zA-Z][ ^I:]\\)\\([0-9]\\{1,3\\}[\\.][0-9]\\{1,3\\}[\\.][0-9]\\{1,3\}[\\.][0-9]\\{1,3\\}\\)\\{1,\\}.*|\\2|p"], \
+      stdin=grep_process.stdout, stdout=subprocess.PIPE, close_fds=True)
+
+  # Ignore stderr from ifconfig.
+  ifconfig_process.stderr.read()
+  ifconfig_process.stderr.close()
 
   # Get the output
-  output_array = process_obj.stdout.readlines()
+  output_array = sed_process.stdout.readlines()
   
   # Close the pipe
-  process_obj.stdout.close()
+  sed_process.stdout.close()
   
   # Create an array for the ip's
   ipaddressList = []
@@ -195,4 +206,3 @@ def get_interface_ip_addresses(interfaceName):
 
   # Done, return the interfaces
   return ipaddressList
-

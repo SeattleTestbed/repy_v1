@@ -246,15 +246,14 @@ def get_system_thread_count():
   """
   # Use PS since it is can get the info for us
   # Pipe into wc because I'm too lazy to do it manually
-  cmd = "ps axH | wc -l"
-
-  process = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True, close_fds=True)
+  process = subprocess.Popen(["ps", "axH"], stdout=subprocess.PIPE, close_fds=True)
+  process2 = subprocess.Popen(["wc", "-l"], stdin=process.stdout, stdout=subprocess.PIPE, close_fds=True)
 
   # Get the output
-  threads = process.stdout.read()
+  threads = process2.stdout.read()
 
   # Close the pipe
-  process.stdout.close()
+  process2.stdout.close()
 
   # Strip the whitespace
   threads = threads.strip()
