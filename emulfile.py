@@ -360,6 +360,13 @@ class emulated_file:
     myfilehandle = self.filehandle
     restrictions.assertisallowed('file.read',*args)
 
+    # basic sanity checking of input
+    if len(args) > 1:
+      raise TypeError("read() takes at most 1 argument")
+
+    if len(args) == 1 and type(args[0]) != int:
+      raise TypeError("file.read() expects an integer argument")
+
     # wait if it's already over used
     nanny.tattle_quantity('fileread',0)
 
