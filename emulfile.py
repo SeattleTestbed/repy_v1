@@ -341,6 +341,9 @@ class emulated_file:
     myfilehandle = self.filehandle
     restrictions.assertisallowed('file.next')
 
+    if "w" in self.mode:
+      raise IOError("file.next() is invalid for write-enabled files.")
+
     # wait if it's already over used
     nanny.tattle_quantity('fileread',0)
 
