@@ -409,7 +409,11 @@ class emulated_file:
     # wait if it's already over used
     nanny.tattle_quantity('fileread',0)
 
-    readlist = fileinfo[myfilehandle]['fobj'].readlines(*args)
+    try:
+      readlist = fileinfo[myfilehandle]['fobj'].readlines(*args)
+    except KeyError:
+      raise ValueError("Invalid file object (probably closed).")
+
     readamt = 0
     for readitem in readlist:
       readamt = readamt + len(str(readitem))
