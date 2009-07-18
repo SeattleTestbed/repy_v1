@@ -333,7 +333,10 @@ class emulated_file:
     myfilehandle = self.filehandle
     restrictions.assertisallowed('file.flush')
 
-    return fileinfo[myfilehandle]['fobj'].flush()
+    if "w" in self.mode:
+      return fileinfo[myfilehandle]['fobj'].flush()
+    else:
+      return None
 
 
   def next(self):
