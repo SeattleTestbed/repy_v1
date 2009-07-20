@@ -439,7 +439,13 @@ class emulated_file:
     # wait if it's already over used
     nanny.tattle_quantity('filewrite',0)
 
-    retval = fileinfo[myfilehandle]['fobj'].write(writeitem)
+    if "w" in self.mode:
+      try:
+        retval = fileinfo[myfilehandle]['fobj'].write(writeitem)
+      except KeyError:
+        raise ValueError("Invalid file object (probably closed).")
+    else:
+      raise ValueError("write() isn't allowed on read-only file objects!")
 
     writeamt = len(str(writeitem))
     nanny.tattle_quantity('filewrite',writeamt)
