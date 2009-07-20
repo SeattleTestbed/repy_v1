@@ -4,7 +4,8 @@ if callfunc == "initialize":
   fobj.close()
 
   fobj = open("junk_test.out", 'r')
-  if not fobj.read() == "hello":
-    print "This shouldn't happen!"
+  contents = fobj.read()
+  if not contents == "hello":
+    print "This shouldn't happen! (Read '%s' instead of 'hello'.)" % contents
 
   fobj.close()
