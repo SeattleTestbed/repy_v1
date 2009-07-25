@@ -135,7 +135,7 @@ usercontext = {
     'sendmess':emulcomm.sendmess,       # message sending (UDP)
     'openconn':emulcomm.openconn,       # reliable comm channel (TCP)
     'waitforconn':emulcomm.waitforconn, # reliable comm listen (TCP)
-    'stopcomm':emulcomm.stopcomm,       # stop receiving (TDP/UDP)
+    'stopcomm':emulcomm.stopcomm,       # stop receiving (TCP/UDP)
     'settimer':emultimer.settimer,      # sets a timer
     'canceltimer':emultimer.canceltimer,# stops a timer if it hasn't fired
     'sleep':emultimer.sleep,            # blocks the thread for some time
