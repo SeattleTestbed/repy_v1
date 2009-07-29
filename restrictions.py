@@ -388,6 +388,9 @@ def init_restrictions(filename):
   # Set up tables that list the rules and resource restrictions
   init_restriction_tables(filename)
 
+  # This flushes and initializes the tables that track resource consumption
+  nanny.initialize_consumed_resource_tables()
+
   # Start the nanny to check resource use...
   nanny.start_resource_nanny()
 

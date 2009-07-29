@@ -153,9 +153,7 @@ def sleep_until_resource_drains(resource):
 
 ############################ Externally called ########################
 
-
-
-def start_resource_nanny():
+def initialize_consumed_resource_tables():
   """
    <Purpose>
       Initializes the resource nanny.   Sets the resource table entries up.
@@ -167,7 +165,7 @@ def start_resource_nanny():
       None.
 
    <Side Effects>
-      Starts a process or thread to monitor disk, memory, and CPU
+      Flushes the resource consumption tables if they were already set up.
 
    <Returns>
       None.
@@ -185,7 +183,29 @@ def start_resource_nanny():
     resource_consumption_table[resource] = set()
 
 
+
+
+def start_resource_nanny():
+  """
+   <Purpose>
+      Starts a process or thread in the nanny to monitor disk, memory, and CPU
+
+   <Arguments>
+      None.
+         
+   <Exceptions>
+      None.
+
+   <Side Effects>
+      None.
+
+   <Returns>
+      None.
+  """
+
   nonportable.monitor_cpu_disk_and_mem()
+
+
 
 
 # Armon: This is an extremely basic wrapper function, that just allows
