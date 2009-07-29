@@ -879,8 +879,8 @@ if len(sys.argv) > 1 and sys.argv[1] == "-nm-network":
   LOOPBACK_IP = "127.0.0.1"
   JUNK_IP = "128.0.0.255"
   
-  # Get the osAPI
-  osAPI = nonportable.osAPI
+  # Get the os hooks so that we can see if a network socket is in use
+  os_api = nonportable.os_api
   
   # We need this to change the nm configuration file
   import injectconfig
@@ -929,10 +929,10 @@ if len(sys.argv) > 1 and sys.argv[1] == "-nm-network":
     start_nm(name, config)
     
     # Check for a network socket
-    isListen = osAPI.existsListeningNetworkSocket(ip, allowed_port, True)
+    is_listening = os_api.exists_listening_network_socket(ip, allowed_port, True)
     
     # Check for output
-    if not isListen:
+    if not is_listening:
         logstream.write("FAILURE: Expected NM to listen on IP:"+ip+" and port:"+str(allowed_port)+"! \n")
     
     stop_nm()
