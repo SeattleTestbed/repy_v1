@@ -16,6 +16,8 @@ import nanny
 import os 
 import idhelper
 
+import gc
+
 # needed for locking the fileinfo hash
 import threading
 
@@ -283,7 +285,12 @@ class emulated_file:
 
       self.filehandle = idhelper.getuniqueid()
 
-      nanny.tattle_add_item('filesopened', self.filehandle)
+      try:
+        nanny.tattle_add_item('filesopened', self.filehandle)
+      except Exception:
+        # Ok, maybe we can free up a file by garbage collecting.
+        gc.collect()
+        nanny.tattle_add_item('filesopened', self.filehandle)
 
       fileinfo[self.filehandle] = {'filename':filename, \
           'mode':actual_mode, 'fobj':myfile(filename, actual_mode)}
@@ -476,5 +483,21 @@ class emulated_file:
 
     return None   # python documentation states there is no return value
 
+
+  def __del__(self):
+    myfilehandle = self.filehandle
+
+    # Tell nanny we're gone.
+    nanny.tattle_remove_item('filesopened', myfilehandle)
+
+    # Take the fileinfo dict lock, delete ourselves, and unlock.
+    fileinfolock.acquire()
+    try:
+      del fileinfo[myfilehandle]['fobj']
+      del fileinfo[myfilehandle]
+    except KeyError:
+      pass
+    finally:
+      fileinfolock.release()
 
 # End of emulated_file class
