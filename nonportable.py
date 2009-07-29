@@ -23,7 +23,6 @@ import platform
 # needed for signal numbers
 import signal
 
-import traceback
 
 # used to query status, etc.
 # This may fail on Windows CE
