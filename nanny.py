@@ -327,6 +327,10 @@ def tattle_add_item(resource, item):
   # always unlock as we exit...
   try: 
 
+    # It's already acquired.   This is always allowed.
+    if item in resource_consumption_table[resource]:
+      return
+
     if len(resource_consumption_table[resource]) > resource_restriction_table[resource]:
       raise InternalError, "Should not be able to exceed resource count"
 
