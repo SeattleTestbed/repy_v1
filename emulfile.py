@@ -285,6 +285,11 @@ class emulated_file:
 
       self.filehandle = idhelper.getuniqueid()
 
+      # Here is where we try to allocate a "file" resource from the
+      # nanny system. If that fails, we garbage collect and try again
+      # (this forces __del__() methods to be called on objects with
+      # no references, which is how we automatically free up
+      # file resources).
       try:
         nanny.tattle_add_item('filesopened', self.filehandle)
       except Exception:
