@@ -1640,8 +1640,21 @@ class emulated_socket:
 
 
 
+  def __del__(self):
+    mycommid = self.commid
+
+    # Only GC outgoing sockets.
+    if comminfo[mycommid]['outgoing']:
+      # First, tell nanny we are done.
+      nanny.tattle_remove_item('outsockets', mycommid)
+
+      # Then delete ourselves from comminfo.
+      try:
+        del comminfo[mycommid]
+      except KeyError:
+        pass
+
+
+
+
 # End of emulated_socket class
-
-
-
-
