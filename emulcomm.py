@@ -19,6 +19,9 @@ import threading
 # to log errors
 import sys
 
+# to force destruction of old sockets
+import gc
+
 # So I can exit all threads when an error occurs or do select
 import nonportable
 
@@ -1294,7 +1297,16 @@ def openconn(desthost, destport,localip=None, localport=None,timeout=5.0):
     nanny.tattle_check('connport',localport)
 
   handle = generate_commhandle()
-  nanny.tattle_add_item('outsockets',handle)
+
+  # If allocation of an outsocket fails, we garbage collect and try again
+  # -- this forces destruction of unreferenced objects, which is how we
+  # free resources.
+  try:
+    nanny.tattle_add_item('outsockets',handle)
+  except:
+    gc.collect()
+    nanny.tattle_add_item('outsockets',handle)
+
   
   try:
     s = get_real_socket(localip,localport)
@@ -1641,19 +1653,7 @@ class emulated_socket:
 
 
   def __del__(self):
-    mycommid = self.commid
-
-    # Only GC outgoing sockets.
-    if comminfo[mycommid]['outgoing']:
-      # First, tell nanny we are done.
-      nanny.tattle_remove_item('outsockets', mycommid)
-
-      # Then delete ourselves from comminfo.
-      try:
-        del comminfo[mycommid]
-      except KeyError:
-        pass
-
+    cleanup(self.commid)
 
 
 
