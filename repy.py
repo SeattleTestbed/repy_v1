@@ -316,6 +316,20 @@ if __name__ == '__main__':
   
   # Store the absolute path as the repy startup directory
   repy_constants.REPY_START_DIR = absolute_repy_directory
+ 
+  # For security, we need to make sure that the Python path doesn't change even
+  # if the directory does...
+  newsyspath = []
+  for item in sys.path[:]:
+    if item == '' or item == '.':
+      newsyspath.append(os.getcwd())
+    else:
+      newsyspath.append(item)
+
+  # It should be safe now.   I'm assuming the user isn't trying to undercut us
+  # by setting a crazy python path
+  sys.path = newsyspath
+
   
   args = sys.argv[1:]
 
