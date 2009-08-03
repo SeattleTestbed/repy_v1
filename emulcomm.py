@@ -16,9 +16,6 @@ import socket
 # needed to set threads for recvmess and waitforconn
 import threading
 
-# to log errors
-import sys
-
 # to force destruction of old sockets
 import gc
 
