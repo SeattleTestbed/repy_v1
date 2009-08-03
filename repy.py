@@ -56,7 +56,7 @@ import nanny
 import restrictions
 import time
 import threading
-import logging
+import loggingrepy
 
 import nmstatusinterface
 
@@ -162,13 +162,13 @@ def main(restrictionsfn, program, args):
   # Armon: Initialize the circular logger before forking in init_restrictions()
   if logfile:
     # time to set up the circular logger
-    loggerfo = logging.circular_logger(logfile)
+    loggerfo = loggingrepy.circular_logger(logfile)
     # and redirect err and out there...
     sys.stdout = loggerfo
     sys.stderr = loggerfo
   else:
     # let's make it so that the output (via print) is always flushed
-    sys.stdout = logging.flush_logger(sys.stdout)
+    sys.stdout = loggingrepy.flush_logger(sys.stdout)
     
   # start the nanny up and read the restrictions files.  
   restrictions.init_restrictions(restrictionsfn)
