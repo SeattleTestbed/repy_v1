@@ -1520,6 +1520,23 @@ class emulated_socket:
 
 
   def close(self,*args):
+    """
+      <Purpose>
+        Closes a socket.   Pending remote recv() calls will return with the 
+        remaining information.   Local recv / send calls will fail after this.
+
+      <Arguments>
+        None
+
+      <Exceptions>
+        None
+
+      <Side Effects>
+        Pending local recv calls will either return or have an exception.
+
+      <Returns>
+        True if this is the first close call to this socket, False otherwise.
+    """
     # prevent TOCTOU race with client changing the object's properties
     mycommid = self.commid
     restrictions.assertisallowed('socket.close',*args)
@@ -1531,6 +1548,25 @@ class emulated_socket:
 
 
   def recv(self,bytes):
+    """
+      <Purpose>
+        Receives data from a socket.   It may receive fewer bytes than 
+        requested.   
+
+      <Arguments>
+        bytes: 
+           The maximum number of bytes to read.   
+
+      <Exceptions>
+        Exception if the socket is closed either locally or remotely.
+
+      <Side Effects>
+        This call will block the thread until the other side calls send.
+
+      <Returns>
+        The data received from the socket (as a string).   If '' is returned,
+        the other side has closed the socket and no more data will arrive.
+    """
     # prevent TOCTOU race with client changing the object's properties
     mycommid = self.commid
     restrictions.assertisallowed('socket.recv',bytes)
@@ -1602,6 +1638,24 @@ class emulated_socket:
 
 
   def send(self,*args):
+    """
+      <Purpose>
+        Sends data on a socket.   It may send fewer bytes than requested.   
+
+      <Arguments>
+        message:
+          The string to send.
+
+      <Exceptions>
+        Exception if the socket is closed either locally or remotely.
+
+      <Side Effects>
+        This call may block the thread until the other side calls recv.
+
+      <Returns>
+        The number of bytes sent.   Be sure not to assume this is always the 
+        complete amount!
+    """
     # prevent TOCTOU race with client changing the object's properties
     mycommid = self.commid
     restrictions.assertisallowed('socket.send',*args)
