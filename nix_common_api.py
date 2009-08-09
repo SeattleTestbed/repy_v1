@@ -9,6 +9,9 @@ Description:
 
 import subprocess
 
+# Seattlelib text-processing library (not a Python stdlib):
+import textops
+
 def exists_outgoing_network_socket(localip, localport, remoteip, remoteport):
   """
   <Purpose>
@@ -28,30 +31,26 @@ def exists_outgoing_network_socket(localip, localport, remoteip, remoteport):
   # This only works if all are not of the None type
   if not (localip and localport and remoteip and remoteport):
     return (False, None)
-  
-  # Escape the characters, so that they aren't treated as special regex
-  localip = localip.replace(".","\.")
-  localip = localip.replace("*",".*")
-  remoteip = remoteip.replace(".","\.")
-  remoteip = remoteip.replace("*",".*")  
 
-  # Construct the command
+  # Grab netstat output.
   netstat_process = subprocess.Popen(["netstat", "-an"], stdout=subprocess.PIPE, close_fds=True)
-  grep_process1 = subprocess.Popen(['grep', '-e', localip + '[:\.]' + str(localport) + '[ \\t]*' + remoteip + \
-      '[:\.]' + str(remoteport) + '[ \\t]'], stdin=netstat_process.stdout, stdout=subprocess.PIPE, close_fds=True)
-  grep_process2 = subprocess.Popen(['grep', '-i', 'tcp'], stdin=grep_process1.stdout, stdout=subprocess.PIPE, close_fds=True)
+  netstat_stdout, _ = netstat_process.communicate()
+  netstat_lines = textops.textops_rawtexttolines(netstat_stdout)
+
+  # Search for things matching the local and remote ip+port we are trying to get
+  # information about.
+  target_lines = textops.textops_grep(localip + ':' + str(localport), netstat_lines) + \
+      textops.textops_grep(localip + '.' + str(localport), netstat_lines)
+
+  target_lines = textops.textops_grep(remoteip + ':' + str(remoteport), target_lines) + \
+      textops.textops_grep(remoteip + '.' + str(remoteport), target_lines)
+
+  # Only tcp connections.
+  target_lines = textops.textops_grep('tcp', target_lines)
   
-  # Launch up a shell, get the feed back
-  
-  # Get the output
-  entries = grep_process2.stdout.readlines()
-  
-  # Close the pipe
-  grep_process2.stdout.close()
- 
   # Check if there is any entries
-  if len(entries) > 0:
-    line = entries[0]
+  if len(target_lines) > 0:
+    line = target_lines[0]
     # Replace tabs with spaces, explode on spaces
     parts = line.replace("\t","").strip("\n").split()
     # Get the state
@@ -82,42 +81,27 @@ def exists_listening_network_socket(ip, port, tcp):
   if not (ip and port):
     return False
   
-  # Escape the characters, so that they aren't treated as special regex
-  ip = ip.replace(".","\.")
-  ip = ip.replace("*",".*")
-  
   # UDP connections are stateless, so for TCP check for the LISTEN state
   # and for UDP, just check that there exists a UDP port
   if tcp:
     grep_terms = ["tcp", "LISTEN"]
   else:
     grep_terms = ["udp"]
-  
+
   # Launch up a shell, get the feedback
   netstat_process = subprocess.Popen(["netstat", "-an"], stdout=subprocess.PIPE, close_fds=True)
-  grep_process1 = subprocess.Popen(["grep", "-e", ip+'[:\.]'+str(port)+'[ \\t]'], stdin=netstat_process.stdout, stdout=subprocess.PIPE, close_fds=True)
-  prev_process = grep_process1
+  netstat_stdout, _ = netstat_process.communicate()
+  netstat_lines = textops.textops_rawtexttolines(netstat_stdout)
+
+  # Search for things matching the ip+port we are trying to get
+  # information about.
+  target_lines = textops.textops_grep(ip + ':' + str(port), netstat_lines) + \
+      textops.textops_grep(ip + '.' + str(port), netstat_lines)
+
   for term in grep_terms:
-    # Daisy-chain grep processes
-    cur_process = subprocess.Popen(["grep", "-i", term], stdin=prev_process.stdout, stdout=subprocess.PIPE, close_fds=True)
-    prev_process = cur_process
+    target_lines = textops.textops_grep(term, target_lines)
 
-  wc_process = subprocess.Popen(["wc", "-l"], stdin=prev_process.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True)
-
-  # JAC: To fix the wc error messages mentioned in #402, we need to discard
-  # stderr.   I don't think we can do anything smarter because our process may
-  # have died at that point.
-  wc_process.stderr.read()
-  wc_process.stderr.close()
-  
-  # Get the output
-  number_of_sockets = wc_process.stdout.read()
-  
-  # Close the pipe
-  wc_process.stdout.close()
-  
-  # Convert to an integer
-  number_of_sockets = int(number_of_sockets)
+  number_of_sockets = len(target_lines)
   
   return (number_of_sockets > 0)
 
@@ -140,20 +124,17 @@ def get_available_interfaces():
   # Uniq, is somewhat obvious, it will only return the unique interfaces to remove duplicates.
   # Launch up a shell, get the feedback
   netstat_process = subprocess.Popen(["netstat", "-i"], stdout=subprocess.PIPE, close_fds=True)
-  cut_process = subprocess.Popen(["cut", "-d ", "-f1"], stdin=netstat_process.stdout, stdout=subprocess.PIPE, close_fds=True)
-  sort_process = subprocess.Popen(["sort"], stdin=cut_process.stdout, stdout=subprocess.PIPE, close_fds=True)
-  uniq_process = subprocess.Popen(["uniq"], stdin=sort_process.stdout, stdout=subprocess.PIPE, close_fds=True)
+  netstat_stdout, _ = netstat_process.communicate()
+  netstat_lines = textops.textops_rawtexttolines(netstat_stdout)
 
-  # Get the output
-  output_array = uniq_process.stdout.readlines()
-  
-  # Close the pipe
-  uniq_process.stdout.close()
-  
+  target_lines = textops.textops_cut(netstat_lines, delimiter=" ", fields=[0])
+
+  unique_lines = set(target_lines)
+
   # Create an array for the interfaces
   interfaces_list = []
   
-  for line in output_array:
+  for line in unique_lines:
     # Strip the newline
     line = line.strip("\n")
     # Check if this is a header
