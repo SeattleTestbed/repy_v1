@@ -20,6 +20,8 @@ import freebsd_kinfo  # Imports the kinfo structure, along with others
 
 import nix_common_api as nix_api # Import the Common API
 
+import textops      # Import the seattlelib textops library
+
 # Manually import the common functions we want
 exists_outgoing_network_socket = nix_api.exists_outgoing_network_socket
 exists_listening_network_socket = nix_api.exists_listening_network_socket
@@ -257,23 +259,14 @@ def get_system_thread_count():
   <Returns>
     The thread count.
   """
+
   # Use PS since it is can get the info for us
-  # Pipe into wc because I'm too lazy to do it manually
   process = subprocess.Popen(["ps", "axH"], stdout=subprocess.PIPE, close_fds=True)
-  process2 = subprocess.Popen(["wc", "-l"], stdin=process.stdout, stdout=subprocess.PIPE, close_fds=True)
+  
+  ps_output, _ = process.communicate()
 
-  # Get the output
-  threads = process2.stdout.read()
-
-  # Close the pipe
-  process2.stdout.close()
-
-  # Strip the whitespace
-  threads = threads.strip()
-
-  # Convert to int
-  threads = int(threads)
+  # Subtract 1 from the number of lines because the first line is a a table
+  # header: "  PID TTY      STAT   TIME COMMAND"
+  threads = len(textops.textops_rawtexttolines(ps_output)) - 1
 
   return threads
-
-
