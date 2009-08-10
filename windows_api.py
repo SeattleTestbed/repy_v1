@@ -14,6 +14,9 @@ import time
 # Used for OS detection
 import os
 
+# Used for processing command output (netstat, etc)
+import textops
+
 # Detect whether or not it is Windows CE/Mobile
 MobileCE = False
 if os.name == 'ce':
@@ -1244,34 +1247,27 @@ def exists_outgoing_network_socket(localip, localport, remoteip, remoteport):
   if not (localip and localport and remoteip and remoteport):
     return (False, None)
 
-  # Conrad: The way subprocess works on Windows is to re-encode the list of parameters into one
-  # command string. The "find" command *requires* its arguments be surrounded by double-quotes (").
-  # So, the parameters to find all have spaces after them, so that subprocess' auto-quoting will
-  # feed "find" arguments in the way it expects them. Keep this in mind when making changes to
-  # this code.
-  
   # Construct search strings, add a space so port 8 wont match 80
   localsocket = localip+":"+str(localport)+" "
   remotesocket = remoteip+":"+str(remoteport)+" "
 
   # Launch up a shell, get the feedback
   netstat_process = subprocess.Popen(["netstat", "-an"], stdout=subprocess.PIPE)
-  find_process1 = subprocess.Popen(["find", localsocket], stdin=netstat_process.stdout, stdout=subprocess.PIPE)
-  find_process2 = subprocess.Popen(["find", remotesocket], stdin=find_process1.stdout, stdout=subprocess.PIPE)
-  find_process3 = subprocess.Popen(["find", "/I", "tcp "], stdin=find_process2.stdout, stdout=subprocess.PIPE)
-  
-  # Get the output
-  socketentries = find_process3.stdout.readlines()
-  
-  # Close the pipe
-  find_process3.stdout.close()
+
+  netstat_output, _ = netstat_process.communicate()
+
+  target_lines = textops.textops_grep(localsocket, \
+      textops.textops_rawtexttolines(netstat_output, linedelimiter="\r\n"))
+  target_lines = textops.textops_grep(remotesocket, target_lines)
+
+  target_lines = textops.textops_grep("tcp ", target_lines, case_sensitive=False)
   
   # Check each line, to make sure the local socket comes before the remote socket
   # Since we are just using find, the "order" is not imposed, so if the remote socket
   # is first that implies it is an inbound connection
-  if len(socketentries) > 0:
+  if len(target_lines) > 0:
     # Check each entry
-    for line in socketentries:
+    for line in target_lines:
       # Check the indexes for the local and remote socket, make sure local
       # comes first  
       local_index = line.find(localsocket)
@@ -1319,22 +1315,17 @@ def exists_listening_network_socket(ip, port, tcp):
 
   # Launch up a shell, get the feed back
   netstat_process = subprocess.Popen(["netstat", "-an"], stdout=subprocess.PIPE)
-  find_process1 = subprocess.Popen(["find", ip+':'+str(port)+' '], stdin=netstat_process.stdout, stdout=subprocess.PIPE)
 
-  prev_process = find_process1
+  netstat_output, _ = netstat_process.communicate()
+
+  target_lines = textops.textops_grep(ip+':'+str(port)+' ', \
+      textops.textops_rawtexttolines(netstat_output, linedelimiter="\r\n"))
+
   for term in find:   # Add additional grep's
-    # Conrad: I don't think this can be improved upon here, since we need to force the quoted argument to find.
-    prev_process = subprocess.Popen("find /I \"%s\"" % term, stdin=prev_process.stdout, stdout=subprocess.PIPE)
-
-
-  # Get the output
-  num = prev_process.stdout.readlines()
-
-  # Close the pipe
-  prev_process.stdout.close()
+    target_lines = textops.textops_grep(term, target_lines, case_sensitive=False)
 
   # Convert to an integer
-  num = len(num)
+  num = len(target_lines)
 
   return (num > 0)
 
