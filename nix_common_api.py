@@ -10,9 +10,6 @@ Description:
 # Import for Popen
 import nonportable
 
-# Used for a Popen-chain that we should eventually get rid of.
-import subprocess
-
 # Seattlelib text-processing library (not a Python stdlib):
 import textops
 
@@ -148,46 +145,3 @@ def get_available_interfaces():
   
   # Done, return the interfaces
   return interfaces_list
-
-
-def get_interface_ip_addresses(interfaceName):
-  """
-  <Purpose>
-    Returns the IP address associated with the interface.
-  
-  <Arguments>
-    interfaceName: The string name of the interface, e.g. eth0
-  
-  <Returns>
-    A list of IP addresses associated with the interface.
-  """
-
-  # Launch up a shell, get the feed back
-  # We use ifconfig with the interface name.
-  ifconfig_process = subprocess.Popen(["/sbin/ifconfig", interfaceName.strip()], stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True)
-  # Simple grep to reduce to lines that include inet
-  grep_process = subprocess.Popen(["grep", "inet"], stdin=ifconfig_process.stdout, stdout=subprocess.PIPE, close_fds=True)
-  # This complicated sed expression extracts the first IPv4 address on the line, and ignores everything else
-  sed_process = subprocess.Popen(["sed", "-n", "-e", "s|\\([a-zA-Z ^I]*[a-zA-Z][ ^I:]\\)\\([0-9]\\{1,3\\}[\\.][0-9]\\{1,3\\}[\\.][0-9]\\{1,3\}[\\.][0-9]\\{1,3\\}\\)\\{1,\\}.*|\\2|p"], \
-      stdin=grep_process.stdout, stdout=subprocess.PIPE, close_fds=True)
-
-  # Ignore stderr from ifconfig.
-  ifconfig_process.stderr.read()
-  ifconfig_process.stderr.close()
-
-  # Get the output
-  output_array = sed_process.stdout.readlines()
-  
-  # Close the pipe
-  sed_process.stdout.close()
-  
-  # Create an array for the ip's
-  ipaddressList = []
-  
-  for line in output_array:
-     # Strip the newline and any spacing
-     line = line.strip("\n\t ")
-     ipaddressList.append(line)
-
-  # Done, return the interfaces
-  return ipaddressList

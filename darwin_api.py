@@ -25,7 +25,6 @@ import nonportable  # Import for our custom Popen
 exists_outgoing_network_socket = nix_api.exists_outgoing_network_socket
 exists_listening_network_socket = nix_api.exists_listening_network_socket
 get_available_interfaces = nix_api.get_available_interfaces
-get_interface_ip_addresses = nix_api.get_interface_ip_addresses
 
 # Get the standard library
 libc = ctypes.CDLL(ctypes.util.find_library("c"))
@@ -300,7 +299,43 @@ def clean_up():
   # Check if last_proc_info_struct is allocated and free it if necessary
   if last_proc_info_struct != None:
     _free(last_proc_info_struct)
+
+
+
+def get_interface_ip_addresses(interfaceName):
+  """
+  <Purpose>
+    Returns the IP address associated with the interface.
   
+  <Arguments>
+    interfaceName: The string name of the interface, e.g. eth0
+  
+  <Returns>
+    A list of IP addresses associated with the interface.
+  """
 
+  # Launch up a shell, get the feed back
+  # We use ifconfig with the interface name.
+  ifconfig_process = nonportable.Popen(["/sbin/ifconfig", interfaceName.strip()])
 
+  ifconfig_output, _ = ifconfig_process.communicate()
+  ifconfig_lines = textops.textops_rawtexttolines(ifconfig_output)
+  
+  # Look for ipv4 addresses
+  target_lines = textops.textops_grep("inet", ifconfig_lines)
+  # and not ipv6
+  target_lines = textops.textops_grep("inet6", target_lines, exclude=True)
 
+  # Only take the ip(s)
+  target_lines = textops.textops_cut(target_lines, delimiter=" ", fields=[1])
+
+  # Create an array for the ip's
+  ipaddressList = []
+  
+  for line in target_lines:
+     # Strip the newline and any spacing
+     line = line.strip("\n\t ")
+     ipaddressList.append(line)
+
+  # Done, return the interfaces
+  return ipaddressList
