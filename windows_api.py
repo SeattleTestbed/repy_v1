@@ -22,7 +22,7 @@ MobileCE = False
 if os.name == 'ce':
   MobileCE = True
 else:
-  import subprocess
+  import nonportable
 
 # Main Libraries
 # Loaded depending on OS
@@ -1252,7 +1252,7 @@ def exists_outgoing_network_socket(localip, localport, remoteip, remoteport):
   remotesocket = remoteip+":"+str(remoteport)+" "
 
   # Launch up a shell, get the feedback
-  netstat_process = subprocess.Popen(["netstat", "-an"], stdout=subprocess.PIPE)
+  netstat_process = nonportable.Popen(["netstat", "-an"])
 
   netstat_output, _ = netstat_process.communicate()
 
@@ -1314,7 +1314,7 @@ def exists_listening_network_socket(ip, port, tcp):
     find = ["udp"]
 
   # Launch up a shell, get the feed back
-  netstat_process = subprocess.Popen(["netstat", "-an"], stdout=subprocess.PIPE)
+  netstat_process = nonportable.Popen(["netstat", "-an"])
 
   netstat_output, _ = netstat_process.communicate()
 
@@ -1340,7 +1340,7 @@ def _fetch_ipconfig_infomation():
   """
   
   # Launch up a shell, get the feedback
-  process = subprocess.Popen(["ipconfig", "/all"], stdout=subprocess.PIPE)
+  process = nonportable.Popen(["ipconfig", "/all"])
 
   # Get the output
   outputdata = process.stdout.readlines()

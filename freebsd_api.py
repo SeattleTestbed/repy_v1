@@ -14,13 +14,14 @@ import ctypes.util  # Helps to find the C library
 
 import os           # Provides some convenience functions
 import time         # Provides time.time
-import subprocess
 
 import freebsd_kinfo  # Imports the kinfo structure, along with others
 
 import nix_common_api as nix_api # Import the Common API
 
 import textops      # Import the seattlelib textops library
+
+import nonportable  # Import for Popen
 
 # Manually import the common functions we want
 exists_outgoing_network_socket = nix_api.exists_outgoing_network_socket
@@ -261,7 +262,7 @@ def get_system_thread_count():
   """
 
   # Use PS since it is can get the info for us
-  process = subprocess.Popen(["ps", "axH"], stdout=subprocess.PIPE, close_fds=True)
+  process = nonportable.Popen(["ps", "axH"])
   
   ps_output, _ = process.communicate()
 

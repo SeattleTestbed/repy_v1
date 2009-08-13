@@ -863,6 +863,22 @@ def calculate_granularity():
   elif ostype == "Darwin":
     granularity = os_api.get_uptime_granularity()
     
+
+
+
+def Popen(args):
+  # Defined in Winbase.h, CREATE_NO_WINDOW is a CreationFlag meaning "don't
+  # create a console window for the started process." For more info, see:
+  #   http://msdn.microsoft.com/en-us/library/ms684863%28VS.85%29.aspx
+  CREATE_NO_WINDOW = 0x08000000
+
+  if windows_api is not None:
+    return subprocess.Popen(args, creationflags=CREATE_NO_WINDOW,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  else:
+    return subprocess.Popen(args, close_fds=True, stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE)
+    
     
 # Call init_ostype!!!
 init_ostype()

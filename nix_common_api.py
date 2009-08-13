@@ -7,6 +7,10 @@ Description:
 
 """
 
+# Import for Popen
+import nonportable
+
+# Used for a Popen-chain that we should eventually get rid of.
 import subprocess
 
 # Seattlelib text-processing library (not a Python stdlib):
@@ -33,7 +37,7 @@ def exists_outgoing_network_socket(localip, localport, remoteip, remoteport):
     return (False, None)
 
   # Grab netstat output.
-  netstat_process = subprocess.Popen(["netstat", "-an"], stdout=subprocess.PIPE, close_fds=True)
+  netstat_process = nonportable.Popen(["netstat", "-an"])
   netstat_stdout, _ = netstat_process.communicate()
   netstat_lines = textops.textops_rawtexttolines(netstat_stdout)
 
@@ -89,7 +93,7 @@ def exists_listening_network_socket(ip, port, tcp):
     grep_terms = ["udp"]
 
   # Launch up a shell, get the feedback
-  netstat_process = subprocess.Popen(["netstat", "-an"], stdout=subprocess.PIPE, close_fds=True)
+  netstat_process = nonportable.Popen(["netstat", "-an"])
   netstat_stdout, _ = netstat_process.communicate()
   netstat_lines = textops.textops_rawtexttolines(netstat_stdout)
 
@@ -123,7 +127,7 @@ def get_available_interfaces():
   # Sort prepares the input for uniq, which only works on sorted lists.
   # Uniq, is somewhat obvious, it will only return the unique interfaces to remove duplicates.
   # Launch up a shell, get the feedback
-  netstat_process = subprocess.Popen(["netstat", "-i"], stdout=subprocess.PIPE, close_fds=True)
+  netstat_process = nonportable.Popen(["netstat", "-i"])
   netstat_stdout, _ = netstat_process.communicate()
   netstat_lines = textops.textops_rawtexttolines(netstat_stdout)
 

@@ -13,11 +13,11 @@ import ctypes       # Allows us to make C calls
 import ctypes.util  # Helps to find the C library
 
 import os           # Provides some convenience functions
-import subprocess
 
 import nix_common_api as nix_api # Import the Common API
 
 import textops      # Import seattlelib's text processing lib
+import nonportable  # For Popen
 
 # Manually import the common functions we want
 exists_outgoing_network_socket = nix_api.exists_outgoing_network_socket
@@ -247,7 +247,7 @@ def get_system_thread_count():
     The thread count.
   """
   # Use PS since it is can get the info for us
-  process = subprocess.Popen(["ps", "axH"], stdout=subprocess.PIPE, close_fds=True)
+  process = nonportable.Popen(["ps", "axH"])
 
   ps_output, _ = process.communicate()
 
