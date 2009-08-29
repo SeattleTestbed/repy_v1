@@ -13,6 +13,11 @@
 import restrictions
 import socket
 
+# socket uses getattr and setattr.   We need to make these available to it...
+socket.getattr = getattr
+socket.setattr = setattr
+
+
 # needed to set threads for recvmess and waitforconn
 import threading
 

@@ -12,6 +12,9 @@ makes the output look nicer so the programmer can tell what is happening...
 
 # we'll print our own exceptions
 import traceback
+# This needs hasattr.   I'll allow it...
+traceback.hasattr = hasattr
+
 # and don't want traceback to use linecache because linecache uses open
 import fakelinecache
 traceback.linecache = fakelinecache

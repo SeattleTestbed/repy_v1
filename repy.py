@@ -90,10 +90,6 @@ safe._BUILTIN_OK.append("BaseException")
 safe._BUILTIN_OK.append("WindowsError")
 safe._BUILTIN_OK.append("type")
 safe._BUILTIN_OK.append("issubclass")
-# needed for socket ops and other things...   These should be safe, right?
-safe._BUILTIN_OK.append("getattr")
-safe._BUILTIN_OK.append("hasattr")
-safe._BUILTIN_OK.append("setattr")
 # needed to allow primitive marshalling to be built
 safe._BUILTIN_OK.append("ord")
 safe._BUILTIN_OK.append("chr")
