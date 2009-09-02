@@ -103,8 +103,8 @@ def preparesocket(socketobject):
     pass
 
   elif ostype == "WindowsCE":
-	# No known issues, so just go
-	pass
+    # No known issues, so just go
+    pass
 	
   else:
     raise UnsupportedSystemException, "Unsupported system type: '"+osrealtype+"' (alias: "+ostype+")"
