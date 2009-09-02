@@ -35,30 +35,6 @@ def do_sleep(seconds):
     sleeptime = finish - now
 
 
-# check the disk space used by a dir.   Stolen from an implementation in 
-# nonportable.py
-def compute_disk_use(dirname):
-  # Convert path to absolute
-  dirname = os.path.abspath(dirname)
-  
-  diskused = 0
-  
-  for filename in os.listdir(dirname):
-    try:
-      diskused = diskused + os.path.getsize(os.path.join(dirname, filename))
-    except IOError:   # They likely deleted the file in the meantime...
-      pass
-    except OSError:   # They likely deleted the file in the meantime...
-      pass
-
-    # charge an extra 4K for each file to prevent lots of little files from 
-    # using up the disk.   I'm doing this outside of the except clause in
-    # the failure to get the size wasn't related to deletion
-    diskused = diskused + 4096
-        
-  return diskused
-
-
 # MIX: Address this with repy <-> python integration instead
 def getmyip():
   import socket

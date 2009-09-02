@@ -42,9 +42,6 @@ import socket
 # need for status retrieval
 import statusstorage
 
-# needed to check disk usage
-import misc
-
 # Get constants
 import repy_constants
 
@@ -85,6 +82,29 @@ class UnsupportedSystemException(Exception):
 
 
 ###################     Publicly visible functions   #######################
+
+# check the disk space used by a dir.
+def compute_disk_use(dirname):
+  # Convert path to absolute
+  dirname = os.path.abspath(dirname)
+  
+  diskused = 0
+  
+  for filename in os.listdir(dirname):
+    try:
+      diskused = diskused + os.path.getsize(os.path.join(dirname, filename))
+    except IOError:   # They likely deleted the file in the meantime...
+      pass
+    except OSError:   # They likely deleted the file in the meantime...
+      pass
+
+    # charge an extra 4K for each file to prevent lots of little files from 
+    # using up the disk.   I'm doing this outside of the except clause in
+    # the failure to get the size wasn't related to deletion
+    diskused = diskused + 4096
+        
+  return diskused
+
 
 # prepare a socket so it behaves how we want
 def preparesocket(socketobject):
@@ -392,7 +412,7 @@ class WindowsNannyThread(threading.Thread):
         # Check if we should check the disk
         if (current_interval % disk_interval) == 0:
           # Check diskused
-          diskused = misc.compute_disk_use(repy_constants.REPY_CURRENT_DIR)
+          diskused = compute_disk_use(repy_constants.REPY_CURRENT_DIR)
           if diskused > nanny.resource_limit("diskused"):
             raise Exception, "Disk use '"+str(diskused)+"' over limit '"+str(nanny.resource_limit("diskused"))+"'"
         
@@ -783,7 +803,7 @@ def resource_monitor(childpid):
       current_interval = 0
        
       # Calculate disk used
-      diskused = misc.compute_disk_use(repy_constants.REPY_CURRENT_DIR)
+      diskused = compute_disk_use(repy_constants.REPY_CURRENT_DIR)
 
       # Raise exception if we are over limit
       if diskused > nanny.resource_limit("diskused"):
