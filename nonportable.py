@@ -48,6 +48,9 @@ import repy_constants
 # Get access to the status interface so we can start it
 import nmstatusinterface
 
+# This gives us our restrictions information
+import nanny_resource_limits
+
 # This will fail on non-windows systems
 try:
   import windows_api as windows_api
@@ -126,7 +129,7 @@ def monitor_cpu_disk_and_mem():
     # Use an external CPU monitor for WinCE
     if ostype == 'WindowsCE':
       nannypath = "\"" + repy_constants.PATH_SEATTLE_INSTALL + 'win_cpu_nanny.py' + "\""
-      cmdline = str(os.getpid())+" "+str(nanny.resource_limit("cpu"))+" "+str(repy_constants.CPU_POLLING_FREQ_WINCE)
+      cmdline = str(os.getpid())+" "+str(nanny_resource_limits.resource_limit("cpu"))+" "+str(repy_constants.CPU_POLLING_FREQ_WINCE)
       windows_api.launch_python_script(nannypath, cmdline)
     else:
       WinCPUNannyThread().start()
@@ -312,9 +315,9 @@ class WindowsNannyThread(threading.Thread):
         # Check memory use, get the WorkingSetSize or RSS
         memused = windows_api.process_memory_info(mypid)['WorkingSetSize']
         
-        if memused > nanny.resource_limit("memory"):
+        if memused > nanny_resource_limits.resource_limit("memory"):
           # We will be killed by the other thread...
-          raise Exception, "Memory use '"+str(memused)+"' over limit '"+str(nanny.resource_limit("memory"))+"'"
+          raise Exception, "Memory use '"+str(memused)+"' over limit '"+str(nanny_resource_limits.resource_limit("memory"))+"'"
         
         # Increment the interval we are on
         current_interval += 1
@@ -323,8 +326,8 @@ class WindowsNannyThread(threading.Thread):
         if (current_interval % disk_interval) == 0:
           # Check diskused
           diskused = compute_disk_use(repy_constants.REPY_CURRENT_DIR)
-          if diskused > nanny.resource_limit("diskused"):
-            raise Exception, "Disk use '"+str(diskused)+"' over limit '"+str(nanny.resource_limit("diskused"))+"'"
+          if diskused > nanny_resource_limits.resource_limit("diskused"):
+            raise Exception, "Disk use '"+str(diskused)+"' over limit '"+str(nanny_resource_limits.resource_limit("diskused"))+"'"
         
         if ostype == 'WindowsCE':
           time.sleep(repy_constants.CPU_POLLING_FREQ_WINCE)
@@ -381,7 +384,7 @@ def win_check_cpu_use(cpulim, pid):
   percentused = (usertime - oldusertime) / elapsedtime
 
   # Calculate amount of time to sleep for
-  stoptime = nanny.calculate_cpu_sleep_interval(cpulim, percentused,elapsedtime)
+  stoptime = nanny_resource_limits.calculate_cpu_sleep_interval(cpulim, percentused,elapsedtime)
 
   # Call new api to suspend/resume process and sleep for specified time
   if windows_api.timeout_process(pid, stoptime):
@@ -417,7 +420,7 @@ class WinCPUNannyThread(threading.Thread):
         
         # Base amount of sleeping on return value of 
     	  # win_check_cpu_use to prevent under/over sleeping
-        slept = win_check_cpu_use(nanny.resource_limit("cpu"), self.pid)
+        slept = win_check_cpu_use(nanny_resource_limits.resource_limit("cpu"), self.pid)
         
         if slept == -1:
           # Something went wrong, try again
@@ -673,7 +676,7 @@ def resource_monitor(childpid):
       last_CPU_time = totalCPU
       
     # Calculate stop time
-    stoptime = nanny.calculate_cpu_sleep_interval(nanny.resource_limit("cpu"), percentused, elapsedtime)
+    stoptime = nanny_resource_limits.calculate_cpu_sleep_interval(nanny_resource_limits.resource_limit("cpu"), percentused, elapsedtime)
     
     # If we are supposed to stop repy, then suspend, sleep and resume
     if stoptime > 0.0:
@@ -698,8 +701,8 @@ def resource_monitor(childpid):
     memused = os_api.get_process_rss()
     
     # Check if it is using too much memory
-    if memused > nanny.resource_limit("memory"):
-      raise ResourceException, "Memory use '"+str(memused)+"' over limit '"+str(nanny.resource_limit("memory"))+"'."
+    if memused > nanny_resource_limits.resource_limit("memory"):
+      raise ResourceException, "Memory use '"+str(memused)+"' over limit '"+str(nanny_resource_limits.resource_limit("memory"))+"'."
     
     ########### End Check Memory ###########
     # 
@@ -716,8 +719,8 @@ def resource_monitor(childpid):
       diskused = compute_disk_use(repy_constants.REPY_CURRENT_DIR)
 
       # Raise exception if we are over limit
-      if diskused > nanny.resource_limit("diskused"):
-        raise ResourceException, "Disk use '"+str(diskused)+"' over limit '"+str(nanny.resource_limit("diskused"))+"'."
+      if diskused > nanny_resource_limits.resource_limit("diskused"):
+        raise ResourceException, "Disk use '"+str(diskused)+"' over limit '"+str(nanny_resource_limits.resource_limit("diskused"))+"'."
     
     ########### End Check Disk ###########
     
@@ -805,8 +808,7 @@ else:
 # print useful info when exiting...
 import tracebackrepy  
 
-# Armon: See above reason. (Prevents circular imports)
-# This gives us our restrictions information
-import nanny
-
-
+# Conrad: initialize nanny (Prevents circular imports)
+# Note: nanny_resource_limits can be initialized at any time after getruntime()
+# is defined, this just seems the most appropriate place to put the call.
+nanny_resource_limits.init(getruntime)
