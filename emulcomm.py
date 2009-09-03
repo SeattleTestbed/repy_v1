@@ -25,6 +25,9 @@ import threading
 import gc
 
 # So I can exit all threads when an error occurs or do select
+import harshexit
+
+# Needed for finding out info about sockets, available interfaces, etc
 import nonportable
 
 # So I can print a clean traceback when an error happens
@@ -581,7 +584,7 @@ class EventDeliverer(threading.Thread):
     except:
       # we probably should exit if they raise an exception in a thread...
       tracebackrepy.handle_exception()
-      nonportable.harshexit(14)
+      harshexit.harshexit(14)
 
     finally:
       # our event is going away...

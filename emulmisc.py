@@ -24,7 +24,8 @@ import restrictions
 import nanny
 import os               # for os.urandom(7)
 import tracebackrepy    # for os.urandom so exception can be logged internally
-import nonportable      # for harshexit() and getruntime
+import nonportable      # for getruntime
+import harshexit        # for harshexit()
 import threading        # for Lock()
 
 # Public interface!
@@ -137,7 +138,7 @@ def exitall():
 
   restrictions.assertisallowed('exitall')
 
-  nonportable.harshexit(200)
+  harshexit.harshexit(200)
 
 
 

@@ -37,7 +37,7 @@ logdirectory = None
 import servicelogger
 
 # We need to be able to do a harshexit on internal errors
-import nonportable
+import harshexit
 
 # I'd like to know if it's a "safety concern" so I can tell the user...
 # I'll import the module so I can check the exceptions
@@ -127,7 +127,7 @@ def handle_internalerror(error_string, exitcode):
     print >> sys.stderr, "Internal Error"
     if not servicelog:
       # If the service log is disabled, lets just exit.
-      nonportable.harshexit(exitcode)
+      harshexit.harshexit(exitcode)
     else:
       # Internal errors should not be given to the user's code to be caught,
       # so we print the exception to the service log and exit. -Brent
@@ -162,7 +162,7 @@ def handle_internalerror(error_string, exitcode):
         print e,type(e)
         traceback.print_exc()
       finally:
-        nonportable.harshexit(exitcode)
+        harshexit.harshexit(exitcode)
 
   except Exception, e:
     # if an exception occurs, log it (unfortunately, to the user's log)
@@ -170,4 +170,4 @@ def handle_internalerror(error_string, exitcode):
     print e,type(e)
     traceback.print_exc()
   finally:
-    nonportable.harshexit(842)
+    harshexit.harshexit(842)

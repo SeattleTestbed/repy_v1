@@ -112,6 +112,7 @@ import sys
 import shutil
 import time
 import nonportable
+import harshexit
 import signal
 
 # Used to spawn subprocesses for tests. Fails on
@@ -607,7 +608,7 @@ def do_oddballtests():
 
   
   # Kill the repy resource monitor
-  nonportable.portablekill(pid)
+  harshexit.portablekill(pid)
   time.sleep(1)
   
   # See ticket #413 and #421
@@ -920,7 +921,7 @@ if len(sys.argv) > 1 and sys.argv[1] == "-nm-network":
     else:
       if gotlock:
         # Kill the NM
-        nonportable.portablekill(gotlock)
+        harshexit.portablekill(gotlock)
         # Allow the sockets to cleanup and the locks to be cleaned
         time.sleep(3)
   

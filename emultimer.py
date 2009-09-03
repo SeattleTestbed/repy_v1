@@ -23,7 +23,7 @@ import misc
 import tracebackrepy
 
 # for harshexit
-import nonportable
+import harshexit
 
 
 timerinfo = {}
@@ -143,7 +143,7 @@ def settimer(waittime, function, args):
   except thread.error, exp:
     # Set exit code 56, which stands for a Threading Error
     # The Node manager will detect this and handle it
-    nonportable.harshexit(56)
+    harshexit.harshexit(56)
   
   return eventhandle
   
@@ -167,7 +167,7 @@ def functionwrapper(func, timerhandle, args):
   except:
     # Exit if they throw an uncaught exception
     tracebackrepy.handle_exception()
-    nonportable.harshexit(30)
+    harshexit.harshexit(30)
     
   # remove the event before I exit
   nanny.tattle_remove_item('events',timerhandle)

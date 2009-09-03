@@ -23,6 +23,9 @@ import os
 
 import nonportable
 
+# For harshexit
+import harshexit
+
 # This is to get around the safe module
 safe_open = open
 
@@ -101,7 +104,7 @@ def _stopfile_exit(exitcode):
   # On Windows, we are in the Repy process, so we can just use harshexit
   if nonportable.ostype in ["Windows", "WindowsCE"]:
     # Harshexit will store the appriopriate status for us
-    nonportable.harshexit(exitcode)
+    harshexit.harshexit(exitcode)
 
   else:    # On NIX we are on the external process
     # Get the repy PID
@@ -121,10 +124,10 @@ def _stopfile_exit(exitcode):
     statusstorage.init(None)
 
     # Kill repy
-    nonportable.portablekill(pid)
+    harshexit.portablekill(pid)
 
     # Exit
-    nonportable.harshexit(78)
+    harshexit.harshexit(78)
 
 # This is the actual worker thread
 class nm_interface_thread(threading.Thread):

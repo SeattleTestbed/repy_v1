@@ -17,11 +17,11 @@ import time
 # needed for sys.stderr and windows Popen hackery
 import sys
 
-# used to get information about the system we're running on
-import platform
-
 # needed for signal numbers
 import signal
+
+# needed for harshexit
+import harshexit
 
 
 # used to query status, etc.
@@ -48,9 +48,6 @@ import repy_constants
 # Get access to the status interface so we can start it
 import nmstatusinterface
 
-# This prevents writes to the nanny's status information after we want to stop
-statuslock = statusstorage.statuslock
-
 # This will fail on non-windows systems
 try:
   import windows_api as windows_api
@@ -62,22 +59,8 @@ os_api = None
 
 # Armon: See additional imports at the bottom of the file
 
-
-# this indicates if we are exiting.   Wrapping in a list to prevent needing a
-# global   (the purpose of this is described below)
-statusexiting = [False]
-
-# this will be a string that identifies us at a high level
-ostype = None
-
-# this will be more fine grained information about us (i.e. the raw data...)
-osrealtype = None
-
-
 class UnsupportedSystemException(Exception):
   pass
-
-
 
 
 
@@ -126,58 +109,6 @@ def preparesocket(socketobject):
     # No known issues, so just go
     pass
 	
-  else:
-    raise UnsupportedSystemException, "Unsupported system type: '"+osrealtype+"' (alias: "+ostype+")"
-
-
-# exit all threads
-def harshexit(val):
-
-  # The problem is that there can be multiple calls to harshexit before we
-  # stop.   For example, a signal (like we may send to kill) may trigger a 
-  # call.   As a result, we block all other status writers the first time this
-  # is called, but don't later on...
-  if not statusexiting[0]:
-
-    # do this once (now)
-    statusexiting[0] = True
-
-    # prevent concurrent writes to status info (acquire the lock to stop others,
-    # but do not block...
-    statuslock.acquire()
-  
-    # we are stopped by the stop file watcher, not terminated through another 
-    # mechanism
-    if val == 4:
-      # we were stopped by another thread.   Let's exit
-      pass
-    
-    # Special Termination signal to notify the NM of excessive threads
-    elif val == 56:
-      statusstorage.write_status("ThreadErr")
-      
-    elif val == 44:
-      statusstorage.write_status("Stopped")
-
-    else:
-      # generic error, normal exit, or exitall in the user code...
-      statusstorage.write_status("Terminated")
-
-    # We intentionally do not release the lock.   We don't want anyone else 
-    # writing over our status information (we're killing them).
-    
-
-  if ostype == 'Linux':
-    # The Nokia N800 refuses to exit on os._exit() by a thread.   I'm going to
-    # signal our pid with SIGTERM (or SIGKILL if needed)
-    portablekill(os.getpid())
-#    os._exit(val)
-  elif ostype == 'Darwin':
-    os._exit(val)
-  elif ostype == 'Windows' or ostype == 'WindowsCE':
-    # stderr is not automatically flushed in Windows...
-    sys.stderr.flush()
-    os._exit(val)
   else:
     raise UnsupportedSystemException, "Unsupported system type: '"+osrealtype+"' (alias: "+ostype+")"
   
@@ -238,27 +169,6 @@ def select_sockets(inlist, timeout = None):
         readylist.append(item)
 
     return readylist
-
-
-
-def portablekill(pid):
-  if ostype == 'Linux' or ostype == 'Darwin':
-    try:
-      os.kill(pid, signal.SIGTERM)
-    except:
-      pass
-
-    try:
-      os.kill(pid, signal.SIGKILL)
-    except:
-      pass
-
-  elif ostype == 'Windows' or ostype == 'WindowsCE':
-    # Use new api
-    windows_api.kill_process(pid)
-    
-  else:
-    raise UnsupportedSystemException, "Unsupported system type: '"+osrealtype+"' (alias: "+ostype+")"
 
 
 
@@ -424,12 +334,12 @@ class WindowsNannyThread(threading.Thread):
       except windows_api.DeadProcess:
         #  Process may be dead, or die while checking memory use
         #  In any case, there is no reason to continue running, just exit
-        harshexit(99)
+        harshexit.harshexit(99)
 
       except:
         tracebackrepy.handle_exception()
         print >> sys.stderr, "Nanny died!   Trying to kill everything else"
-        harshexit(20)
+        harshexit.harshexit(20)
 
 
 # Windows specific CPU Nanny Stuff
@@ -517,12 +427,12 @@ class WinCPUNannyThread(threading.Thread):
 
       except windows_api.DeadProcess:
         #  Process may be dead
-        harshexit(97)
+        harshexit.harshexit(97)
         
       except:
         tracebackrepy.handle_exception()
         print >> sys.stderr, "CPU Nanny died!   Trying to kill everything else"
-        harshexit(25)
+        harshexit.harshexit(25)
               
               
 #### This seems to be used by Mac as well...
@@ -622,10 +532,10 @@ class parent_process_checker(threading.Thread):
     # if there is any data, this is unexpected and is also an error.
     if mesg == "":
       print >> sys.stderr, "Monitor process died! Terminating!"
-      harshexit(70)
+      harshexit.harshexit(70)
     else:
       print >> sys.stderr, "Unexpectedly received data! Terminating!"
-      harshexit(71)
+      harshexit.harshexit(71)
 
 
 
@@ -674,7 +584,7 @@ def do_forked_resource_monitor():
     nmstatusinterface.stop()  
 
     # Kill repy
-    portablekill(childpid)
+    harshexit.portablekill(childpid)
 
     try:
       # Write out status information, repy was Stopped
@@ -693,7 +603,7 @@ def do_forked_resource_monitor():
   except ResourceException, exp:
     # Repy exceeded its resource limit, kill it
     _internal_error(str(exp)+" Impolitely killing child!")
-    harshexit(98)
+    harshexit.harshexit(98)
     
   except Exception, exp:
     # There is some general error...
@@ -817,40 +727,6 @@ def resource_monitor(childpid):
 
 ###########     functions that help me figure out the os type    ###########
 
-def init_ostype():
-  global ostype
-  global osrealtype
-
-  # Detect whether or not it is Windows CE/Mobile
-  if os.name == 'ce':
-    ostype = 'WindowsCE'
-    return
-
-  # figure out what sort of witch we are...
-  osrealtype = platform.system()
-
-  if osrealtype == 'Linux' or osrealtype == 'Windows' or osrealtype == 'Darwin':
-    ostype = osrealtype
-    return
-
-  # workaround for a Vista bug...
-  if osrealtype == 'Microsoft':
-    ostype = 'Windows'
-    return
-
-  if osrealtype == 'FreeBSD':
-    ostype = 'Linux'
-    return
-
-  if osrealtype.startswith('CYGWIN'):
-    # I do this because ps doesn't do memory info...   They'll need to add
-    # pywin to their copy of cygwin...   I wonder if I should detect its 
-    # abscence and tell them (but continue)?
-    ostype = 'Windows'
-    return
-
-  ostype = 'Unknown'
-
 # Calculates the system granularity
 def calculate_granularity():
   global granularity
@@ -885,23 +761,11 @@ def calculate_granularity():
     
 
 
-
-def Popen(args):
-  # Defined in Winbase.h, CREATE_NO_WINDOW is a CreationFlag meaning "don't
-  # create a console window for the started process." For more info, see:
-  #   http://msdn.microsoft.com/en-us/library/ms684863%28VS.85%29.aspx
-  CREATE_NO_WINDOW = 0x08000000
-
-  if windows_api is not None:
-    return subprocess.Popen(args, creationflags=CREATE_NO_WINDOW,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-  else:
-    return subprocess.Popen(args, close_fds=True, stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE)
-    
-    
 # Call init_ostype!!!
-init_ostype()
+harshexit.init_ostype()
+
+ostype = harshexit.ostype
+osrealtype = harshexit.osrealtype
 
 # Import the proper system wide API
 if osrealtype == "Linux":

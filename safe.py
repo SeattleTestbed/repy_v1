@@ -62,7 +62,8 @@ Known limitations:
 
 import time         # This is to sleep
 import subprocess   # This is to start the external process
-import nonportable  # This is to kill the external process on timeout
+import harshexit    # This is to kill the external process on timeout
+import nonportable  # This is to get the current runtime
 import os           # This is for some path manipulation
 import repy_constants # This is to get our start-up directory
 import compiler
@@ -202,7 +203,7 @@ def safe_check(code):
       if status == None:
         # Try to terminate the external process
         try:
-          nonportable.portablekill(proc.pid)
+          harshexit.portablekill(proc.pid)
         except:
           pass
       

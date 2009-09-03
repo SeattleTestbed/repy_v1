@@ -19,7 +19,7 @@ import nix_common_api as nix_api # Import the Common API
 
 import textops      # Import seattlelib's textops library
 
-import nonportable  # Import for our custom Popen
+import portable_popen  # Import for our custom Popen
 
 # Manually import the common functions we want
 exists_outgoing_network_socket = nix_api.exists_outgoing_network_socket
@@ -279,7 +279,7 @@ def get_system_thread_count():
   """
 
   # Use PS since it is setuid and can get the info for us
-  process = nonportable.Popen(["ps", "axM"])
+  process = portable_popen.Popen(["ps", "axM"])
   
   ps_output, _ = process.communicate()
 
@@ -316,7 +316,7 @@ def get_interface_ip_addresses(interfaceName):
 
   # Launch up a shell, get the feed back
   # We use ifconfig with the interface name.
-  ifconfig_process = nonportable.Popen(["/sbin/ifconfig", interfaceName.strip()])
+  ifconfig_process = portable_popen.Popen(["/sbin/ifconfig", interfaceName.strip()])
 
   ifconfig_output, _ = ifconfig_process.communicate()
   ifconfig_lines = textops.textops_rawtexttolines(ifconfig_output)

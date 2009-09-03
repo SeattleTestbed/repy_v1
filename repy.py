@@ -60,7 +60,7 @@ import loggingrepy
 
 import nmstatusinterface
 
-import nonportable
+import harshexit
 
 import statusstorage
 
@@ -206,7 +206,7 @@ def main(restrictionsfn, program, args):
   except:
     # I think it makes sense to exit if their code throws an exception...
     tracebackrepy.handle_exception()
-    nonportable.harshexit(6)
+    harshexit.harshexit(6)
   finally:
     nanny.tattle_remove_item('events', initialize_id)
 
@@ -241,12 +241,12 @@ def main(restrictionsfn, program, args):
   except:
     # I think it makes sense to exit if their code throws an exception...
     tracebackrepy.handle_exception()
-    nonportable.harshexit(7)
+    harshexit.harshexit(7)
   finally:
     nanny.tattle_remove_item('events', exit_id)
 
   # normal exit...
-  nonportable.harshexit(0)
+  harshexit.harshexit(0)
 
 
 def usage(str_err=""):
@@ -425,7 +425,7 @@ if __name__ == '__main__':
   try:
     main(restrictionsfn, progname, progargs)
   except SystemExit:
-    nonportable.harshexit(4)
+    harshexit.harshexit(4)
   except:
     tracebackrepy.handle_exception()
-    nonportable.harshexit(3)
+    harshexit.harshexit(3)

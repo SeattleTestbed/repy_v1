@@ -8,7 +8,7 @@ Description:
 """
 
 # Import for Popen
-import nonportable
+import portable_popen
 
 # Seattlelib text-processing library (not a Python stdlib):
 import textops
@@ -34,7 +34,7 @@ def exists_outgoing_network_socket(localip, localport, remoteip, remoteport):
     return (False, None)
 
   # Grab netstat output.
-  netstat_process = nonportable.Popen(["netstat", "-an"])
+  netstat_process = portable_popen.Popen(["netstat", "-an"])
   netstat_stdout, _ = netstat_process.communicate()
   netstat_lines = textops.textops_rawtexttolines(netstat_stdout)
 
@@ -90,7 +90,7 @@ def exists_listening_network_socket(ip, port, tcp):
     grep_terms = ["udp"]
 
   # Launch up a shell, get the feedback
-  netstat_process = nonportable.Popen(["netstat", "-an"])
+  netstat_process = portable_popen.Popen(["netstat", "-an"])
   netstat_stdout, _ = netstat_process.communicate()
   netstat_lines = textops.textops_rawtexttolines(netstat_stdout)
 
@@ -124,7 +124,7 @@ def get_available_interfaces():
   # Sort prepares the input for uniq, which only works on sorted lists.
   # Uniq, is somewhat obvious, it will only return the unique interfaces to remove duplicates.
   # Launch up a shell, get the feedback
-  netstat_process = nonportable.Popen(["netstat", "-i"])
+  netstat_process = portable_popen.Popen(["netstat", "-i"])
   netstat_stdout, _ = netstat_process.communicate()
   netstat_lines = textops.textops_rawtexttolines(netstat_stdout)
 
