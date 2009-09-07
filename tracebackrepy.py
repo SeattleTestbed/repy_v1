@@ -41,7 +41,7 @@ import harshexit
 
 # I'd like to know if it's a "safety concern" so I can tell the user...
 # I'll import the module so I can check the exceptions
-import safe
+import safety_exceptions
 
 # needed to get the PID
 import os
@@ -85,13 +85,13 @@ def handle_exception():
   # "<type 'exceptions.Exception'>".   I'm going to look for this and produce
   # more sensible output if it happens.
 
-  if exceptiontype == safe.CheckNodeException:
+  if exceptiontype == safety_exceptions.CheckNodeException:
     print >> sys.stderr, "Unsafe call with line number / type:",str(exceptionvalue)
 
-  elif exceptiontype == safe.CheckStrException:
+  elif exceptiontype == safety_exceptions.CheckStrException:
     print >> sys.stderr, "Unsafe string on line number / string:",exceptionvalue
 
-  elif exceptiontype == safe.RunBuiltinException:
+  elif exceptiontype == safety_exceptions.RunBuiltinException:
     print >> sys.stderr, "Unsafe call:",exceptionvalue
 
   elif str(exceptiontype)[0] == '<':
