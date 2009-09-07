@@ -21,10 +21,14 @@ import threading
 # This is for path checking and stuff
 import os
 
-import nonportable
-
-# For harshexit
+# For ostype, harshexit
 import harshexit
+
+# For setting thread priority (import fails on non-windows)
+try:
+  import windows_api
+except:
+  windows_api = None
 
 # This is to get around the safe module
 safe_open = open
@@ -69,21 +73,26 @@ def init(stopfile=None, statusfile=None, freq=1):
   statusstorage.init(statusfilename_prefix)
 
 
-def launch():
+def launch(pid):
   """
   <Purpose>
     Starts a thread to handle status updates and stopfile checking.
 
+  <Arguments>
+    pid:
+      The repy process id on unix, or None on Windows.
+
   <Side Effects>
     Starts a new thread.
   """
+
   # Check if we need to do anything
   global stopfilename, statusfilename_prefix
   if stopfilename == None and statusfilename_prefix == None:
     return
 
   # Launch the thread    
-  threadobj = nm_interface_thread()
+  threadobj = nm_interface_thread(pid)
   threadobj.start()
 
 
@@ -100,16 +109,13 @@ def stop():
 
 # This is an internal function called when the stopfile is found
 # It handles some of the nonportable details for nm_interface_thread
-def _stopfile_exit(exitcode):
+def _stopfile_exit(exitcode, pid):
   # On Windows, we are in the Repy process, so we can just use harshexit
-  if nonportable.ostype in ["Windows", "WindowsCE"]:
+  if harshexit.ostype in ["Windows", "WindowsCE"]:
     # Harshexit will store the appriopriate status for us
     harshexit.harshexit(exitcode)
 
   else:    # On NIX we are on the external process
-    # Get the repy PID
-    pid = nonportable.repy_process_id
-
     try:
       if exitcode == 44:
         # Write out status information, repy was Stopped
@@ -131,13 +137,18 @@ def _stopfile_exit(exitcode):
 
 # This is the actual worker thread
 class nm_interface_thread(threading.Thread):
+  def __init__(self, pid):
+    self.repy_process_id = pid
+    threading.Thread.__init__(self)
+
+
   def run(self):
     global stopfilename, frequency, run_thread_lock
     
     # On Windows elevate our priority above the user code.
-    if nonportable.ostype in ["Windows", "WindowsCE"]:
+    if harshexit.ostype in ["Windows", "WindowsCE"]:
       # Elevate our priority, above normal is higher than the usercode
-      nonportable.windows_api.set_current_thread_priority(nonportable.windows_api.THREAD_PRIORITY_ABOVE_NORMAL)
+      windows_api.set_current_thread_priority(windows_api.THREAD_PRIORITY_ABOVE_NORMAL)
     
     while True:
       # Attempt to get the lock
@@ -181,14 +192,14 @@ class nm_interface_thread(threading.Thread):
             # Print the message, then call harshexit with the exitcode
             if mesg != "": 
               print mesg
-            _stopfile_exit(exitcode)
+            _stopfile_exit(exitcode, self.repy_process_id)
             
           else:
             raise Exception, "Stopfile has no content."
             
         except:
           # On any issue, just do "Stopped" (44)
-          _stopfile_exit(44)
+          _stopfile_exit(44, self.repy_process_id)
 
       # Sleep until the next loop around.
       time.sleep(frequency)

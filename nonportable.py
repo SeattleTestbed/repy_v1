@@ -137,8 +137,9 @@ def monitor_cpu_disk_and_mem():
     # Launch mem./disk resource nanny
     WindowsNannyThread().start()
     
-    # Start the nmstatusinterface
-    nmstatusinterface.launch()
+    # Start the nmstatusinterface. Windows means repy isn't run in an external
+    # process, so pass None instead of a process id.
+    nmstatusinterface.launch(None)
   else:
     raise UnsupportedSystemException, "Unsupported system type: '"+osrealtype+"' (alias: "+ostype+")"
 
@@ -573,7 +574,7 @@ def do_forked_resource_monitor():
   repy_process_id = childpid
 
   # Start the nmstatusinterface
-  nmstatusinterface.launch()
+  nmstatusinterface.launch(repy_process_id)
   
   # Small internal error handler function
   def _internal_error(message):
