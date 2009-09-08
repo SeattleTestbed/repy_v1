@@ -845,7 +845,8 @@ def stopcomm(commhandle):
       in use.
 
    <Returns>
-      None.
+      Returns True if commhandle was successfully closed, False if the handle
+      cannot be closed (i.e. it was already closed).
   """
   # Armon: Check that the handle is valid, an exception needs to be raised otherwise.
   if not is_valid_commhandle(commhandle):
