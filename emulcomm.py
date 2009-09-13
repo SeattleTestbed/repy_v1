@@ -8,6 +8,8 @@
    This is a collection of communications routines that provide a programmer 
    with a reasonable environment.   This is used by repy.py to provide a 
    highly restricted (but usable) environment.
+
+   Edited by Monzur Muhammad on September 11 2009. Added line 1691
 """
 
 import restrictions
@@ -1660,6 +1662,8 @@ class emulated_socket:
 
       <Side Effects>
         This call may block the thread until the other side calls recv.
+        If the socket is closed externally the server side may receive
+        some portion of the data sent that was in the buffer.
 
       <Returns>
         The number of bytes sent.   Be sure not to assume this is always the 
@@ -1682,6 +1686,9 @@ class emulated_socket:
       nanny.tattle_quantity('loopsend',0)
     else:
       nanny.tattle_quantity('netsend',0)
+
+    # Set the standard timeout for sending messages to 30 seconds
+    comminfo[mycommid]['socket'].settimeout(30)
 
     # loop until we send the information (looping is needed for Windows)
     while True:
