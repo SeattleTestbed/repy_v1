@@ -48,6 +48,9 @@ import errno
 # Armon: Used for getting the constant IP values for resolving our external IP
 import repy_constants 
 
+# Monzur: Used for selecting the socket to send message on. To fix ticket #642
+import select
+
 # The architecture is that I have a thread which "polls" all of the sockets
 # that are being listened on using select.  If a connection
 # oriented socket has a connection pending, or a message-based socket has a
@@ -1660,6 +1663,8 @@ class emulated_socket:
 
       <Side Effects>
         This call may block the thread until the other side calls recv.
+        If the socket is closed externally the server side may receive
+        some portion of the data sent that was in the buffer.
 
       <Returns>
         The number of bytes sent.   Be sure not to assume this is always the 
@@ -1683,11 +1688,25 @@ class emulated_socket:
     else:
       nanny.tattle_quantity('netsend',0)
 
+
     # loop until we send the information (looping is needed for Windows)
     while True:
+
       try:
-        bytessent = comminfo[mycommid]['socket'].send(*args)
-        break
+        # Use select to see if the socket is ready for sending message
+        # On error we raise the appropriate exception
+
+        comm_socket = comminfo[mycommid]['socket']
+        (read_sock, write_sock, exception_sock) = select.select([], [comm_socket], [comm_socket], 0.0)
+
+        # If the length of write_sock is not 0, then its ready to send messages
+        if not len(write_sock) == 0: 
+          bytessent = write_sock[0].send(*args)
+          break
+
+        # This should never happen, but if it does we raise an exception
+        if not len(write_sock) == 0:
+          raise Exception("Socket Error")
       
       except KeyError:
         raise Exception, "Socket closed"
@@ -1699,6 +1718,10 @@ class emulated_socket:
         else:
           # Check if this is a conn. term., and give a more specific exception.
           if is_terminated_connection_exception(e):
+            raise Exception("Socket closed")
+          # This is the case if the socket is closed by an external thread
+          # and slect raises an error
+          elif type(e) == select.error and e[0] == 9:
             raise Exception("Socket closed")
           else:
             raise
