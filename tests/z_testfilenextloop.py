@@ -1,4 +1,7 @@
 if callfunc == "initialize":
+  # Make sure the file exists.
+  open("junk_test.out", 'w').close()
+  
   fobj = open("junk_test.out")
   for line in fobj:
     pass

@@ -3,9 +3,9 @@ def foo(timername):
 
 if callfunc=='initialize':
   mycontext['timetogo'] = False
-  myval = settimer(.1,foo,('a'))
-  myval = settimer(.1,foo,('b'))
-  myval = settimer(.2,foo,('c'))
+  myval = settimer(.1, foo, ('a',))
+  myval = settimer(.1, foo, ('b',))
+  myval = settimer(.2, foo, ('c',))
   # go through this 3 times (checking every second) and exitall if it works
   for iterations in range(3):
     sleep(1)
