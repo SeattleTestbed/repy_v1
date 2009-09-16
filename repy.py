@@ -47,11 +47,9 @@ checkpythonversion.ensure_python_version_is_supported()
 import safe
 import sys
 import getopt
-import emulfile
-import emultimer
 import emulcomm
-import emulmisc
 import idhelper
+import namespace
 import nanny
 import restrictions
 import time
@@ -117,30 +115,6 @@ if "fork" in dir(os):
 # This is the user's program after parsing
 usercode = None
 
-# These are the functions and variables in the user's name space (along with 
-# the builtins allowed by the safe module).   
-usercontext = {
-    'mycontext':{},                     # set up a place for them to store state
-    'open':emulfile.emulated_open,      # emulated open function
-    'file':emulfile.emulated_open,      # emulated file object
-    'listdir':emulfile.listdir,         # List the files in the expts dir
-    'removefile':emulfile.removefile,   # remove a file in the expts dir
-    'getmyip':emulcomm.getmyip,         # provides an external IP
-    'gethostbyname_ex':emulcomm.gethostbyname_ex, # same as socket method
-    'recvmess':emulcomm.recvmess,       # message receive (UDP)
-    'sendmess':emulcomm.sendmess,       # message sending (UDP)
-    'openconn':emulcomm.openconn,       # reliable comm channel (TCP)
-    'waitforconn':emulcomm.waitforconn, # reliable comm listen (TCP)
-    'stopcomm':emulcomm.stopcomm,       # stop receiving (TCP/UDP)
-    'settimer':emultimer.settimer,      # sets a timer
-    'canceltimer':emultimer.canceltimer,# stops a timer if it hasn't fired
-    'sleep':emultimer.sleep,            # blocks the thread for some time
-    'randomfloat':emulmisc.randomfloat, # same as random.random()
-    'getruntime':emulmisc.getruntime,   # amount of time the program has run
-    'getlock':emulmisc.getlock,         # acquire a lock object
-    'exitall':emulmisc.exitall          # Stops executing the sandboxed program
-}
-
 
 
 # There is a "simple execution" mode where there is a single entry into the
@@ -151,9 +125,16 @@ usercontext = {
 
 
 def main(restrictionsfn, program, args):
-  global usercontext
   global usercode
   global simpleexec
+
+  # These will be the functions and variables in the user's namespace (along
+  # with the builtins allowed by the safe module).
+  usercontext = {'mycontext':{}}
+  
+  # Add to the user's namespace wrapped versions of the API functions we make
+  # available to the untrusted user code.
+  namespace.wrap_and_insert_api_functions(usercontext)
 
   # Armon: Initialize the circular logger before forking in init_restrictions()
   if logfile:

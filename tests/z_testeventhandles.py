@@ -24,13 +24,6 @@ if callfunc == "initialize":
   handle1 = settimer(20,dumpmesg,())
   handle2 = settimer(20,dumpmesg,())
 
-  # Check for a prefix
-  if not handle1.startswith("_EVENT:"):
-    print "Handle 1 does not have the correct prefix!",handle1
-
-  if not handle2.startswith("_EVENT:"):
-    print "Handle 2 does not have the correct prefix!",handle2
-
   # We should be able to use cancel timer with these handles
   val1 = canceltimer(handle1)
   val2 = canceltimer(handle2)
@@ -61,7 +54,8 @@ if callfunc == "initialize":
     print "Was able to stop an already stopped event! Handle 1 stop:",val3,"Handle 2 stop:",val4
 
   # Test pseudo-valid handles
-  if canceltimer("_EVENT:JUNKHANDLE"):
-    print "A junk pseudo-handle was able to stop an event!"
+  # This is an invalid argument according to the namespace layer.
+  #if canceltimer("_EVENT:JUNKHANDLE"):
+  #  print "A junk pseudo-handle was able to stop an event!"
 
 
