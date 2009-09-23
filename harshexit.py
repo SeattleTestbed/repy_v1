@@ -7,6 +7,7 @@
 # used to get information about the system we're running on
 import platform
 import os
+import sys
 
 # needed for signal numbers
 import signal
