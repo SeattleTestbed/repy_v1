@@ -1055,8 +1055,11 @@ class NamespaceAPIFunctionWrapper(object):
       The deep copy of obj.
     """
     try:
+      # types.InstanceType is included because the user can provide an instance
+      # of a class of their own in the list of callback args to settimer.
       if type(obj) in [str, unicode, int, long, float, complex, bool, types.NoneType,
-                       types.FunctionType, types.LambdaType, types.MethodType]:
+                       types.FunctionType, types.LambdaType, types.MethodType,
+                       types.InstanceType]:
         return obj
       
       elif type(obj) in [tuple, list, set, frozenset]:
