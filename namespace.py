@@ -427,7 +427,9 @@ def allow_args_openconn(desthost, destport, localip=None, localport=0, timeout=5
   # but we're going to let the actual sendmess worry about that.
   if localip is not None:
     _require_string(localip)
-  _require_integer(localport)
+  # We accept a localport of None to mean the same thing as 0.
+  if localport is not None:
+    _require_integer(localport)
 
   _require_integer_or_float(timeout)
 
