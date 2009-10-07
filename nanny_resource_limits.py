@@ -93,11 +93,6 @@ def init(getruntime):
 
 # Data structures and functions for a cross platform CPU limiter
 
-# Intervals to retain for rolling average
-ROLLING_PERIOD = 1
-rollingCPU = []
-rollingIntervals = []
-
 # Debug purposes: Calculate real average
 #appstart = time.time()
 #rawcpu = 0.0
@@ -122,7 +117,6 @@ def calculate_cpu_sleep_interval(cpulimit, percentused, elapsedtime):
   <Returns>
     Time period the process should sleep
   """
-  global rollingCPU, rollingIntervals
   # Debug: Used to calculate averages
   #global totaltime, rawcpu, appstart
 
@@ -130,30 +124,10 @@ def calculate_cpu_sleep_interval(cpulimit, percentused, elapsedtime):
   if elapsedtime <= 0:
     return 0
     
-  # Update rolling info
-  if len(rollingCPU) == ROLLING_PERIOD:
-    rollingCPU.pop(0) # Remove oldest CPU data
-    rollingIntervals.pop(0) # Remove oldest Elapsed time data
-  rollingCPU.append(percentused*elapsedtime) # Add new CPU data
-  rollingIntervals.append(elapsedtime) # Add new time data
-
-  # Caclulate Averages
-  # Sum up cpu data
-  rollingTotalCPU = 0.0
-  for i in rollingCPU:
-    rollingTotalCPU += i
-
-  # Sum up time data
-  rollingTotalTime = 0.0
-  for i in rollingIntervals:
-    rollingTotalTime += i
-
-  rollingAvg = rollingTotalCPU/rollingTotalTime
-
   # Calculate Stoptime
   #  Mathematically Derived from:
   #  (PercentUsed * TotalTime) / ( TotalTime + StopTime) = CPULimit
-  stoptime = max(((rollingAvg * rollingTotalTime) / cpulimit) - rollingTotalTime , 0)
+  stoptime = max(((percentused * elapsedtime) / cpulimit) - elapsedtime , 0)
 
   # Print debug info
   #rawcpu += percentused*elapsedtime
