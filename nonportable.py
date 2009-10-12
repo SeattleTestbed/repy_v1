@@ -33,8 +33,6 @@ except ImportError:
   # Set flag to avoid using subprocess
   mobile_no_subprocess = True 
 
-# used for select (duh)
-import select
 
 # used for socket.error
 import socket
@@ -143,36 +141,6 @@ def monitor_cpu_disk_and_mem():
   else:
     raise UnsupportedSystemException, "Unsupported system type: '"+osrealtype+"' (alias: "+ostype+")"
 
-
-def select_sockets(inlist, timeout = None):
-
-  try:
-    # use the built-in select
-    (readylist, junk1, exclist) = select.select(inlist, [], inlist, timeout)
-
-  # windows uses socket.error, Mac uses Exception
-  except (socket.error, select.error, ValueError), e: 
-
-    # If I'm unsure what this is about, don't handle it here...
-    if not isinstance(e, ValueError):
-      # socket and select errors of 9 mean it's a closed file descriptor
-      # 10038 means it's not a socket
-      if e[0] != 9 and e[0] != 10038:
-        raise
-
-    # I ignore the timeout because there is obviously an event waiting
-    return smarter_select(inlist)
-
-
-    
-  else:  # normal path
-    # append any exceptional items to the ready list (likely these are errors
-    # that we need to handle)
-    for item in exclist:
-      if item not in readylist:
-        readylist.append(item)
-
-    return readylist
 
 
 
@@ -439,58 +407,6 @@ class WinCPUNannyThread(threading.Thread):
         harshexit.harshexit(25)
               
               
-#### This seems to be used by Mac as well...
-
-def smarter_select(inlist):
-    
-  badlist = []
-  goodlist = inlist
-
-  # loop until we're either out of sockets to select or we do a clean select
-  while goodlist != []:
-    try:
-      # use the built-in select
-      (readylist, junk1, exclist) = select.select(goodlist, [], goodlist, 0.0)
-  
-    except (socket.error, select.error, ValueError), e:  # windows error path
-
-      # okay, so some socket or sockets are bad.   We need to figure out which 
-      # are bad and add them to the badlist...
-      newgoodlist = []
-      for item in goodlist:
-        try:
-          # try without blocking.   If it fails, it's bad...
-          select.select([item],[],[],0)
-          newgoodlist.append(item)
-        except (socket.error, select.error, ValueError), e:
-          if not isinstance(e, ValueError):
-            # socket and select errors of 9 mean it's a closed file descriptor
-            # 10038 means it's not a socket
-            if e[0] != 9 and e[0] != 10038:
-              raise
-          badlist.append(item)
-
-      goodlist = newgoodlist
-
-    else:  # normal path
-      # append any exceptional items and bad items to the ready list (likely 
-      # these are errors that we need to handle)
-      for item in exclist:
-        if item not in readylist:
-          readylist.append(item)
-
-      for item in badlist:
-        if item not in readylist:
-          readylist.append(item)
-
-      return readylist
-
-
-  # we're out of options.   Return the badlist...
-  return badlist
-
-
-
 
 
 

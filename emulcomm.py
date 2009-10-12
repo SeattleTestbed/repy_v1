@@ -13,6 +13,9 @@
 import restrictions
 import socket
 
+# Armon: Used to check if a socket is ready
+import select
+
 # socket uses getattr and setattr.   We need to make these available to it...
 socket.getattr = getattr
 socket.setattr = setattr
@@ -194,8 +197,8 @@ def is_recoverable_network_exception(exceptionobj):
   if exception_type == socket.timeout:
     return True
 
-  # Only continue if the type is socket.error
-  elif exception_type != socket.error:
+  # Only continue if the type is socket.error or select.error
+  elif exception_type != socket.error and exception_type != select.error:
     return False
   
   # Get the error number
@@ -231,8 +234,8 @@ def is_terminated_connection_exception(exceptionobj):
   # Get the type
   exception_type = type(exceptionobj)
 
-  # We only want to continue if it is socket.error
-  if exception_type != socket.error:
+  # We only want to continue if it is socket.error or select.error
+  if exception_type != socket.error and exception_type != select.error:
     return False
 
   # Get the error number
@@ -477,10 +480,12 @@ def start_event(entry, handle,eventhandle):
     
     # put this handle in the table
     newhandle = generate_commhandle()
-    safesocket = emulated_socket(newhandle)
     comminfo[newhandle] = {'type':'TCP','remotehost':addr[0], 'remoteport':addr[1],'localip':entry['localip'],'localport':entry['localport'],'socket':realsocket,'outgoing':True, 'closing_lock':threading.Lock()}
     # I don't think it makes sense to count this as an outgoing socket, does 
     # it?
+
+    # Armon: Create the emulated socket after the table entry
+    safesocket = emulated_socket(newhandle)
 
     try:
       EventDeliverer(entry['function'],(addr[0], addr[1], safesocket, newhandle, handle),eventhandle).start()
@@ -499,7 +504,11 @@ def start_event(entry, handle,eventhandle):
 
 
 
-
+# Armon: What is the maximum number of samples to perform per second?
+# This is to prevent excessive sampling if there is a bad socket and
+# select() returns before timing out
+MAX_SAMPLES_PER_SEC = 10
+TIME_BETWEEN_SAMPLES = 1.0 / MAX_SAMPLES_PER_SEC
 
 # Check for sockets using select and fire up user event threads as needed.
 #
@@ -512,30 +521,80 @@ class SocketSelector(threading.Thread):
     threading.Thread.__init__(self, name="SocketSelector")
 
 
+  # Gets a list of all the sockets which are ready to have
+  # accept() called on them
+  def get_acceptable_sockets(self):
+    # get the list of socket objects we might have a pending request on
+    requestlist = []
+    for comm in comminfo.values():
+      if not comm['outgoing']:
+        requestlist.append(comm['socket'])
+
+    # nothing to request.   We should loop back around and check if all 
+    # sockets have been closed
+    if requestlist == []:
+      return []
+
+    # Perform a select on these sockets
+    try:
+      # Call select
+      (acceptable, not_applic, has_excp) = select.select(requestlist,[],requestlist,0.5)
+    
+      # Add all the sockets with exceptions to the acceptable list
+      for sock in has_excp:
+        if sock not in acceptable:
+          acceptable.append(sock)
+
+      # Return the acceptable list
+      return acceptable
+    
+    # There was probably an exception on the socket level, check individually
+    except:
+
+      # Hold the ready sockets
+      readylist = []
+
+      # Check each requested socket
+      for socket in requestlist:
+        try:
+          (accept_will_block, write_will_block) = socket_state(socket, "r")
+          if not accept_will_block:
+            readylist.append(socket)
+        
+        # Ignore errors, probably the socket is closed.
+        except:
+          pass
+
+      # Return the ready list
+      return readylist
 
 
 
   def run(self):
+    # Keep track of the last sample time
+    # updated when there are no ready sockets
+    last_sample = 0
+
     while True:
 
       # I'll stop myself only when there are no active threads to monitor
       if should_selector_exit():
         return
 
-      # get the list of socket objects we might have a pending request on
-      requestlist = []
-      for comm in comminfo.values():
-        if not comm['outgoing']:
-          requestlist.append(comm['socket'])
+      # If the last sample with 0 ready sockets was less than TIME_BETWEEN_SAMPLES
+      # seconds ago, sleep a while. This is to prevent a tight loop from consuming
+      # CPU time doing nothing.
+      current_time = nonportable.getruntime()
+      time_diff = current_time - last_sample
+      if time_diff < TIME_BETWEEN_SAMPLES:
+        time.sleep(TIME_BETWEEN_SAMPLES - time_diff)
 
-      # nothing to request.   We should loop back around and check if all 
-      # sockets have been closed
-      if requestlist == []:
-        continue
+      # Get all the ready sockets
+      readylist = self.get_acceptable_sockets()
 
-      # I'd like to see if we have a pending request.   
-      # wait for up to 1/2 second
-      readylist = nonportable.select_sockets(requestlist, 0.5)
+      # If there is nothing to do, potentially delay the next sample
+      if len(readylist) == 0:
+        last_sample = current_time
 
       # go through the pending sockets, grab an event and then start a thread
       # to handle the connection
@@ -559,7 +618,8 @@ class SocketSelector(threading.Thread):
 
         # Now I can start a thread to run the user's code...
         start_event(commtableentry,commhandle,eventhandle)
-        
+      
+
 
 
 
@@ -887,6 +947,13 @@ def cleanup(handle):
   # if it's in the table then remove the entry and tattle...
   try:
     if handle in comminfo:
+      # Armon: Shutdown the socket for writing prior to close
+      # to unblock any threads that are writing
+      try:
+        comminfo[handle]['socket'].shutdown(socket.SHUT_WR)
+      except:
+        pass
+
       try:
         comminfo[handle]['socket'].close()
       except:
@@ -1506,11 +1573,60 @@ def get_real_socket(localip=None, localport = None):
   return s
 
 
+# Checks if the given real socket would block
+def socket_state(realsock, waitfor="rw", timeout=0.0):
+  """
+  <Purpose>
+    Checks if the given socket would block on a send() or recv().
+    In the case of a listening socket, read_will_block equates to
+    accept_will_block.
 
+  <Arguments>
+    realsock:
+              A real socket.socket() object to check for.
 
+    waitfor:
+              An optional specifier of what to wait for. "r" for read only, "w" for write only,
+              and "rw" for read or write. E.g. if timeout is 10, and wait is "r", this will block
+              for up to 10 seconds until read_will_block is false. If you specify "r", then
+              write_will_block is always true, and if you specify "w" then read_will_block is
+              always true.
 
+    timeout:
+              An optional timeout to wait for the socket to be read or write ready.
 
+  <Returns>
+    A tuple, (read_will_block, write_will_block).
 
+  <Exceptions>
+    As with select.select(). Probably best to wrap this with is_recoverable_network_exception
+    and is_terminated_connection_exception. Throws an exception if waitfor is not in ["r","w","rw"]
+  """
+  # Check that waitfor is valid
+  if waitfor not in ["rw","r","w"]:
+    raise Exception, "Illegal waitfor argument!"
+
+  # Array to hold the socket
+  sock_array = [realsock]
+
+  # Generate the read/write arrays
+  read_array = []
+  if "r" in waitfor:
+    read_array = sock_array
+
+  write_array = []
+  if "w" in waitfor:
+    write_array = sock_array
+
+  # Call select()
+  (readable, writeable, exception) = select.select(read_array,write_array,sock_array,timeout)
+
+  # If the socket is in the exception list, then assume its both read and writable
+  if (realsock in exception):
+    return (False, False)
+
+  # Return normally then
+  return (realsock not in readable, realsock not in writeable)
 
 
 
@@ -1523,6 +1639,23 @@ class emulated_socket:
 
   def __init__(self, handle):
     self.commid = handle
+
+    # Armon: Get the real socket
+    try:
+      realsocket = comminfo[handle]['socket']
+      
+      # Make the socket non-blocking
+      realsocket.setblocking(0)
+
+    # Catch a potentially weird issue
+    except KeyError:
+      raise Exception, "Internal Error. No table entry for new socket!"
+
+    # This is to ignore the case that the realsocket is None (e.g. doesn't support setblocking())
+    # Mostly this is to allow the py_z_test_namespace_wrapped_objects.py test to pass
+    except AttributeError:
+      pass
+
     return None 
 
 
@@ -1606,8 +1739,8 @@ class emulated_socket:
         realsocket = comminfo[mycommid]['socket']
 	
         # Check if the socket is ready for reading
-        readylst = nonportable.select_sockets([realsocket],0.2)	
-        if realsocket in readylst:
+        (read_will_block, write_will_block) = socket_state(realsocket, "r", 0.2)	
+        if not read_will_block:
           datarecvd = realsocket.recv(bytes)
           break
 
@@ -1686,8 +1819,14 @@ class emulated_socket:
     # loop until we send the information (looping is needed for Windows)
     while True:
       try:
-        bytessent = comminfo[mycommid]['socket'].send(*args)
-        break
+        # Armon: Get the real socket
+        realsocket = comminfo[mycommid]['socket']
+	
+        # Check if the socket is ready for writing, wait 0.2 seconds
+        (read_will_block, write_will_block) = socket_state(realsocket, "w", 0.2)
+        if not write_will_block:
+          bytessent = realsocket.send(*args)
+          break
       
       except KeyError:
         raise Exception, "Socket closed"
@@ -1709,6 +1848,41 @@ class emulated_socket:
       nanny.tattle_quantity('netsend',bytessent)
 
     return bytessent
+
+
+  # Checks if socket read/write operations will block
+  def willblock(self):
+    """
+    <Purpose>
+      Determines if a socket would block if send() or recv() was called.
+
+    <Exceptions>
+      Socket Closed if the socket has been closed.
+
+    <Returns>
+      A tuple, (recv_will_block, send_will_block) both are boolean values.
+
+    """
+
+    try:
+      # Get the real socket
+      realsocket = comminfo[self.commid]['socket']
+
+      # Call into socket_state with no timout to return instantly
+      return socket_state(realsocket)
+    
+    # The socket is closed or in the process of being closed...
+    except KeyError:
+      raise Exception, "Socket closed"
+
+    except Exception, e:
+      # Determine if the socket is closed
+      if is_terminated_connection_exception(e):
+        raise Exception("Socket closed")
+      
+      # Otherwise raise whatever we have
+      else:
+        raise
 
 
 
