@@ -316,6 +316,18 @@ def allow_return_bool(retval):
   _require_bool(retval)
 
 
+# Armon: Boolean tuple with exactly 2 elements
+def allow_return_two_bools_tuple(retval):
+  # First validate it is a boolean tuple
+  _require_tuple(retval)
+  for elem in retval:
+    _require_bool(elem)
+
+  # Check the size of the tuple is exactly 2
+  if len(retval) != 2:
+    raise NamespaceRequirementError
+
+
 
 def allow_args_single_string(*args, **kwargs):
   if len(args) != 1:
@@ -853,6 +865,13 @@ SOCKET_OBJECT_WRAPPER_INFO = {
       {'target_func' : emulcomm.emulated_socket.send,
        'arg_checking_func' : allow_args_emulated_socket_send,
        'return_checking_func' : allow_return_integer},
+  
+  # Armon: Add the willblock() call. Takes no args, and returns a bool tuple with 2 entries.
+  'willblock' :
+      {'target_func' : emulcomm.emulated_socket.willblock,
+       'arg_checking_func' : allow_args_emulated_socket,
+       'return_checking_func' : allow_return_two_bools_tuple},
+
 }
 
 

@@ -35,6 +35,10 @@ for func_name in namespace.file_object_wrapped_functions_dict:
 
 # Create one of each type of object that gets wrapped.
 commhandle = "fakecommhandle"
+
+# Armon: Create handle entry...
+emulcomm.comminfo[commhandle] = {"socket":None}
+
 timerhandle = "faketimerhandle"
 socketobj = emulcomm.emulated_socket(commhandle)
 lockobj = emulmisc.getlock()
@@ -58,6 +62,7 @@ assert(isinstance(wrappedfile, namespace.NamespaceObjectWrapper))
 wrappedsocket.close
 wrappedsocket.send
 wrappedsocket.recv
+wrappedsocket.willblock
 
 wrappedlock.acquire
 wrappedlock.release
