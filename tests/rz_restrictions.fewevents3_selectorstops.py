@@ -24,7 +24,7 @@ if callfunc == 'initialize':
   stopcomm(ch1)
   junk.close()
   sleep(.5)   # it should be cleaned up now
-  settimer(1.5, noop,())
+  settimer(5, noop,())
   settimer(.2, exitall,())
   # execute further in the future than this should take
   # try until this executes...
