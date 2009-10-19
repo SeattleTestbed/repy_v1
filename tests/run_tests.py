@@ -26,6 +26,9 @@
   
   Armon Dadgar 4-28-9- Added new flag "-nm-network" that runs special tests to check for the proper behavior of 
   the nodemanager when ip and iface preferences are enabled.
+  
+  Justin Samuel 10-29-09 - Added --pattern= for specifying patterns to match
+  specific tests to be run.
    
 <Usage>
   To run the repy unit tests locally, first navigate to trunk, then 
@@ -35,6 +38,14 @@
   2.  cd <directory>
   3.  python run_tests.py
 
+  To run individual tests, provide a --pattern argument. For example:
+      python run_tests.py --pattern='z_*'
+  or, a single file:
+      python run_tests.py --pattern=z_my_test.py
+  Keep in mind that you have to prevent your shell from expanding any
+  pattern you provide, so wrap patterns with *, ?, or [] in single quotes.
+  If using this in an automated manner, be especially careful that you don't
+  end up running only a single test because the shell expanded the pattern.
 
   To run the CPU throttling checks, use these commands:
   1.  python preparetest.py -t <directory>
@@ -1039,21 +1050,51 @@ failcount=0
 testportfiller.main()
 
 
-# for each test... run it!
-# if the -n flag is specified, only run node manager tests
-if (len(sys.argv) > 1 and sys.argv[1] == '-n') or (len(sys.argv) > 2 and sys.argv[2] == '-n'):
-  for testfile in glob.glob("nmtest*.py"):
-    run_test(testfile)
-else:
-  for testfile in glob.glob("rs_*.py") + glob.glob("rn_*.py") + \
-  	  glob.glob("rz_*.py") + glob.glob("rb_*.py") + glob.glob("ru_*.py") + \
-	  glob.glob("re_*.py") + glob.glob("rl_*.py") +glob.glob("s_*.py") + \
-	  glob.glob("n_*.py") + glob.glob("z_*.py") + glob.glob("b_*.py") + \
-	  glob.glob("u_*.py") + glob.glob("e_*.py") + glob.glob("l_*.py") + \
-    glob.glob("py_n_*.py") + glob.glob("py_z_*.py") + glob.glob("py_b_*.py") + \
-    glob.glob("py_u_*.py") + glob.glob("py_e_*.py"):
-    run_test(testfile)
+# Whether to run the oddball tests. These only get run if the nodemanager tests
+# aren't being run and if no custom file pattern was specified.
+run_oddball_tests = False
+
+# The test files to be run.
+file_list = None
+
+# Look for a --pattern= argument, which is a glob pattern indicating specific
+# tests to be to run.
+for arg in sys.argv:
+  if arg.startswith("--pattern="):
+    file_list = glob.glob(arg.split("=")[1])
+    break
+
+
+# If there was no pattern specified on the command line, then we want to run
+# as many tests as possible.
+if file_list is None:
+  # if the -n flag is specified, only run node manager tests
+  if (len(sys.argv) > 1 and sys.argv[1] == '-n') or (len(sys.argv) > 2 and sys.argv[2] == '-n'):
+    file_list = glob.glob("nmtest*.py")
+      
+  else:
+    run_oddball_tests = True
+    pattern_list = ["rs_*.py", "rn_*.py", "rb_*.py", "ru_*.py", "rz_*.py",
+                    "re_*.py", "rl_*.py", "s_*.py", "n_*.py", "z_*.py", "b_*.py",
+                    "u_*.py", "e_*.py", "l_*.py", "py_n_*.py", "py_z_*.py",
+                    "py_b_*.py", "py_u_*.py", "py_e_*.py"]
+    file_list = []
+    for pattern in pattern_list:
+      file_list += glob.glob(pattern)
     
+
+
+# Make sure there are some tests to be run.
+if not file_list:
+  raise Exception("[FAILED] No test files matched the provided pattern.")
+
+
+    
+# Actually run the tests.
+for testfile in file_list:
+  run_test(testfile)
+    
+if run_oddball_tests:
   do_oddballtests()
 
 print >> logstream, passcount,"tests passed,",failcount,"tests failed"
