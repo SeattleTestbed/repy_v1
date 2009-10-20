@@ -510,8 +510,12 @@ def wrap_args_waitforconn(localip, localport, function):
 
 
 def allow_args_stopcomm(wrapped_commhandle):
-  if wrapped_commhandle._wrapped__type_name != "commhandle":
+  try:
+    if wrapped_commhandle._wrapped__type_name != "commhandle":
+      raise NamespaceRequirementError
+  except AttributeError:
     raise NamespaceRequirementError
+
 
 
 
@@ -534,7 +538,10 @@ def allow_args_settimer(waittime, function, args):
 
 
 def allow_args_canceltimer(wrapped_timerhandle):
-  if wrapped_timerhandle._wrapped__type_name != "timerhandle":
+  try:
+    if wrapped_timerhandle._wrapped__type_name != "timerhandle":
+      raise NamespaceRequirementError
+  except AttributeError:
     raise NamespaceRequirementError
 
 
