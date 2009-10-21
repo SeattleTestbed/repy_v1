@@ -6,15 +6,18 @@
    Description:
    
    Provides a unique ID when requested...
+   This really should use uniqueid.repy
 """
 
-import threading        # to get the current thread name to prevent a race
+import threading        # to get the current thread name and a lock
 
 
 # this dictionary contains keys that are thread names and values that are 
 # integers.   The value starts at 0 and is incremented every time we give 
 # out an ID.   The ID is formed from those two parts (thread name and ID)
-usedids = {}
+uniqueid_idlist = [0]
+uniqueid_idlock = threading.Lock()
+
 
 def getuniqueid():
   """
@@ -34,13 +37,15 @@ def getuniqueid():
       The identifier (the string)
   """
 
-  # NOTE: I make the assumption that threads have unique names.   I toyed with 
-  # the thought of using the id (memory location) of the thread object, but I
-  # was unsure this would behave well if dummy threads exist or if gc happens
-  # in the middle of this function, etc.
-  myname = threading.currentThread().getName()
-  if myname not in usedids:
-    usedids[myname] = 0
+  uniqueid_idlock.acquire()
 
-  usedids[myname] = usedids[myname]+1
-  return myname + ":"+str(usedids[myname])
+  # I'm using a list because I need a global, but don't want to use the global
+  # keyword.   
+  myid = uniqueid_idlist[0]
+  uniqueid_idlist[0] = uniqueid_idlist[0] + 1
+
+  uniqueid_idlock.release()
+
+  myname = threading.currentThread().getName()
+
+  return myname + ":"+str(myid)
