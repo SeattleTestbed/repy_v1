@@ -10,7 +10,7 @@ if callfunc == "initialize":
   try:
     sock1 = openconn(remoteip, remoteport, ip, port,timeout=300)
   except Exception, e:
-    print "Unexpected Exception! '"+str(e)+"'"
+    print "Unexpected exception! '"+str(e)+"' of type '"+str(type(e))+"'."
     exitall()
   
   # This should fail, sock1 is open
@@ -33,7 +33,7 @@ if callfunc == "initialize":
     # setting this too short causes failures for our unit tests on some platforms
     sock2 = openconn(remoteip, remoteport, ip, port, timeout=600)
   except Exception, e:
-    print "Unexpected exception! '"+str(e)+"'.   We should block execution!"
+    print "Unexpected exception! '"+str(e)+"' of type '"+str(type(e))+"'.   We should block execution!"
   else:  
     sock2.close()
 
