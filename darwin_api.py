@@ -217,7 +217,8 @@ def _get_boottime_struct():
   size = ctypes.c_size_t(ctypes.sizeof(boottime))
 
   # Make the syscall
-  libc.sysctl(mib, 2, ctypes.pointer(boottime), ctypes.pointer(size), None, 0)
+  retval = libc.sysctl(mib, 2, ctypes.pointer(boottime), ctypes.pointer(size), None, 0)
+  assert(retval == 0)
 
   return boottime
 
@@ -233,7 +234,7 @@ def get_system_uptime():
   boottime = _get_boottime_struct()
 
   # Calculate uptime from current time
-  uptime = time.time() - boottime.tv_sec+boottime.tv_usec*1.0e-6
+  uptime = time.time() - boottime.tv_sec
 
   return uptime
 
