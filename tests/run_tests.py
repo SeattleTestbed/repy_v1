@@ -632,24 +632,34 @@ def do_oddballtests():
     except OSError:
       # the child has likely exited
       pass
+
+    except ValueError:
+      # This happens when the child PID is ''
+      pass
       
     # Wait for the signal to take effect
     time.sleep(1)    
 
-  # Make sure the file size is not changing
-  firstsize = os.path.getsize("junk_test.out")
-  time.sleep(1)
-  secondsize = os.path.getsize("junk_test.out")
-
-
-  if firstsize == secondsize:
-    passcount = passcount + 1
-    logstream.write(" PASS ]\n")
-    
-  else:
+  try:
+    # Make sure the file size is not changing
+    firstsize = os.path.getsize("junk_test.out")
+    time.sleep(1)
+    secondsize = os.path.getsize("junk_test.out")
+  except (OSError, IOError):
     failcount = failcount + 1
     logstream.write("FAILED]\n")
-    endput = endput+"Killing Repy's resource monitor did not stop repy!\n\n"
+    endput = endput+"Killing Repy's resource monitor did not stop repy (size error)!\n\n"
+
+  else:
+
+    if firstsize == secondsize:
+      passcount = passcount + 1
+      logstream.write(" PASS ]\n")
+    
+    else:
+      failcount = failcount + 1
+      logstream.write("FAILED]\n")
+      endput = endput+"Killing Repy's resource monitor did not stop repy!\n\n"
 
   # Close the pipes
   p.stdout.close()
