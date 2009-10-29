@@ -6,10 +6,10 @@ if callfunc == "initialize":
  
   ip = '127.0.0.1' 
 
-  handle = waitforconn(ip,12345,new_client) 
+  handle = waitforconn(ip,<connport>,new_client) 
   # should work
 
-  sock1 = openconn(ip,12345)
+  sock1 = openconn(ip,<connport>)
  
   stopcomm(handle) 
 
@@ -17,7 +17,7 @@ if callfunc == "initialize":
 
   # should fail
   try:
-    sock2 = openconn(ip,12345)
+    sock2 = openconn(ip,<connport>)
   except Exception, e:
     #just do nothing
     pass
@@ -25,17 +25,17 @@ if callfunc == "initialize":
     print 'failed to get error opening sock2'
     sock2.close()
 
-  handle = waitforconn(ip,12345,new_client)
+  handle = waitforconn(ip,<connport>,new_client)
 
   # should work
-  sock3 = openconn(ip,12345)
+  sock3 = openconn(ip,<connport>)
   sock3.close()
 
   stopcomm(handle) 
 
   # should fail
   try:
-    sock4 = openconn(ip,12345)
+    sock4 = openconn(ip,<connport>)
   except Exception, e:
     #just do nothing
     pass

@@ -1,7 +1,7 @@
 
 if callfunc == "initialize":
   ip = getmyip()
-  port = 12345
+  port = <connport>
   remoteip = gethostbyname_ex("google.com")[2][-1]
   remoteport = 80
   

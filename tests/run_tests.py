@@ -125,6 +125,7 @@ import time
 import nonportable
 import harshexit
 import signal
+import random
 
 # Used to spawn subprocesses for tests. Fails on
 # WindowsCE so we use WindowsAPI instead
@@ -1054,10 +1055,20 @@ if len(sys.argv) > 1 and sys.argv[1] == "-nm-network":
 passcount=0
 failcount=0
 
-# Have the testportfiller fill in all of the messport/connport
-# tags with default values so that the tests can be successfully
-# run locally. - Brent
-testportfiller.main()
+
+for arg in sys.argv:
+  if arg == '-randomports':
+    portstouseasints = random.sample(range(52000, 53000), 3)
+    portstouseasstr = []
+    for portint in portstouseasints:
+      portstouseasstr.append(str(portint))
+    
+    print "Randomly chose ports: ",portstouseasstr
+    testportfiller.replace_ports(portstouseasstr, portstouseasstr)
+    break
+else:
+  # if this isn't specified, just use the default ports...
+  testportfiller.replace_ports(['12345','12346','12347'], ['12345','12346','12347'])
 
 
 # Whether to run the oddball tests. These only get run if the nodemanager tests

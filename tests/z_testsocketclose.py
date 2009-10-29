@@ -42,10 +42,10 @@ if callfunc == "initialize":
   ip = getmyip()
 
   # Setup listener
-  waitforconn(ip,12345,new_conn)
+  waitforconn(ip,<connport>,new_conn)
 
   # Connect
-  sock = openconn(ip, 12345)
+  sock = openconn(ip,<connport>)
 
   # Read the first 2 numbers
   num1 = sock.recv(2)

@@ -1,7 +1,7 @@
 
 if callfunc == "initialize":
   ip = getmyip()
-  port = 12345
+  port = <connport>
   # Use yahoo.com to avoid a conflict with the duplicateopenconn test
   remoteip = gethostbyname_ex("yahoo.com")[2][1]
   remoteport = 80
