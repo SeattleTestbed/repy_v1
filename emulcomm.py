@@ -379,7 +379,7 @@ selectorstarted = False
 # return the table entry for this socketobject
 def find_socket_entry(socketobject):
   for commhandle in comminfo.keys():
-    if comminfo[commhandle]['socket'] == socketobject:
+    if comminfo[commhandle]['socket'] is socketobject:
       return comminfo[commhandle], commhandle
   raise KeyError, "Can't find commhandle"
 
