@@ -1656,7 +1656,7 @@ class emulated_socket:
 
 
 
-  def close(self,*args):
+  def close(self):
     """
       <Purpose>
         Closes a socket.   Pending remote recv() calls will return with the 
@@ -1676,7 +1676,7 @@ class emulated_socket:
     """
     # prevent TOCTOU race with client changing the object's properties
     mycommid = self.commid
-    restrictions.assertisallowed('socket.close',*args)
+    restrictions.assertisallowed('socket.close')
     
     # Armon: Semantic update, return whatever stopcomm does.
     # This will result in socket.close() returning a True/False indicator
@@ -1774,7 +1774,7 @@ class emulated_socket:
 
 
 
-  def send(self,*args):
+  def send(self,message):
     """
       <Purpose>
         Sends data on a socket.   It may send fewer bytes than requested.   
@@ -1795,7 +1795,7 @@ class emulated_socket:
     """
     # prevent TOCTOU race with client changing the object's properties
     mycommid = self.commid
-    restrictions.assertisallowed('socket.send',*args)
+    restrictions.assertisallowed('socket.send',message)
 
     # I factor this out because we must do the accounting at the bottom of this
     # function and I want to make sure we account properly even if they close 
@@ -1820,7 +1820,7 @@ class emulated_socket:
         # Check if the socket is ready for writing, wait 0.2 seconds
         (read_will_block, write_will_block) = socket_state(realsocket, "w", 0.2)
         if not write_will_block:
-          bytessent = realsocket.send(*args)
+          bytessent = realsocket.send(message)
           break
       
       except KeyError:
