@@ -114,6 +114,11 @@ import emultimer
 import emulcomm
 import emulmisc
 
+# Save a copy of getattr because it won't be available at runtime.
+_saved_getattr = getattr
+
+# Save a copy of callable because it won't be available at runtime.
+_saved_callable = callable
 
 
 ##############################################################################
@@ -176,7 +181,7 @@ def _prepare_wrapped_functions_for_object_wrappers():
   """
   objects_tuples = [(FILE_OBJECT_WRAPPER_INFO, file_object_wrapped_functions_dict),
                     (SOCKET_OBJECT_WRAPPER_INFO, socket_object_wrapped_functions_dict),
-                    (LOCK_OBJECT_WRAPPER_INFO, lock_object_wrapped_functions_dict),]
+                    (LOCK_OBJECT_WRAPPER_INFO, lock_object_wrapped_functions_dict)]
   
   for description_dict, wrapped_func_dict in objects_tuples:
     for function_name in description_dict:
@@ -203,14 +208,30 @@ class NamespaceRequirementError(Exception):
 
 
 
+def _is_in(obj, sequence):
+  """
+  A helper function to do identity ("is") checks instead of equality ("==")
+  when using X in [A, B, C] type constructs. So you would write:
+    if _is_in(type(foo), [int, long]):
+  instead of:
+    if type(foo) in [int, long]:
+  """
+  for item in sequence:
+    if obj is item:
+      return True
+  return False
+  
+
+
+
 def _require_string(obj):
-  if not type(obj) in [str, unicode]:
+  if not _is_in(type(obj), [str, unicode]):
     raise NamespaceRequirementError
 
 
 
 def _require_integer(obj):
-  if not type(obj) in [int, long]:
+  if not _is_in(type(obj), [int, long]):
     raise NamespaceRequirementError
 
 
@@ -222,7 +243,7 @@ def _require_float(obj):
 
 
 def _require_integer_or_float(obj):
-  if not type(obj) in [int, long, float]:
+  if not _is_in(type(obj), [int, long, float]):
     raise NamespaceRequirementError
 
 
@@ -234,7 +255,7 @@ def _require_bool(obj):
 
 
 def _require_bool_or_integer(obj):
-  if type(obj) not in [bool, int, long]:
+  if not _is_in(type(obj), [bool, int, long]):
     raise NamespaceRequirementError
 
 
@@ -252,13 +273,13 @@ def _require_list(obj):
 
 
 def _require_tuple_or_list(obj):
-  if not type(obj) in [tuple, list]:
+  if not _is_in(type(obj), [tuple, list]):
     raise NamespaceRequirementError
 
 
 
 def _require_user_function(obj):
-  if not type(obj) in [types.FunctionType, types.LambdaType, types.MethodType]:
+  if not _is_in(type(obj), [types.FunctionType, types.LambdaType, types.MethodType]):
     raise NamespaceRequirementError
 
 
@@ -791,22 +812,22 @@ FILE_OBJECT_WRAPPER_INFO = {
   'flush' :
       {'target_func' : emulfile.emulated_file.flush,
        'arg_checking_func' : allow_args_emulated_file,
-       'return_checking_func' : allow_return_none}, 
+       'return_checking_func' : allow_return_none},
 
   'next' :
       {'target_func' : emulfile.emulated_file.next,
        'arg_checking_func' : allow_args_emulated_file,
-       'return_checking_func' : allow_return_string}, 
+       'return_checking_func' : allow_return_string},
 
   'read' :
       {'target_func' : emulfile.emulated_file.read,
        'arg_checking_func' : allow_args_emulated_file_and_optional_integer,
-       'return_checking_func' : allow_return_string}, 
+       'return_checking_func' : allow_return_string},
 
   'readline' :
       {'target_func' : emulfile.emulated_file.readline,
        'arg_checking_func' : allow_args_emulated_file_and_optional_integer,
-       'return_checking_func' : allow_return_string}, 
+       'return_checking_func' : allow_return_string},
 
   'readlines' :
       {'target_func' : emulfile.emulated_file.readlines,
@@ -886,6 +907,8 @@ SOCKET_OBJECT_WRAPPER_INFO = {
 
 
 def _require_lock_object(lockobj):
+  # The type(lockobj) is thread.lock, but there is no such thing. So, we use
+  # 'isinstance()' here instead of 'is'.
   if not isinstance(lockobj, thread.LockType):
     raise NamespaceRequirementError
 
@@ -1108,12 +1131,12 @@ class NamespaceAPIFunctionWrapper(object):
     try:
       # types.InstanceType is included because the user can provide an instance
       # of a class of their own in the list of callback args to settimer.
-      if type(obj) in [str, unicode, int, long, float, complex, bool, types.NoneType,
-                       types.FunctionType, types.LambdaType, types.MethodType,
-                       types.InstanceType]:
+      if _is_in(type(obj), [str, unicode, int, long, float, complex, bool,
+                            types.NoneType, types.FunctionType, types.LambdaType,
+                            types.MethodType, types.InstanceType]):
         return obj
       
-      elif type(obj) in [tuple, list, set, frozenset]:
+      elif _is_in(type(obj), [tuple, list, set, frozenset]):
         temp_list = []
         for item in obj:
           temp_list.append(self._copy(item))
@@ -1173,7 +1196,11 @@ class NamespaceAPIFunctionWrapper(object):
       self.__arg_checking_func(*args, **kwargs)
 
     except NamespaceRequirementError, e:
-      raise TypeError("Function '" + self.__target_func.__name__ + "' called with incorrect arguments. " + 
+      if type(self.__target_func) is str:
+        name = self.__target_func
+      else:
+        name = self.__target_func.__name__
+      raise TypeError("Function '" + name + "' called with incorrect arguments. " + 
                       str(e) + " Arguments were args:" + str(args) + ", kwargs:" + str(kwargs))
     # We catch a TypeError as some of the argument checking functions don't
     # accept variable args, so python will raise a TypeError if the correct
@@ -1182,7 +1209,11 @@ class NamespaceAPIFunctionWrapper(object):
     # which is bound to confuse the user. Of course, confusion will result
     # if we have a bug in our code that is raising a TypeError.
     except TypeError:
-      raise TypeError("Function '" + self.__target_func.__name__ + "' called with incorrect arguments. " +
+      if type(self.__target_func) is str:
+        name = self.__target_func
+      else:
+        name = self.__target_func.__name__
+      raise TypeError("Function '" + name + "' called with incorrect arguments. " + 
                       " Arguments were args:" + str(args) + ", kwargs:" + str(kwargs))
 
 
@@ -1209,7 +1240,11 @@ class NamespaceAPIFunctionWrapper(object):
     try:
       self.__return_checking_func(retval)
     except NamespaceRequirementError, e:
-      self._handle_violation("Function '" + self.__target_func.__name__ + "' returned with unallowed return type " +
+      if type(self.__target_func) is str:
+        name = self.__target_func
+      else:
+        name = self.__target_func.__name__
+      self._handle_violation("Function '" + name + "' returned with unallowed return type " + 
                              str(type(retval)) + " : " + str(e))
 
 
@@ -1254,7 +1289,8 @@ class NamespaceAPIFunctionWrapper(object):
       func_dict
         A dictionary whose with the following keys whose values are the
         corresponding funcion:
-          target_func (required)
+          target_func (required) -- a function or a string of the name
+            of the method on the underlying object.
           arg_checking_func (required)
           return_checking_func (required)
           exception_checking_func (optional)
@@ -1280,8 +1316,13 @@ class NamespaceAPIFunctionWrapper(object):
     self.__arg_unwrapping_func = func_dict.get("arg_unwrapping_func", None)
     self.__return_wrapping_func = func_dict.get("return_wrapping_func", None)
 
-    # Save a copy of getattr because it won't be available at runtime.
-    self.__getattr = getattr
+    # Make sure that the __target_func really is a function or a string
+    # indicating a function by that name on the underlying object should
+    # be called.
+    if not _saved_callable(self.__target_func) and type(self.__target_func) is not str:
+      raise TypeError("The target_func was neither callable nor a string when " + 
+                      "constructing a namespace-wrapped function. The object " + 
+                      "used for target_func was: " + repr(self.__target_func))
 
 
 
@@ -1323,7 +1364,7 @@ class NamespaceAPIFunctionWrapper(object):
       # object. We use this if the function to wrap isn't available without
       # having the object around, such as with real lock objects.
       if type(self.__target_func) is str:
-        func_to_call = self.__getattr(args[0], self.__target_func)
+        func_to_call = _saved_getattr(args[0], self.__target_func)
         # The "self" argument will be passed implicitly by python, so we remove
         # it from the args we pass to the function.
         args_without_self = args[1:]
