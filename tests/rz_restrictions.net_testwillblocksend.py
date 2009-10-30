@@ -1,6 +1,6 @@
 """
   We want to test that willblock's behavior is sane.
-  Namely prior to any writes, recv() should block and send() should not
+  Namely if we write, then recv() should not block
 """
 
 # What port should we use?
@@ -21,19 +21,34 @@ def incoming(ip, port, server_sock, ch1,ch2):
   CONNECTED_LOCK.acquire()
   client_sock = mycontext["client"]
 
-  # Test willblock has sane initial values
-  read_will_block, write_will_block = client_sock.willblock()
-  if not read_will_block:
-    print "Client read should block! We haven't sent any data!"
-  if write_will_block:
-    print "Client write shouldn't block! We haven't filled the buffer!"
+  # Lets get some large amount of random data to exhaust the buffers
+  data = "Random data. This is junk."
+  data = data * 45000
 
-  # Check the server
-  read_will_block, write_will_block = server_sock.willblock()
-  if not read_will_block:
-    print "Server read should block! We haven't sent any data!"
-  if write_will_block:
-    print "Server write shouldn't block! We haven't filled the buffer!"
+  # Lets try to send all this to the client
+  server_sent = server_sock.send(data)
+
+  # Make sure we sent something...
+  if server_sent == 0:
+    print "Failed to send any data with an empty buffer!"
+  elif server_sent < 4096:
+    print "Only send 1 page of data! This seems too low for an empty buffer."
+  elif server_sent == len(data):
+    print "Sent all the data! This should have been more than the buffer!"
+
+  # The client's read should NOT block now
+  read_will_block, write_will_block = client_sock.willblock()
+  if read_will_block:
+    print "Client read should not block! There should be available data!"
+  
+  
+  # Now, we will read 4096 bytes from the client, and this should unblock the server's send
+  client_read = client_sock.recv(4096)
+
+  # The client's read should still not block, there should be more data
+  read_will_block, write_will_block = client_sock.willblock()
+  if read_will_block:
+    print "Client read (2) should not block! There should be more available data!"
 
   server_sock.close()
 
