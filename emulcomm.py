@@ -1628,12 +1628,21 @@ class emulated_socket:
     try:
       realsocket = comminfo[handle]['socket']
 
-    # This shouldn't happen because my caller should create the table entry first
+    # Shouldn't happen because my caller should create the table entry first
     except KeyError:
       raise Exception, "Internal Error. No table entry for new socket!"
 
     # Make the socket non-blocking
     realsocket.setblocking(0)
+
+    try:
+      # Store the send buffer size.   We'll send less than this to avoid a bug
+      comminfo[handle]['sendbuffersize'] = realsocket.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF)
+
+    # Really shouldn't happen.   We just checked!
+    except KeyError:
+      raise Exception, "Internal Error. No table entry when looking up sendbuffersize for new socket!"
+
 
     return None 
 
@@ -1794,6 +1803,13 @@ class emulated_socket:
       nanny.tattle_quantity('loopsend',0)
     else:
       nanny.tattle_quantity('netsend',0)
+
+    try:
+      # Trim the message size to be less than the sendbuffersize.
+      # This is a fix for http://support.microsoft.com/kb/823764
+      message = message[:comminfo[mycommid]['sendbuffersize']-1]
+    except KeyError:
+      raise Exception, "Socket closed!"
 
     # loop until we send the information (looping is needed for Windows)
     while True:
