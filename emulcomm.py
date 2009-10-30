@@ -1478,22 +1478,6 @@ def waitforconn(localip, localport,function):
   if not is_valid_network_port(localport):
     raise Exception("Local port number must be an integer, between 1 and 65535.")
 
-# Armon: Disabled function check since it is incompatible with functions that have
-# a variable number of parameters. e.g. func1(*args)
-#  # Check that the user specified function exists and takes 5 arguments
-#  try:
-#    # Get the argument count
-#  arg_count = function.func_code.co_argcount
-#    
-#    # Is "self" the first argument?
-#    object_function = function.func_vode.co.varnames[0] == "self"
-#
-#    # We need the function to take 5 parameters, or 6 if an object function
-#    assert(arg_count == 5 or (arg_count == 6 and object_function))
-#  except:
-#    # If this is not a function, an exception will be raised.
-#    raise Exception("Specified function must be valid, and take 5 parameters. See waitforconn.")
-
   restrictions.assertisallowed('waitforconn',localip,localport)
 
   nanny.tattle_check('connport',localport)
