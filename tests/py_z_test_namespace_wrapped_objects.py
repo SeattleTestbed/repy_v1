@@ -7,6 +7,7 @@ import namespace
 import emulcomm
 import emulfile
 import emulmisc
+import socket
 
 import repyportability
 
@@ -37,7 +38,7 @@ for func_name in namespace.file_object_wrapped_functions_dict:
 commhandle = "fakecommhandle"
 
 # Armon: Create handle entry...
-emulcomm.comminfo[commhandle] = {"socket":None}
+emulcomm.comminfo[commhandle] = {"socket":socket.socket()}
 
 timerhandle = "faketimerhandle"
 socketobj = emulcomm.emulated_socket(commhandle)

@@ -1643,18 +1643,13 @@ class emulated_socket:
     # Armon: Get the real socket
     try:
       realsocket = comminfo[handle]['socket']
-      
-      # Make the socket non-blocking
-      realsocket.setblocking(0)
 
-    # Catch a potentially weird issue
+    # This shouldn't happen because my caller should create the table entry first
     except KeyError:
       raise Exception, "Internal Error. No table entry for new socket!"
 
-    # This is to ignore the case that the realsocket is None (e.g. doesn't support setblocking())
-    # Mostly this is to allow the py_z_test_namespace_wrapped_objects.py test to pass
-    except AttributeError:
-      pass
+    # Make the socket non-blocking
+    realsocket.setblocking(0)
 
     return None 
 
