@@ -36,6 +36,9 @@ def incoming(ip, port, server_sock, ch1,ch2):
   elif server_sent == len(data):
     print "Sent all the data! This should have been more than the buffer!"
 
+  # Wait to make sure the data arrives, reduces flaky failures
+  sleep(0.1)
+
   # The client's read should NOT block now
   read_will_block, write_will_block = client_sock.willblock()
   if read_will_block:

@@ -28,16 +28,29 @@ def incoming(ip, port, server_sock, ch1,ch2):
   # Lets try to send all this to the client, loop until we would block
   wblock = False
   sent = 1
+  total_sent = 0
   while not wblock and sent > 0:
     sent = server_sock.send(data)
+    total_sent += sent
     sleep(0.04)
     rblock,wblock = server_sock.willblock()
 
 
-  # Now, we will read 4096 bytes from the client, and this should unblock the server's send
-  client_read = client_sock.recv(4096)
-  client_sock.send("read") # Sending some data should force us to ACK the received data
-  sleep(0.1)
+  # Now, we will keep reading 4096 bytes from the client until this unblocks the server's send
+  client_rblocks = False
+  server_wblocks = True
+  total_read = 0
+  while not client_rblocks and server_wblocks:
+    client_read = client_sock.recv(4096)
+    total_read += len(client_read)
+    client_sock.send("read") # Sending some data should force us to ACK the received data
+    sleep(0.04)
+    client_rblocks,junk = client_sock.willblock()
+    junk,server_wblocks = server_sock.willblock()
+
+  # Check that we read less than we sent
+  if not total_read < total_sent:
+      print "We shouldn't need to read everything that was sent to unblock send!"
 
   # Check the server socket now
   rblock,wblock = server_sock.willblock() 
