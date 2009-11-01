@@ -9,9 +9,6 @@ Description:
 
 """
 
-import ctypes       # Allows us to make C calls
-import ctypes.util  # Helps to find the C library
-
 import os           # Provides some convenience functions
 
 import nix_common_api as nix_api # Import the Common API
@@ -23,9 +20,6 @@ import portable_popen  # For Popen
 exists_outgoing_network_socket = nix_api.exists_outgoing_network_socket
 exists_listening_network_socket = nix_api.exists_listening_network_socket
 get_available_interfaces = nix_api.get_available_interfaces
-
-# Get the standard library
-libc = ctypes.CDLL(ctypes.util.find_library("c"))
 
 # Functions
 myopen = open # This is an annoying restriction of repy

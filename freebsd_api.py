@@ -27,9 +27,11 @@ import portable_popen  # Import for Popen
 exists_outgoing_network_socket = nix_api.exists_outgoing_network_socket
 exists_listening_network_socket = nix_api.exists_listening_network_socket
 get_available_interfaces = nix_api.get_available_interfaces
+get_ctypes_errno = nix_api.get_ctypes_errno
+get_ctypes_error_str = nix_api.get_ctypes_error_str
 
 # Get the standard library
-libc = ctypes.CDLL(ctypes.util.find_library("c"))
+libc = nix_api.libc
 
 # Globals
 # Cache the last process info struct so as to avoid redundant memory allocation
@@ -56,19 +58,6 @@ class timeval(ctypes.Structure):
     _fields_ = [("tv_sec", ctypes.c_long),
                 ("tv_usec", ctypes.c_long)]
 
-# This functions helps to conveniently retrieve the errno
-# of the last call. This is a bit tedious to do, since 
-# Python doesn't understand that this is a globally defined int
-def get_ctypes_errno():
-  errno_pointer = ctypes.cast(libc.errno, ctypes.POINTER(ctypes.c_int32))
-  err_val = errno_pointer.contents
-  return err_val.value
-
-# Returns the string version of the errno  
-def get_ctypes_error_str():
-  errornum = get_ctypes_errno()
-  return ctypes.cast(libc.strerror(errornum), ctypes.c_char_p).value
-  
 
 def _get_proc_info_by_pid(pid):
   """

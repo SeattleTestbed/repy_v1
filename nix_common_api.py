@@ -7,11 +7,35 @@ Description:
 
 """
 
+import ctypes       # Allows us to make C calls
+import ctypes.util  # Helps to find the C library
+
 # Import for Popen
 import portable_popen
 
 # Seattlelib text-processing library (not a Python stdlib):
 import textops
+
+# Get the standard library
+libc = ctypes.CDLL(ctypes.util.find_library("c"))
+
+# Functions
+_strerror = libc.strerror
+_strerror.restype = ctypes.c_char_p
+
+# This functions helps to conveniently retrieve the errno
+# of the last call. This is a bit tedious to do, since 
+# Python doesn't understand that this is a globally defined int
+def get_ctypes_errno():
+  errno_pointer = ctypes.cast(libc.errno, ctypes.POINTER(ctypes.c_int))
+  err_val = errno_pointer.contents
+  return err_val.value
+
+# Returns the string version of the errno  
+def get_ctypes_error_str():
+  errornum = get_ctypes_errno()
+  return _strerror(errornum)
+
 
 def exists_outgoing_network_socket(localip, localport, remoteip, remoteport):
   """
