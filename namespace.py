@@ -114,11 +114,11 @@ import emultimer
 import emulcomm
 import emulmisc
 
-# Save a copy of getattr because it won't be available at runtime.
+# Save a copy of a few functions not available at runtime.
 _saved_getattr = getattr
-
-# Save a copy of callable because it won't be available at runtime.
 _saved_callable = callable
+_saved_hash = hash
+
 
 
 ##############################################################################
@@ -1051,7 +1051,7 @@ class NamespaceObjectWrapper(object):
 
 
   def __hash__(self):
-    return self._wrapped__object.__hash__()
+    return _saved_hash(self._wrapped__object)
 
 
 
@@ -1061,7 +1061,7 @@ class NamespaceObjectWrapper(object):
     # its wrapped object against this wrapped object, or we could just compare
     # the hashes of each. If we try to unwrap the other object, it means you
     # couldn't compare a wrapped object to an unwrapped one.
-    return self.__hash__() == other.__hash__()
+    return _saved_hash(self) == _saved_hash(other)
 
 
 
@@ -1070,7 +1070,7 @@ class NamespaceObjectWrapper(object):
     It's good for consistency to define __ne__ if one is defining __eq__,
     though this is not needed for using objects as dictionary keys.
     """
-    return hash(self) != hash(other)
+    return _saved_hash(self) != _saved_hash(other)
 
 
 

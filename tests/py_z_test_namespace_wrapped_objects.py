@@ -125,3 +125,22 @@ assert(wrappedcommhandle == commhandle)
 assert(hash(wrappedtimerhandle) == hash(timerhandle))
 assert(wrappedtimerhandle == timerhandle)
 
+# Make sure that other wrapped objects are hashable.
+hash(wrappedfile)
+hash(wrappedlock)
+hash(wrappedsocket)
+
+# Make sure the wrapped objects are comparable (__eq__).
+wrappedcommhandle == -1
+wrappedtimerhandle == -1 
+wrappedsocket == -1
+wrappedlock == -1
+wrappedfile == -1
+
+# Make sure the wrapped objects are comparable (__ne__).
+assert(wrappedcommhandle != -1)
+assert(wrappedtimerhandle != -1)
+assert(wrappedsocket != -1)
+assert(wrappedlock != -1)
+assert(wrappedfile != -1)
+
