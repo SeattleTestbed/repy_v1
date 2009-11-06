@@ -73,7 +73,7 @@ import __builtin__
 # Armon: This is how long we will wait for the external process
 # to validate the safety of the user code before we timeout, 
 # and exit with an exception
-EVALUTATION_TIMEOUT = 5
+EVALUTATION_TIMEOUT = 10
 
 _NODE_CLASS_OK = [
     'Add', 'And', 'AssAttr', 'AssList', 'AssName', 'AssTuple',
@@ -193,7 +193,7 @@ def safe_check(code):
           pass
       
         # Raise an exception
-        raise Exception, "Evaluation of code safety exceeded timeout threshold!"
+        raise Exception, "Evaluation of code safety exceeded timeout threshold ("+str(nonportable.getruntime() - starttime)+" seconds)"
     
     
     # Read the output and close the pipe
