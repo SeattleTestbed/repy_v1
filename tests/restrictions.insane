@@ -13,8 +13,6 @@ resource loopsend 10000000
 resource looprecv 10000000
 resource lograte 300000
 resource random 10000
-resource messport <messport>
-resource connport <connport>
 
 call gethostbyname_ex allow
 call sendmess allow
