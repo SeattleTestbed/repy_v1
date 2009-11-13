@@ -46,6 +46,11 @@ last_proc_info_struct = None   # The last structure
 _calloc = libc.calloc
 _free = libc.free
 
+_mach_thread_self = libc.mach_thread_self
+_mach_thread_self.restype = ctypes.c_uint
+
+_thread_info = libc.thread_info
+
 # Use libproc since Tiger does not include in libc
 _proc_pidinfo = libproc.proc_pidinfo
 
@@ -54,6 +59,7 @@ PROC_pidTASKINFO = 4
 CTL_KERN = 1
 KERN_BOOTTIME = 21
 TwoIntegers = ctypes.c_int * 2 # C array with 2 ints
+THREAD_BASIC_INFO = 3
 
 # Structures
 
@@ -79,13 +85,27 @@ class proc_taskinfo(ctypes.Structure):
               ("pti_numrunning", ctypes.c_int32),
               ("pti_priority", ctypes.c_int32)]
 
+# timeval structure
 class timeval(ctypes.Structure):
     _fields_ = [("tv_sec", ctypes.c_long),
                 ("tv_usec", ctypes.c_long)]
-              
+    
+# Provides the struct thread_basic_info, which is used
+# to retrieve information about a thread
+class thread_basic_info(ctypes.Structure):
+  _fields_ = [("user_time", timeval),
+               ("system_time",timeval),
+               ("cpu_usage",ctypes.c_int),
+               ("policy",ctypes.c_int),
+               ("run_state",ctypes.c_int),
+               ("flags",ctypes.c_int),
+               ("suspend_count",ctypes.c_int),
+               ("sleep_time",ctypes.c_int)]
+
+
 # Store the size of this structure
 PROC_TASKINFO_SIZE = ctypes.sizeof(proc_taskinfo)
-
+THREAD_BASIC_INFO_SIZE = ctypes.sizeof(thread_basic_info)
 
 def _cast_calloc_type(casttype):
   """
@@ -195,6 +215,53 @@ def get_process_rss(force_update=False,pid=None):
   
   # Return the info
   return rss
+
+
+# Get the CPU time of the current thread
+def get_current_thread_cpu_time():
+  """
+  <Purpose>
+    Gets the total CPU time for the currently executing thread.
+
+  <Exceptions>
+    An AssertionError will be raised if the underlying system call fails.
+
+  <Returns>
+    A floating amount of time in seconds.
+  """
+  # Get the current thread handle
+  current_thread = _mach_thread_self()
+
+  # Cast calloc as a pointer to the proc_taskinfo structure
+  _cast_calloc_type(ctypes.POINTER(thread_basic_info))
+    
+  # Allocate a structure
+  thread_info = _calloc(1, THREAD_BASIC_INFO_SIZE)
+
+  # Structure size
+  struct_size = ctypes.c_uint(THREAD_BASIC_INFO_SIZE)
+  
+  # Make the system call
+  result = _thread_info(current_thread, THREAD_BASIC_INFO,thread_info, ctypes.byref(struct_size))
+
+  # Dereference the pointer
+  info_struct = thread_info.contents
+
+  # Sum up the CPU usage
+  cpu_time = info_struct.user_time.tv_sec + info_struct.user_time.tv_usec / 1000000.0
+  cpu_time += info_struct.system_time.tv_sec + info_struct.system_time.tv_usec / 1000000.0
+
+  # Free the structure
+  _free(thread_info)
+
+  # Safety check, result should be 0
+  # Do the safety check after we free the memory to avoid leaks
+  assert(result == 0)
+
+  # Return the structure
+  return cpu_time
+
+
 
 
 # Return the timeval struct with our boottime
