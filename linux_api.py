@@ -21,8 +21,12 @@ exists_outgoing_network_socket = nix_api.exists_outgoing_network_socket
 exists_listening_network_socket = nix_api.exists_listening_network_socket
 get_available_interfaces = nix_api.get_available_interfaces
 
+# Libc
+libc = nix_api.libc
+
 # Functions
 myopen = open # This is an annoying restriction of repy
+syscall = libc.syscall # syscall function
 
 # Globals
 last_stat_data = None   # Store the last array of data from _get_proc_info_by_pid
@@ -30,6 +34,7 @@ last_stat_data = None   # Store the last array of data from _get_proc_info_by_pi
 # Constants
 JIFFIES_PER_SECOND = 100.0
 PAGE_SIZE = os.sysconf('SC_PAGESIZE')
+GETTID = 224 # Get the thread id of the currently executing thread
 
 # Maps each field in /proc/{pid}/stat to an index when split by spaces
 FIELDS = {
@@ -76,19 +81,10 @@ FIELDS = {
 "delayacct_blkio_ticks":40
 }
 
-
-def _get_proc_info_by_pid(pid):
-  """
-  <Purpose>
-    Reads in the data from a process stat file, and stores it
-  
-  <Arguments>
-    pid: The process identifier for which data should be fetched.  
-  """
-  global last_stat_data
-
+# Process a /proc/PID/stat or /proc/PID/task/TID/stat file and returns it as an array
+def _process_stat_file(file):
   # Get the file in proc
-  fileo = open("/proc/"+str(pid)+"/stat","r")
+  fileo = open(file,"r")
 
   # Read in all the data
   data = fileo.read()
@@ -106,7 +102,24 @@ def _get_proc_info_by_pid(pid):
     data = data[:start_index-1] + data[end_index+1:]
 
   # Break the data into an array by spaces
-  last_stat_data = data.split(" ")
+  return data.split(" ")
+
+
+def _get_proc_info_by_pid(pid):
+  """
+  <Purpose>
+    Reads in the data from a process stat file, and stores it
+  
+  <Arguments>
+    pid: The process identifier for which data should be fetched.  
+  """
+  global last_stat_data
+
+  # Get the file in proc
+  file = "/proc/"+str(pid)+"/stat"
+
+  # Process the status file
+  last_stat_data = _process_stat_file(file)
   
   # Check the state, raise an exception if the process is a zombie
   if "Z" in last_stat_data[FIELDS["state"]]:
@@ -168,6 +181,47 @@ def get_process_rss(force_update=False, pid=None):
 
   # Return the info
   return rss_bytes
+
+
+# Get the id of the currently executing thread
+def _get_current_thread_id():
+  # Syscall for GETTID
+  return syscall(GETTID)
+
+
+# Get the CPU time of the current thread
+def get_current_thread_cpu_time():
+  """
+  <Purpose>
+    Gets the total CPU time for the currently executing thread.
+
+  <Exceptions>
+    An exception will be raised if something goes wrong.
+
+  <Returns>
+    A floating amount of time in seconds.
+  """
+  # Get the thread id
+  thread_id = _get_current_thread_id()
+
+  # Get our pid
+  pid = os.getpid()
+
+  # Get the file with our status
+  file = "/proc/"+str(pid)+"/task/"+str(thread_id)+"/stat"
+
+  # Process the status file
+  thread_stat_data = _process_stat_file(file)
+
+  # Get the raw usertime and system time
+  total_time_raw = int(thread_stat_data[FIELDS["utime"]])+int(thread_stat_data[FIELDS["stime"]])
+  
+  # Adjust by the number of jiffies per second
+  total_time = total_time_raw / JIFFIES_PER_SECOND
+
+  # Return the total time
+  return total_time
+
 
 def get_system_uptime():
   """
