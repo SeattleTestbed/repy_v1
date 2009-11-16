@@ -61,9 +61,10 @@ TH32CS_SNAPTHREAD = ctypes.c_ulong(0x00000004) # Create a snapshot of all thread
 TH32CS_SNAPPROCESS = ctypes.c_ulong(0x00000002) # Create a snapshot of a process
 TH32CS_SNAPHEAPLIST = ctypes.c_ulong(0x00000001) # Create a snapshot of a processes heap
 INVALID_HANDLE_VALUE = -1
+THREAD_QUERY_INFORMATION = 0x0040
 THREAD_SET_INFORMATION = 0x0020
 THREAD_SUSPEND_RESUME = 0x0002
-THREAD_SUS_RES_setINFO = THREAD_SET_INFORMATION | THREAD_SUSPEND_RESUME
+THREAD_HANDLE_RIGHTS = THREAD_SET_INFORMATION | THREAD_SUSPEND_RESUME | THREAD_QUERY_INFORMATION
 PROCESS_TERMINATE = 0x0001
 PROCESS_QUERY_INFORMATION = 0x0400
 SYNCHRONIZE = 0x00100000L
@@ -119,6 +120,7 @@ _resume_thread = kerneldll.ResumeThread # Resumes Thread execution
 _open_process = kerneldll.OpenProcess # Returns Process Handle
 _create_process = kerneldll.CreateProcessW # Launches new process
 _set_thread_priority = kerneldll.SetThreadPriority # Sets a threads scheduling priority
+_thread_times = kerneldll.GetThreadTimes # Gets CPU time data for a thread
 
 _process_exit_code = kerneldll.GetExitCodeProcess # Gets Process Exit code
 _terminate_process = kerneldll.TerminateProcess # Kills a process
@@ -151,10 +153,6 @@ if MobileCE:
   # Use internal ce method to handle this
   # _open_thread_ce
   
-  # Gets CPU time data for a thread
-  # This is used by _process_times_ce
-  _thread_times = kerneldll.GetThreadTimes 
-
   # Non-Supported functions:
   # _process_times, there is no tracking of this on a process level
   # _process_memory, CE does not track memory usage
@@ -465,7 +463,7 @@ def get_thread_handle(thread_id):
     handle = _open_thread_ce(thread_id)
   else:
     # Open handle to thread
-    handle = _open_thread(THREAD_SUS_RES_setINFO, 0, thread_id)
+    handle = _open_thread(THREAD_HANDLE_RIGHTS, 0, thread_id)
   
   # Check for a successful handle
   if handle: 
@@ -994,6 +992,52 @@ def process_times(pid):
   
   # Extract the values from the structures, and return then in a dictionary
   return {"CreationTime":creation_time.dwLowDateTime,"KernelTime":kernel_time.dwLowDateTime,"UserTime":user_time.dwLowDateTime}
+
+
+# Get the CPU time of the current thread
+def get_current_thread_cpu_time():
+  """
+  <Purpose>
+    Gets the total CPU time for the currently executing thread.
+
+  <Exceptions>
+    An Exception will be raised if the underlying system call fails.
+
+  <Returns>
+    A floating amount of time in seconds.
+  """
+  # Get our thread identifier
+  thread_id = _current_thread_id()
+
+  # Open handle to thread
+  handle = get_thread_handle(thread_id)
+
+  # Create all the structures needed to make API Call
+  creation_time = _FILETIME()
+  exit_time = _FILETIME()
+  kernel_time = _FILETIME()
+  user_time = _FILETIME()
+  
+  # Pass all the structures as pointers into threadTimes
+  res = _thread_times(handle, ctypes.pointer(creation_time), ctypes.pointer(exit_time), ctypes.pointer(kernel_time), ctypes.pointer(user_time))
+
+  # Close thread Handle
+  close_thread_handle(handle)
+    
+  # Sum up the cpu time
+  time_sum = kernel_time.dwLowDateTime
+  time_sum += user_time.dwLowDateTime
+
+  # Units are 100 ns, so divide by 10M
+  time_sum /= 10000000.0
+  
+  # Check the result, error if result is 0
+  if res == 0:
+    raise Exception,(res, _get_last_error(), "Error getting thread CPU time! Error Str: " + str(ctypes.WinError()))
+
+  # Return the time
+  return time_sum
+
 
 # Wait for a process to exit
 def wait_for_process(pid):
