@@ -232,27 +232,18 @@ def get_current_thread_cpu_time():
   # Get the current thread handle
   current_thread = _mach_thread_self()
 
-  # Cast calloc as a pointer to the proc_taskinfo structure
-  _cast_calloc_type(ctypes.POINTER(thread_basic_info))
-    
   # Allocate a structure
-  thread_info = _calloc(1, THREAD_BASIC_INFO_SIZE)
+  thread_info = thread_basic_info()
 
   # Structure size
   struct_size = ctypes.c_uint(THREAD_BASIC_INFO_SIZE)
   
   # Make the system call
-  result = _thread_info(current_thread, THREAD_BASIC_INFO,thread_info, ctypes.byref(struct_size))
-
-  # Dereference the pointer
-  info_struct = thread_info.contents
+  result = _thread_info(current_thread, THREAD_BASIC_INFO,ctypes.byref(thread_info), ctypes.byref(struct_size))
 
   # Sum up the CPU usage
-  cpu_time = info_struct.user_time.tv_sec + info_struct.user_time.tv_usec / 1000000.0
-  cpu_time += info_struct.system_time.tv_sec + info_struct.system_time.tv_usec / 1000000.0
-
-  # Free the structure
-  _free(thread_info)
+  cpu_time = thread_info.user_time.tv_sec + thread_info.user_time.tv_usec / 1000000.0
+  cpu_time += thread_info.system_time.tv_sec + thread_info.system_time.tv_usec / 1000000.0
 
   # Safety check, result should be 0
   # Do the safety check after we free the memory to avoid leaks
