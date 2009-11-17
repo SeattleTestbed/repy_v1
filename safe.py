@@ -60,6 +60,7 @@ Known limitations:
 # 2007-03-07: Removed 'EmptyNode', 'Global' from AST whitelist
 # 2007-03-07: Added import __builtin__; s/__builtins__/__builtin__ 
 
+import threading    # This is to get a lock
 import time         # This is to sleep
 import subprocess   # This is to start the external process
 import harshexit    # This is to kill the external process on timeout
@@ -159,6 +160,40 @@ def _builtin_destroy():
 def _builtin_restore():
     for k,v in _builtin_globals_r.items():
         __builtin__.__dict__[k] = v
+
+
+
+# Get a lock for serial_safe_check
+SAFE_CHECK_LOCK = threading.Lock()
+
+# Wraps safe_check to serialize calls
+def serial_safe_check(code):
+  """
+  <Purpose>
+    Serializes calls to safe_check. This is because safe_check forks a new process
+    which may take many seconds to return. This prevents us from forking many new
+    python processes.
+  
+  <Arguments>
+    code: See safe_check.
+    
+  <Exceptions>
+    As with safe_check.
+  
+  <Return>
+    See safe_check.
+  """
+  # Acquire the lock
+  SAFE_CHECK_LOCK.acquire()
+  
+  try:
+    # Call safe check
+    return safe_check(code)
+  
+  finally:
+    # Release
+    SAFE_CHECK_LOCK.release()
+      
     
 def safe_check(code):
     """Check the code to be safe."""
@@ -181,7 +216,7 @@ def safe_check(code):
     # Only wait up to EVALUTATION_TIMEOUT seconds before terminating
     while status == None and (nonportable.getruntime() - starttime < EVALUTATION_TIMEOUT):
       status = proc.poll()
-      time.sleep(0.1)
+      time.sleep(0.02)
       
     else:
       # Check if the process is still running
@@ -213,23 +248,31 @@ def safe_check(code):
       raise safety_exceptions.SafeException, output
 
 
+# Have the builtins already been destroyed?
+BUILTINS_DESTROYED = False
+
 def safe_run(code,context=None):
     """Exec code with only safe builtins on."""
+    global BUILTINS_DESTROYED
     if context == None: context = {}
     
-    _builtin_destroy()
+    # Destroy the builtins if needed
+    if not BUILTINS_DESTROYED:
+      BUILTINS_DESTROYED = True
+      _builtin_destroy()
+      
     try:
         #exec code in _builtin_globals,context
         context['__builtins__'] = _builtin_globals
         exec code in context
-        _builtin_restore()
+        #_builtin_restore()
     except:
-        _builtin_restore()
+        #_builtin_restore()
         raise
 
 def safe_exec(code,context = None):
     """Check the code to be safe, then run it with only safe builtins on."""
-    safe_check(code)
+    serial_safe_check(code)
     safe_run(code,context)
     
 
