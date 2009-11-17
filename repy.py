@@ -94,8 +94,9 @@ safe._BUILTIN_OK.append("chr")
 # should not be used!   Use exitall instead.
 safe._BUILTIN_OK.remove("exit")
 safe._BUILTIN_OK.remove("quit")
-# __repr__ should be harmless, but do we really want to add it?
+
 safe._STR_OK.append("__repr__")
+safe._STR_OK.append("__str__")
 # allow __ in strings.   I'm 99% sure this is okay (do I want to risk it?)
 safe._NODE_ATTR_OK.append('value')
 
