@@ -749,6 +749,12 @@ USERCONTEXT_WRAPPER_INFO = {
       {'target_func' : emulmisc.exitall,
        'arg_checking_func' : allow_no_args,
        'return_checking_func' : allow_return_none},
+
+  # Provides an unique identifier for the current thread
+  'get_thread_name' :
+      {'target_func' : emulmisc.get_thread_name,
+       'arg_checking_func' : allow_no_args,
+       'return_checking_func' : allow_return_string},
 }
 
 

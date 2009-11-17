@@ -168,3 +168,34 @@ def getlock():
   # I'm a little worried about this, but it should be safe.
   return threading.Lock()
 
+
+# Public interface
+def get_thread_name():
+  """
+  <Purpose>
+    Returns a string identifier for the currently executing thread.
+    This identifier is unique to this thread.
+
+  <Arguments>
+    None.
+
+  <Exceptions>
+    None.
+
+  <Side Effects>
+    None.
+
+  <Returns>
+    A string identifier.
+  """
+
+  # Check if this is allows
+  restrictions.assertisallowed('get_thread_name')
+
+  # Get the thread object
+  tobj = threading.current_thread()
+
+  # Return the name
+  return tobj.name
+
+
