@@ -636,7 +636,9 @@ class EventDeliverer(threading.Thread):
     self.func = f
     self.args = a
     self.eventid = e
-    threading.Thread.__init__(self)
+
+    # Initialize with a custom and unique thread name
+    threading.Thread.__init__(self,name=idhelper.get_new_thread_name(COMM_PREFIX))
 
   def run(self):
     try:
