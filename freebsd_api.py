@@ -41,6 +41,7 @@ last_proc_info_size   = 0    # Stores the size of the struct
 
 # Functions
 _sysctl = libc.sysctl # Makes system calls
+_clock_gettime = libc.clock_gettime # Get the CPU time
 
 # Constants
 CTL_KERN = 1
@@ -50,6 +51,7 @@ FourIntegers = ctypes.c_int * 4 # A C array with 4 ints, used for syscalls
 PAGE_SIZE = libc.getpagesize() # Call into libc to get our page size
 KERN_BOOTTIME = 21
 TwoIntegers = ctypes.c_int * 2 # C array with 2 ints
+CLOCK_THREAD_CPUTIME_ID	= 14 # Get the CPU time for the current thread
 
 # Structures
 kinfo_proc = freebsd_kinfo.kinfo_proc # Import from the external file
@@ -174,6 +176,37 @@ def get_process_rss(force_update=False, pid=None):
   rss_bytes = rss_pages * PAGE_SIZE
   
   return rss_bytes
+
+
+
+# Get the CPU time of the current thread
+def get_current_thread_cpu_time():
+  """
+  <Purpose>
+    Gets the total CPU time for the currently executing thread.
+
+  <Exceptions>
+    An AssertionError will be raised if the underlying system call fails.
+
+  <Returns>
+    A floating amount of time in seconds.
+  """
+  # Allocate a structure
+  time_struct = timeval()
+
+  # Make the system call
+  result = _clock_gettime(CLOCK_THREAD_CPUTIME_ID, ctypes.byref(time_struct))
+
+  # Sum up the CPU usage
+  cpu_time = time_struct.tv_sec + time_struct.tv_usec / 1000000000.0
+
+  # Safety check, result should be 0
+  # Do the safety check after we free the memory to avoid leaks
+  assert(result == 0)
+
+  # Return the structure
+  return cpu_time
+
 
 
 # Return the timeval struct with our boottime
