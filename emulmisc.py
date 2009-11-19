@@ -193,9 +193,9 @@ def get_thread_name():
   restrictions.assertisallowed('get_thread_name')
 
   # Get the thread object
-  tobj = threading.current_thread()
+  tobj = threading.currentThread()
 
   # Return the name
-  return tobj.name
+  return tobj.getName()
 
 

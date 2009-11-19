@@ -135,7 +135,7 @@ def settimer(waittime, function, args):
   tobj = threading.Timer(waittime,functionwrapper,[function] + [eventhandle] + [args])
 
   # Set the name of the thread
-  tobj.name = idhelper.get_new_thread_name(EVENT_PREFIX)
+  tobj.setName(idhelper.get_new_thread_name(EVENT_PREFIX))
 
   timerinfo[eventhandle] = {'timer':tobj}
   
