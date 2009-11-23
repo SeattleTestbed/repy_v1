@@ -5,8 +5,8 @@
 
    Description:
 
-   This module stores status information about the sandbox.   Use "readstatus"
-   and "storestatus" to set and check the status...
+   This module stores status information about the sandbox.   Use "read_status"
+   and "write_status" to set and check the status...
 
    This module works by creating a file with an name that indicates the status.
    The order of operations is: find old file name(s), write new file, delete 
@@ -72,7 +72,7 @@ def write_status(status, mystatusfilenameprefix=None):
       except OSError, e:
         if e[0] == 2:
           # file not found, let's assume another instance removed it...
-         continue
+          continue
 
         # otherwise, let's re-raise the error
         raise
