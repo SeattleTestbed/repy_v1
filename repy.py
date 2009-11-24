@@ -66,6 +66,9 @@ import repy_constants
 
 import os
 
+# Armon: Using VirtualNamespace as an abstraction around direct execution
+import virtual_namespace
+
 ## we'll use tracebackrepy to print our exceptions
 import tracebackrepy
 
@@ -113,29 +116,8 @@ if "fork" in dir(os):
   os.fork = nonSafe_fork
 
 
-# This is the user's program after parsing
-usercode = None
-
-
-
-# There is a "simple execution" mode where there is a single entry into the
-# code.   This is used only for testing python vs repy in the unit tests
-# The simpleexec variable indicates whether or not simple execution mode should
-# be used...
-#simpleexec = None
-
 
 def main(restrictionsfn, program, args):
-  global usercode
-  global simpleexec
-
-  # These will be the functions and variables in the user's namespace (along
-  # with the builtins allowed by the safe module).
-  usercontext = {'mycontext':{}}
-  
-  # Add to the user's namespace wrapped versions of the API functions we make
-  # available to the untrusted user code.
-  namespace.wrap_and_insert_api_functions(usercontext)
 
   # Armon: Initialize the circular logger before forking in init_restrictions()
   if logfile:
@@ -153,17 +135,39 @@ def main(restrictionsfn, program, args):
 
   # Armon: Update our IP cache
   emulcomm.update_ip_cache()
+
+
+  # These will be the functions and variables in the user's namespace (along
+  # with the builtins allowed by the safe module).
+  usercontext = {'mycontext':{}}
+  
+  # Add to the user's namespace wrapped versions of the API functions we make
+  # available to the untrusted user code.
+  namespace.wrap_and_insert_api_functions(usercontext)
+
+  # Convert the usercontext from a dict to a SafeDict
+  usercontext = safe.SafeDict(usercontext)
+
+  # Allow some introspection by providing a reference to the context
+  usercontext["_context"] = usercontext
+
       
   # grab the user code from the file
-  usercode = file(program).read()
+  try:
+    usercode = file(program).read()
+  except:
+    print "Failed to read the specified file: '"+program+"'"
+    raise
 
-  # In order to work well with files that may contain a mix of \r\n and \n
-  # characters (see ticket #32), I'm going to replace all \r\n with \n
-  usercode = usercode.replace('\r\n','\n')
+  # Armon: Create the main namespace
+  main_namespace = virtual_namespace.VirtualNamespace(usercode, program)
+
+  # Let the code string get GC'ed
+  usercode = None
 
   # If we are in "simple execution" mode, execute and exit
   if simpleexec:
-    safe.safe_exec(usercode,usercontext)
+    main_namespace.evaluate(usercontext)
     sys.exit(0)
 
 
@@ -182,7 +186,7 @@ def main(restrictionsfn, program, args):
         "initialize' event.\n(Exception was: %s)" % e.message, 140)
 
   try:
-    safe.safe_exec(usercode,usercontext)
+    main_namespace.evaluate(usercontext)
   except SystemExit:
     raise
   except:
@@ -197,7 +201,7 @@ def main(restrictionsfn, program, args):
   # pending events
   while threading.activeCount() > idlethreadcount:
     # do accounting here?
-    time.sleep(1)
+    time.sleep(0.25)
 
 
   # Once there are no more pending events for the user thread, we give them
@@ -205,7 +209,6 @@ def main(restrictionsfn, program, args):
 
   # call the user program to notify them that we are exiting...
   usercontext['callfunc'] = 'exit'
-  usercontext['callargs'] = (None,)
 
   exit_id = idhelper.getuniqueid()
   try:
@@ -215,9 +218,7 @@ def main(restrictionsfn, program, args):
         "exit' event.\n(Exception was: %s)" % e.message, 141)
 
   try:
-    # Armon: for the second run of the user code there is no reason to re do the
-    # safety check, so by just doing a safe_run() we can save some time and memory
-    safe.safe_run(usercode,usercontext)
+    main_namespace.evaluate(usercontext)
   except SystemExit:
     raise
   except:

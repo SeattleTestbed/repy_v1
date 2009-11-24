@@ -60,6 +60,7 @@ Known limitations:
 # 2007-03-07: Removed 'EmptyNode', 'Global' from AST whitelist
 # 2007-03-07: Added import __builtin__; s/__builtins__/__builtin__ 
 
+import UserDict     # This is to get DictMixin
 import threading    # This is to get a lock
 import time         # This is to sleep
 import subprocess   # This is to start the external process
@@ -97,17 +98,49 @@ _STR_NOT_BEGIN = ['im_','func_','tb_','f_','co_',]
 #_STR_NOT_CONTAIN = ['_']
 #_STR_NOT_BEGIN = []
 
+# Checks the string safety
+def _is_string_safe(v):
+  """
+  <Purpose>
+    Checks if a string is safe based on the defined rules.
+
+  <Arguments>
+    v: A value to check.
+
+  <Returns>
+    True if v is safe, false otherwise
+  """
+
+  # Check if it is explicitly allowed or the wrong type
+  if type(v) is not str and type(str) is not unicode:
+    return True
+  if v in _STR_OK:
+    return True
+
+  # Check all the prohibited sub-strings
+  for s in _STR_NOT_CONTAIN:
+    if s in v:
+      return False
+
+  # Check all the prohibited prefixes
+  for s in _STR_NOT_BEGIN:
+    if v[:len(s)] == s:
+      return False
+
+  # Safe otherwise
+  return True
+
+
 def _check_node(node):
     if node.__class__.__name__ not in _NODE_CLASS_OK:
         raise safety_exceptions.CheckNodeException(node.lineno,node.__class__.__name__)
     for k,v in node.__dict__.items():
         if k in _NODE_ATTR_OK: continue
-        if v in _STR_OK: continue
-        if type(v) not in [str,unicode]: continue
-        for s in _STR_NOT_CONTAIN:
-            if s in v: raise safety_exceptions.CheckStrException(node.lineno,k,v)
-        for s in _STR_NOT_BEGIN:
-            if v[:len(s)] == s: raise safety_exceptions.CheckStrException(node.lineno,k,v)
+
+        # Check the safety of any strings
+        if not _is_string_safe(v):
+          raise safety_exceptions.CheckStrException(node.lineno,k,v)
+
     for child in node.getChildNodes():
         _check_node(child)
 
@@ -122,7 +155,7 @@ _BUILTIN_OK = [
     'ArithmeticError', 'AssertionError', 'AttributeError', 'DeprecationWarning', 'EOFError', 'Ellipsis', 'EnvironmentError', 'Exception', 'False', 'FloatingPointError', 'FutureWarning', 'IOError', 'ImportError', 'IndentationError', 'IndexError', 'KeyError', 'KeyboardInterrupt', 'LookupError', 'MemoryError', 'NameError', 'None', 'NotImplemented', 'NotImplementedError', 'OSError', 'OverflowError', 'OverflowWarning', 'PendingDeprecationWarning', 'ReferenceError', 'RuntimeError', 'RuntimeWarning', 'StandardError', 'StopIteration', 'SyntaxError', 'SyntaxWarning', 'SystemError', 'SystemExit', 'TabError', 'True', 'TypeError', 'UnboundLocalError', 'UnicodeDecodeError', 'UnicodeEncodeError', 'UnicodeError', 'UnicodeTranslateError', 'UserWarning', 'ValueError', 'Warning', 'ZeroDivisionError',
     
     'abs', 'bool', 'cmp', 'complex', 'dict', 'divmod', 'filter', 'float', 'frozenset', 'hex', 'int', 'len', 'list', 'long', 'map', 'max', 'min', 'object', 'oct', 'pow', 'range', 'reduce', 'repr', 'round', 'set', 'slice', 'str', 'sum', 'tuple',  'xrange', 'zip',
-    ]
+    'id']
     
 #this is zope's list...
     #in ['False', 'None', 'True', 'abs', 'basestring', 'bool', 'callable',
@@ -153,6 +186,10 @@ def _builtin_init():
         elif k in _BUILTIN_STR: v = ''
         else: v = _builtin_fnc(k)
         r[k] = v
+
+    # Armon: Make SafeDict available
+    _builtin_globals["SafeDict"] = get_SafeDict
+
 def _builtin_destroy():
     _builtin_init()
     for k,v in _builtin_globals.items():
@@ -276,6 +313,119 @@ def safe_exec(code,context = None):
     safe_run(code,context)
     
 
+# Functional constructor for SafeDict
+def get_SafeDict(*args,**kwargs):
+  return SafeDict(*args,**kwargs)
+
+# Safe dictionary, which prohibits "bad" keys
+class SafeDict(UserDict.DictMixin):
+  """
+  <Purpose>
+    A dictionary implementation which prohibits "unsafe" keys
+    from being set or get.
+  """
+
+  def __init__(self,from_dict=None):
+    # Create the underlying dictionary
+    self.__under__ = {}
+
+    # Break if we are done...
+    if from_dict is None:
+      return
+    if type(from_dict) is not dict and not isinstance(from_dict,SafeDict):
+      return
+
+    # If we are given a dict, try to copy its keys
+    for key,value in from_dict.items():
+      # Skip __builtins__ and __doc__ since safe_run/python inserts that
+      if key in ["__builtins__","__doc__"]:
+        continue
+
+      # Check the key type
+      if type(key) is not str and type(key) is not unicode:
+        raise TypeError, "'SafeDict' keys must be of string type!"
+
+      # Check if the key is safe
+      if _is_string_safe(key):
+        self.__under__[key] = value
+
+      # Throw an exception if the key is unsafe
+      else:
+        raise ValueError, "Unsafe key: '"+key+"'"
+
+  # Allow getting items
+  def __getitem__(self,key):
+    if type(key) is not str and type(key) is not unicode:
+      raise TypeError, "'SafeDict' keys must be of string type!"
+    if not _is_string_safe(key):
+      raise ValueError, "Unsafe key: '"+key+"'"
+
+    return self.__under__.__getitem__(key)
+
+  # Allow setting items
+  def __setitem__(self,key,value):
+    if type(key) is not str and type(key) is not unicode:
+      raise TypeError, "'SafeDict' keys must be of string type!"
+    if not _is_string_safe(key):
+      raise ValueError, "Unsafe key: '"+key+"'"
+
+    return self.__under__.__setitem__(key,value)
+
+  # Allow deleting items
+  def __delitem__(self,key):
+    if type(key) is not str and type(key) is not unicode:
+      raise TypeError, "'SafeDict' keys must be of string type!"
+    if not _is_string_safe(key):
+      raise ValueError, "Unsafe key: '"+key+"'"
+
+    return self.__under__.__delitem__(key)
+
+  # Allow checking if a key is set
+  def __contains__(self,key):
+    if type(key) is not str and type(key) is not unicode:
+      raise TypeError, "'SafeDict' keys must be of string type!"
+    if not _is_string_safe(key):
+      raise ValueError, "Unsafe key: '"+key+"'"
+
+    return self.__under__.__contains__(key)
+
+  # Return the key set
+  def keys(self):
+    # Get the keys from the underlying dict
+    keys = self.__under__.keys()
+
+    # Filter out the unsafe keys
+    safe_keys = []
+
+    for key in keys:
+      if _is_string_safe(key):
+        safe_keys.append(key)
+
+    # Return the safe keys
+    return safe_keys
+
+  # Allow a copy of us
+  def copy(self):
+    # Create a new instance
+    copy_inst = SafeDict(self.__under__)
+
+    # Return a new instance
+    return copy_inst
+
+  # Make our fields read-only
+  # This means __getattr__ can do its normal thing, but any
+  # setters need to be overridden to prohibit adding/deleting/updating
+
+  def __setattr__(self,name,value):
+    # Allow setting __under__ on initialization
+    if name == "__under__" and name not in self.__dict__:
+      self.__dict__[name] = value
+      return
+
+    raise TypeError,"'SafeDict' attributes are read-only!"
+
+  def __delattr__(self,name):
+    raise TypeError,"'SafeDict' attributes are read-only!"
 
 
 if __name__ == '__main__':
