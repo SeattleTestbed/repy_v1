@@ -132,6 +132,10 @@ def _stopfile_exit(exitcode, pid):
     # Kill repy
     harshexit.portablekill(pid)
 
+    # Fix Derek proposed, this should solve the problem of 
+    # the monitor exiting before the repy process.
+    time.sleep(1)
+
     # Exit
     harshexit.harshexit(78)
 
