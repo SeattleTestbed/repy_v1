@@ -341,7 +341,7 @@ def do_actual_test(testtype, restrictionfn, testname, is_python_test):
   # any out, no err...
   elif testtype == 'n':
     if is_python_test:
-      (testout, testerr) = exec_repy_script(testname, '')
+      (testout, testerr) = exec_command("python " + testname)
     else:
       (testout, testerr) = exec_repy_script(testname, restrictionfn, {'status':'foo'})
     
@@ -358,7 +358,7 @@ def do_actual_test(testtype, restrictionfn, testname, is_python_test):
   # any err, no out...
   elif testtype == 'e':
     if is_python_test:
-      (testout, testerr) = exec_repy_script(testname, '')
+      (testout, testerr) = exec_command("python " + testname)
     else:
       (testout, testerr) = exec_repy_script(testname, restrictionfn, {'status':'foo'})
     
@@ -390,7 +390,7 @@ def do_actual_test(testtype, restrictionfn, testname, is_python_test):
   # any err, any out...
   elif testtype == 'b':
     if is_python_test:
-      (testout, testerr) = exec_repy_script(testname, '')
+      (testout, testerr) = exec_command("python " + testname)
     else:
       (testout, testerr) = exec_repy_script(testname, restrictionfn, {'status':'foo'})
     
