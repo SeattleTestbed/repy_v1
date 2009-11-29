@@ -179,6 +179,42 @@ def update_ip_cache():
   
 ########################### General Purpose socket functions #################
 
+def is_already_connected_exception(exceptionobj):
+  """
+  <Purpose>
+    Determines if a given error number indicates that the socket
+    is already connected.
+
+  <Arguments>
+    An exception object from a network call.
+
+  <Returns>
+    True if already connected, false otherwise
+  """
+  # Get the type
+  exception_type = type(exceptionobj)
+
+  # Only continue if the type is socket.error
+  if exception_type is not socket.error:
+    return False
+
+  # Get the error number
+  errnum = exceptionobj[0]
+
+  # Store a list of error messages meaning we are connected
+  connected_errors = ["EISCONN", "WSAEISCONN"]
+
+  # Convert the errno to and error string name
+  try:
+    errname = errno.errorcode[errnum]
+  except Exception,e:
+    # The error is unknown for some reason...
+    errname = None
+  
+  # Return if the error name is in our white list
+  return (errname in connected_errors)
+
+
 def is_recoverable_network_exception(exceptionobj):
   """
   <Purpose>
@@ -205,7 +241,9 @@ def is_recoverable_network_exception(exceptionobj):
   errnum = exceptionobj[0]
 
   # Store a list of recoverable error numbers
-  recoverable_errors = ["EINTR","EAGAIN","EBUSY","EWOULDBLOCK","ETIMEDOUT","ERESTART","WSAEINTR","WSAEWOULDBLOCK","WSAETIMEDOUT"]
+  recoverable_errors = ["EINTR","EAGAIN","EBUSY","EWOULDBLOCK","ETIMEDOUT","ERESTART",
+                        "WSAEINTR","WSAEWOULDBLOCK","WSAETIMEDOUT","EALREADY","WSAEALREADY",
+                       "EINPROGRESS","WSAEINPROGRESS"]
 
   # Convert the errno to and error string name
   try:
@@ -242,7 +280,8 @@ def is_terminated_connection_exception(exceptionobj):
   errnum = exceptionobj[0]
 
   # Store a list of errors which indicate connection closed
-  connection_closed_errors = ["EPIPE","EBADF","EBADR","ENOLINK","EBADFD","ENETRESET","ECONNRESET","WSAEBADF","WSAENOTSOCK","WSAECONNRESET",]
+  connection_closed_errors = ["EPIPE","EBADF","EBADR","ENOLINK","EBADFD","ENETRESET",
+                              "ECONNRESET","WSAEBADF","WSAENOTSOCK","WSAECONNRESET",]
 
   # Convert the errnum to an error string
   try:
@@ -1414,9 +1453,14 @@ def openconn(desthost, destport,localip=None, localport=None,timeout=5.0):
         comminfo[handle]['socket'].connect((desthost,destport))
         break
       except Exception,e:
+        # Check if the socket is already connected (EISCONN or WSAEISCONN)
+        if is_already_connected_exception(e):
+          break
+
         # Check if this is recoverable, only continue if it is
-        if not is_recoverable_network_exception(e):
+        elif not is_recoverable_network_exception(e):
           raise
+
         else:
           # Store the exception
           connect_exception = e
