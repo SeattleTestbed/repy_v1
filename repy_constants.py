@@ -29,7 +29,7 @@ REPY_START_DIR = "."
 # Memory may need to be tighted, since it is possible to debilitate a system in less time than this.
 RESOURCE_POLLING_FREQ_LINUX = .5 # Linux
 RESOURCE_POLLING_FREQ_WIN = .5 # Windows
-RESOURCE_POLLING_FREQ_WINCE = 2 # Mobile devices are pretty slow
+RESOURCE_POLLING_FREQ_WINCE = 4 # Mobile devices are pretty slow
 
 # CPU Polling Frequency for different Platforms
 CPU_POLLING_FREQ_LINUX = .1 # Linux

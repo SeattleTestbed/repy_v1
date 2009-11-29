@@ -12,6 +12,9 @@ import sys
 # needed for signal numbers
 import signal
 
+# needed for changing polling constants on the Nokia N800
+import repy_constants
+
 # Needed for kill_process; This will fail on non-windows systems
 try:
   import windows_api
@@ -138,6 +141,13 @@ def init_ostype():
 
   # figure out what sort of witch we are...
   osrealtype = platform.system()
+
+  # The Nokia N800 (and N900) uses the ARM architecture, 
+  # and we change the constants on it to make disk checks happen less often 
+  if platform.machine().startswith('armv'):
+    if osrealtype == 'Linux' or osrealtype == 'Darwin' or osrealtype == 'FreeBSD':
+      repy_constants.CPU_POLLING_FREQ_LINUX = repy_constants.CPU_POLLING_FREQ_WINCE;
+      repy_constants.RESOURCE_POLLING_FREQ_LINUX = repy_constants.RESOURCE_POLLING_FREQ_WINCE;
 
   if osrealtype == 'Linux' or osrealtype == 'Windows' or osrealtype == 'Darwin':
     ostype = osrealtype
