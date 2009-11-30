@@ -1,100 +1,62 @@
 """
-   Author: Justin Cappos
+   Author: Conrad Meyer
 
-   Start Date: 22 July 2008
+   Start Date: 30 Nov 2009
 
    Description:
 
-   Refactored logging code that used to be in emulfile
+   Wrapper around loggingrepy_core that provides restriction management
+   and nannying.
 """
+
 
 import restrictions
 import nanny
-
-# needed for remove and path.exists
-import os 
-
-# for Lock
-import threading
-
-# I need to rename file so that the checker doesn't complain...
-myfile = file
+import loggingrepy_core
 
 
+get_size = loggingrepy_core.get_size
+myfile = loggingrepy_core.myfile
 
 
-
-# used to make stdout flush as written   This is private to my code
-class flush_logger:
+class flush_logger(loggingrepy_core.flush_logger_core):
   """
     A file-like class that can be used in lieu of stdout.   It always flushes
-    data after a write.
+    data after a write. This one uses restrictions and nannying.
 
   """
 
-  fileobj = None
-  
-  # I do not use these.   This is merely for API convenience
-  mode = None
-  name = None
-  softspace = 0
-
-  def __init__(self, fobj):
-    self.fileobj = fobj
-    return None 
-
-
-  def close(self):
-    return self.fileobj.close()
-
-
-
-  def flush(self):
-    return self.fileobj.flush()
-
-
-  def write(self,writeitem):
-    restrictions.assertisallowed('log.write',writeitem)
+  def write(self, writeitem):
+    restrictions.assertisallowed('log.write', writeitem)
     # block if already over
-    nanny.tattle_quantity('lograte',0)
-    self.fileobj.write(writeitem)
-    self.flush()
-    writeamt = len(str(writeitem))
+    nanny.tattle_quantity('lograte', 0)
+
+    # do the actual write
+    loggingrepy_core.flush_logger_core.write(self, writeitem)
+
     # block if over after log write
-    nanny.tattle_quantity('lograte',writeamt)
+    writeamt = len(str(writeitem))
+    nanny.tattle_quantity('lograte', writeamt)
 
 
-
-  def writelines(self,writelist):
-    restrictions.assertisallowed('log.writelines',writelist)
+  def writelines(self, writelist):
+    restrictions.assertisallowed('log.writelines', writelist)
     # block if already over
-    nanny.tattle_quantity('lograte',0)
-    self.fileobj.writelines(writelist)
-    self.flush()
+    nanny.tattle_quantity('lograte', 0)
 
+    # do the actual writelines()
+    loggingrepy_core.flush_logger_core.writelines(self, writelist)
+
+    # block if over after log write
     writeamt = 0
     for writeitem in writelist:
       writeamt = writeamt + len(str(writeitem))
-
-    # block if over after log write
-    nanny.tattle_quantity('lograte',writeamt)
-
-# End of flush_logger class
+    nanny.tattle_quantity('lograte', writeamt)
 
 
 
 
-# helper function
-def get_size(fn):
-  fo = myfile(fn,"r")
-  data = fo.read()
-  fo.close()
-  return len(data)
-
-
-
-# used to implement the circular log buffer
-class circular_logger:
+class circular_logger(loggingrepy_core.circular_logger_core):
   """
     A file-like class that writes to what is conceptually a circular buffer.   
     After being filled, the buffer is always >=16KB and always flushed after 
@@ -107,106 +69,19 @@ class circular_logger:
     
     *not always on some systems because moving files isn't atomic
 
+    This version of the class reports resource consumption with nanny.
+
   """
 
-  # filenames we'll use for the log data
-  filenameprefix = None
-  oldfn = None
-  newfn = None
 
-  # the size before we "rotate" the logfiles
-  maxbuffersize = None # default listed in constructor
+  def __init__(self, fnp, mbs = 16*1024, use_nanny=True):
+    loggingrepy_core.circular_logger_core.__init__(self, fnp, mbs)
 
-  currentsize = 0
-  
-  # prevent race conditions when writing
-  writelock = None
-
-  # where I write data to...
-  activefo = None
-
-  # Am I still on the first buffer
-  first = None
-
-  # Should we be using the nanny to limit the lograte
-  should_nanny = True
-
-
-  # I do not use these.   This is merely for API convenience
-  mode = None
-  name = None
-  softspace = 0
-
-
-
-
-
-
-  def __init__(self, fnp, mbs = 16 * 1024, use_nanny=True):
-    self.maxbuffersize = mbs
-    self.filenameprefix = fnp
-    self.oldfn = fnp+".old"
-    self.newfn = fnp+".new"
-    self.writelock = threading.Lock()
+    # Should we be using the nanny to limit the lograte
     self.should_nanny = use_nanny
 
-    
-    
-    # we need to set up the currentsize, activefo and first variables...
-    if os.path.exists(self.newfn):
-      # the new file exists.   
 
-      if os.path.exists(self.oldfn):
-        # the old file exists too (the common case)   
-
-        self.currentsize = get_size(self.newfn)
-        self.activefo = myfile(self.newfn,"a")
-        self.first = False
-        # now we have the fileobject and the size set up.   We're ready...
-        return
-
-      else:
-        # a corner case.   The old file was removed but the new was not yet 
-        # copied over
-        os.rename(self.newfn, self.oldfn)
-        self.currentsize = 0
-        self.activefo = myfile(self.newfn,"w")
-        self.first = False
-        return
-
-    else:
- 
-      if os.path.exists(self.oldfn):
-        # the old file name exists, so we should start from here
-
-        self.currentsize = get_size(self.oldfn)
-        self.activefo = myfile(self.oldfn,"a")
-        self.first = True
-        # now we have the fileobject and the size set up.   We're ready...
-        return
-
-      else:
-        # starting from nothing...
-        self.currentsize = 0
-        self.activefo = myfile(self.oldfn,"w")
-        self.first = True
-        return
-
-
-
-
-  # No-op
-  def close(self):
-    return 
-
-
-
-  # No-op, I always flush myself
-  def flush(self):
-    return
-
-
-  def write(self,writeitem):
+  def write(self, writeitem):
     # they / we can always log info (or else what happens on exception?)
     #restrictions.assertisallowed('log.write',writeitem)
 
@@ -228,9 +103,7 @@ class circular_logger:
       self.writelock.release()
 
 
-
-  def writelines(self,writelist):
-    
+  def writelines(self, writelist):
     # we / they can always log info (or else what happens on exception?)
     #restrictions.assertisallowed('log.writelines',writelist)
 
@@ -252,109 +125,3 @@ class circular_logger:
   
     finally:
       self.writelock.release()
-
-
-
-  # internal functions (not externally called)
-
-  # rotate the log files (make the new the old, and get a new file
-  def rotate_log(self):
-    self.activefo.close()
-    try:
-      os.rename(self.newfn, self.oldfn)
-
-    except WindowsError:  # Windows no likey when rename overwrites
-      os.remove(self.oldfn)
-      os.rename(self.newfn, self.oldfn)
- 
-    self.activefo = myfile(self.newfn,"w")
-    
-
-  def write_first_log(self):
-    self.activefo.close()
-    self.activefo = myfile(self.newfn,"w")
-    
-
-
-  # I could write this in about 1/4 the code, but it would be much harder to 
-  # read.   
-  def writedata(self, data):
-
-
-    # first I'll dispose of the common case
-    if len(str(data)) + self.currentsize <= self.maxbuffersize:
-      # didn't fill the buffer
-      self.activefo.write(str(data))
-      self.activefo.flush()
-      self.currentsize = self.currentsize + len(str(data))
-      return len(str(data))
-
-    # now I'll deal with the "longer-but-still-fits case"
-    if len(str(data))+self.currentsize <= self.maxbuffersize*2:
-      # finish off this file
-      splitindex = self.maxbuffersize - self.currentsize
-      self.activefo.write(str(data[:splitindex]))
-      self.activefo.flush()
-
-      # rotate logs
-      if self.first:
-        self.write_first_log()
-        self.first = False
-      else:
-        self.rotate_log()
-
-      # now write the last bit of data...
-      self.activefo.write(str(data[splitindex:]))
-      self.activefo.flush()
-      self.currentsize = len(str(data[splitindex:]))
-      return len(str(data))
-
-    # now the "really-long-write case"
-    # Note, I'm going to avoid doing any extra "alignment" on the data.   In
-    # other words, if they write some multiple of 16KB, and they currently have
-    # a full file and a file with 7 bytes, they'll end up with a full file and
-    # a file with 7 bytes
-
-    datasize = len(str(data))
-
-    # this is what data the new file should contain (the old file will contain
-    # the 16KB of data before this)
-    lastchunk = (datasize + self.currentsize) % self.maxbuffersize
-
-    # I'm going to write the old file and new file now
-    #
-    # Note: I break some of the guarantees about being able to 
-    # recover disk state here 
-    self.activefo.close()
-    if self.first: 
-      # remove existing files (unnecessary on some platforms)
-      os.remove(self.oldfn)
-    else:
-      # remove existing files (unnecessary on some platforms)
-      os.remove(self.oldfn)
-      os.remove(self.newfn)
-
-    oldfo = myfile(self.oldfn,"w")
-
-    # write the data counting backwards from the end of the file
-    oldfo.write(data[-(lastchunk+self.maxbuffersize):-lastchunk])
-    oldfo.close()
-
-    # next...
-    self.activefo = myfile(self.newfn,"w")
-
-    # now write the last bit of data...
-    self.activefo.write(str(data[-lastchunk:]))
-    self.activefo.flush()
-    self.currentsize = len(str(data[-lastchunk:]))
-
-    # charge them for only the data we actually wrote
-    return self.currentsize + self.maxbuffersize
-
-
-    
-      
-
-# End of circular_logger class
-
-
