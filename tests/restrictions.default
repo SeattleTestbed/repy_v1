@@ -57,4 +57,5 @@ call randomfloat allow			# can get random numbers
 call getruntime allow			# can get the elapsed time
 call getlock allow			# can get a mutex
 call get_thread_name allow        # Allow getting the thread name
+call VirtualNamespace allow     # Allow using VirtualNamespace's
 
