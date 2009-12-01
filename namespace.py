@@ -79,8 +79,9 @@
     FILE_OBJECT_WRAPPER_INFO
     SOCKET_OBJECT_WRAPPER_INFO
     LOCK_OBJECT_WRAPPER_INFO
+    VIRTUAL_NAMESPACE_OBJECT_WRAPPER_INFO
     
-      The above three dictionaries define the methods available on the wrapped
+      The above four dictionaries define the methods available on the wrapped
       objects that are returned by wrapped functions. Additionally, timerhandle
       and commhandle objects are wrapped but instances of these do not have any
       public methods and so no *_WRAPPER_INFO dictionaries are defined for them.
@@ -113,6 +114,12 @@ import emulfile
 import emultimer
 import emulcomm
 import emulmisc
+
+# Used to get SafeDict
+import safe
+
+# Used to get VirtualNamespace
+import virtual_namespace
 
 # Save a copy of a few functions not available at runtime.
 _saved_getattr = getattr
@@ -171,6 +178,7 @@ def _init_namespace():
 file_object_wrapped_functions_dict = {}
 socket_object_wrapped_functions_dict = {}
 lock_object_wrapped_functions_dict = {}
+virtual_namespace_object_wrapped_functions_dict = {}
 
 def _prepare_wrapped_functions_for_object_wrappers():
   """
@@ -181,7 +189,8 @@ def _prepare_wrapped_functions_for_object_wrappers():
   """
   objects_tuples = [(FILE_OBJECT_WRAPPER_INFO, file_object_wrapped_functions_dict),
                     (SOCKET_OBJECT_WRAPPER_INFO, socket_object_wrapped_functions_dict),
-                    (LOCK_OBJECT_WRAPPER_INFO, lock_object_wrapped_functions_dict)]
+                    (LOCK_OBJECT_WRAPPER_INFO, lock_object_wrapped_functions_dict),
+                    (VIRTUAL_NAMESPACE_OBJECT_WRAPPER_INFO, virtual_namespace_object_wrapped_functions_dict)]
   
   for description_dict, wrapped_func_dict in objects_tuples:
     for function_name in description_dict:
@@ -289,6 +298,14 @@ def _require_list_of_strings(obj):
   for item in obj:
     _require_string(item)
 
+
+def _require_dict_or_safedict(obj):
+  if type(obj) is not dict and not isinstance(obj, safe.SafeDict):
+    raise NamespaceRequirementError
+
+def _require_safedict(obj):
+  if not isinstance(obj, safe.SafeDict):
+    raise NamespaceRequirementError
 
 
 ##############################################################################
@@ -566,6 +583,10 @@ def allow_args_canceltimer(wrapped_timerhandle):
     raise NamespaceRequirementError
 
 
+def allow_args_virtual_namespace(code, name="<string>"):
+  _require_string(code)
+  _require_string(name)
+
 
 def wrap_commhandle_obj(commhandle):
   # There are no attributes to be accessed on commhandles.
@@ -595,6 +616,9 @@ def wrap_file_obj(fileobj):
   _require_emulated_file(fileobj)
   return NamespaceObjectWrapper("file", fileobj, file_object_wrapped_functions_dict)
 
+def wrap_virtual_namespace_obj(virt):
+  _require_virtual_namespace_object(virt)
+  return NamespaceObjectWrapper("VirtualNamespace", virt, virtual_namespace_object_wrapped_functions_dict)
 
 
 def unwrap_single_arg(*args, **kwargs):
@@ -755,6 +779,13 @@ USERCONTEXT_WRAPPER_INFO = {
       {'target_func' : emulmisc.get_thread_name,
        'arg_checking_func' : allow_no_args,
        'return_checking_func' : allow_return_string},
+
+  # Provides a safe execution environment for arbitrary code
+  'VirtualNamespace' :
+      {'target_func' : virtual_namespace.get_VirtualNamespace,
+       'arg_checking_func' : allow_args_virtual_namespace,
+       'return_checking_func' : allow_all,
+       'return_wrapping_func' : wrap_virtual_namespace_obj}
 }
 
 
@@ -946,6 +977,31 @@ LOCK_OBJECT_WRAPPER_INFO = {
        'arg_checking_func' : allow_args_lock_release,
        'return_checking_func' : allow_return_none},
 }
+
+def _require_virtual_namespace_object(virt):
+  if not isinstance(virt, virtual_namespace.VirtualNamespace):
+    raise NamespaceRequirementError
+
+def allow_args_virtual_namespace_eval(virt, context):
+  _require_virtual_namespace_object(virt)
+  _require_dict_or_safedict(context)
+
+def allow_return_safedict(context):
+  _require_safedict(context)
+
+
+VIRTUAL_NAMESPACE_OBJECT_WRAPPER_INFO = {
+  # Evaluate must take a dict or SafeDict, and can
+  # only return a SafeDict. We must _not_ copy the
+  # dict since that will screw up the references in the dict.
+  'evaluate' :
+    {
+      'target_func' : 'evaluate',
+      'arg_checking_func' : allow_args_virtual_namespace_eval,
+      'return_checking_func' : allow_return_safedict
+    }
+}
+
 
 ##############################################################################
 # The classes we define from which actual wrappers are instantiated.
@@ -1168,7 +1224,8 @@ class NamespaceAPIFunctionWrapper(object):
       # is wrapped and the client does not have access to it, it's safe to not
       # wrap it.
       elif isinstance(obj, (NamespaceObjectWrapper, emulfile.emulated_file,
-                            emulcomm.emulated_socket, thread.LockType)):
+                            emulcomm.emulated_socket, thread.LockType,
+                            virtual_namespace.VirtualNamespace)):
         return obj
       
       else:

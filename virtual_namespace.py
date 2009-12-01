@@ -14,8 +14,18 @@
 # Used for safety checking
 import safe
 
+# Used to check that an API call is allowed
+import restrictions
+
 # This is to work around safe...
 safe_compile = compile
+
+# Functional constructor for VirtualNamespace
+def get_VirtualNamespace(code, name="<string>"):
+  # Check if this is allows
+  restrictions.assertisallowed('VirtualNamespace')
+
+  return VirtualNamespace(code,name)
 
 # This class is used to represent a namespace
 class VirtualNamespace(object):

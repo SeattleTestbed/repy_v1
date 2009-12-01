@@ -92,7 +92,7 @@ known_calls = [ "canceltimer", "exitall", "file.close", "file.flush",
 	"openconn", "recvmess", "sendmess", "settimer", "sleep",
 	"socket.close", "socket.recv", "socket.send", "stopcomm", 
 	"waitforconn", "log.write", "log.writelines", "randomfloat", 
-	"getruntime", "getlock","get_thread_name"
+	"getruntime", "getlock","get_thread_name","VirtualNamespace"
 	]
 
 
