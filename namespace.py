@@ -1437,7 +1437,7 @@ class NamespaceAPIFunctionWrapper(object):
       
     except Exception, e:
       self._check_raised_exception(e)
-      raise e
+      raise
 
     # Copy first, then check.
     retval = self._copy(retval)
