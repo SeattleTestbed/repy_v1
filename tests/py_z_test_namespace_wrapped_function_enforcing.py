@@ -134,3 +134,12 @@ try:
 except namespace.NamespaceViolationError:
   pass
 
+# Arguments with circular references.
+circular_list = []
+circular_list.append(circular_list)
+wrapped_foo(circular_list)
+
+circular_dict = {}
+circular_dict["test"] = circular_dict
+wrapped_foo(circular_dict)
+
