@@ -1204,7 +1204,7 @@ class NamespaceAPIFunctionWrapper(object):
       
       # types.InstanceType is included because the user can provide an instance
       # of a class of their own in the list of callback args to settimer.
-      if _is_in(type(obj), [str, unicode, int, long, float, complex, bool,
+      if _is_in(type(obj), [str, unicode, int, long, float, complex, bool, frozenset,
                             types.NoneType, types.FunctionType, types.LambdaType,
                             types.MethodType, types.InstanceType]):
         return obj
@@ -1241,27 +1241,21 @@ class NamespaceAPIFunctionWrapper(object):
         if _saved_id(obj) in objectmap:
           return objectmap[_saved_id(obj)]
         
-        # Call the constructor for the correct type of object, e.g. tuple.
-        thetype = type(obj)
-        retval = thetype(temp_list)
-        
+        retval = tuple(temp_list)
         objectmap[_saved_id(obj)] = retval
         return retval
     
-      elif _is_in(type(obj), [set, frozenset]):
+      elif type(obj) is set:
         temp_list = []
         # We can't just store this list object in the objectmap because it isn't
-        # the correct object yet. As a result, if there is a way to have a
-        # tuple, set, or frozenset with circular references to itself, then
-        # it would result in a stack overflow and the repy program crashing.
+        # a set yet. If it's possible to have a set contain a reference to
+        # itself, this could result in infinite recursion. However, sets can
+        # only contain hashable items so I believe this can't happen.
 
         for item in obj:
           temp_list.append(self._copy(item, objectmap))
         
-        # Call the constructor for the correct type of object, e.g. tuple.
-        thetype = type(obj)
-        retval = thetype(temp_list)
-        
+        retval = set(temp_list)
         objectmap[_saved_id(obj)] = retval
         return retval
         

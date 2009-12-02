@@ -1,6 +1,7 @@
 """
-This tests arguments with circular references passed through the namespace
-which need to be carefully copied by NamespaceAPIFunctionWrapper._copy().
+This tests various types of arguments to make sure they are properly copied
+by the namespace. This includes objects with circular references which need to
+be carefully copied by NamespaceAPIFunctionWrapper._copy().
 """
 
 import namespace
@@ -23,6 +24,19 @@ foo_func_dict = {
 foo_wrapper_obj = namespace.NamespaceAPIFunctionWrapper(foo_func_dict)
 
 wrapped_foo = foo_wrapper_obj.wrapped_function
+
+# Set (no circular references, don't think that's possible).
+myfrozenset = frozenset() # frozensets are immutable and so will not be copied.
+myset = set([myfrozenset, 2])
+retval = wrapped_foo(myset)
+assert(retval is not myset)
+assert(myfrozenset in retval) # That's not an identity check.
+assert(2 in retval)
+
+# Frozenset (no circular references, don't think that's possible).
+myfrozenset = frozenset() # frozensets are immutable and so will not be copied.
+retval = wrapped_foo(myfrozenset)
+assert(retval is myfrozenset)
 
 # List with circular references.
 circlist = []
