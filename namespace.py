@@ -1437,10 +1437,6 @@ class NamespaceAPIFunctionWrapper(object):
       
     except Exception, e:
       self._check_raised_exception(e)
-      
-      # Armon: Do a normal "raise" rather than "raise e" so that the traceback
-      # information is preserved. If we are in nested VirtualNamespace's we don't
-      # want to reduce the traceback to only the lowest module on the stack.
       raise
 
     # Copy first, then check.

@@ -22,6 +22,8 @@ traceback.linecache = fakelinecache
 # Need to be able to reference the last traceback...
 import sys
 
+userfilename = None
+
 # Used to determine whether or not we use the service logger to log internal
 # errors.  Defaults to false. -Brent
 servicelog = False
@@ -44,18 +46,14 @@ import safety_exceptions
 # needed to get the PID
 import os
 
-# Armon: These set contains all the module's which are black-listed
-# from the traceback, so that if there is an exception, they will
-# not appear in the stack.
-TB_SKIP_MODULES = ["repy.py","safe.py","virtual_namespace.py","namespace.py","emulcomm.py",
-                      "emultimer.py","emulmisc.py","emulfile.py","nonportable.py"]
-
 
 # sets the user's file name.
 # also sets whether or not the servicelogger is used. -Brent
-def initialize(useservlog=False, logdir = '.'):
+def initialize(ufn, useservlog=False, logdir = '.'):
+  global userfilename
   global servicelog
   global logdirectory
+  userfilename = ufn
   servicelog = useservlog
   logdirectory = logdir
 
@@ -66,7 +64,7 @@ def handle_exception():
 
   # exc_info() gives the traceback (see the traceback module for info)
   exceptiontype, exceptionvalue, exceptiontraceback = sys.exc_info()
-  
+
   for tracebackentry in traceback.extract_tb(exceptiontraceback):
     # the entry format is (filename, lineno, modulename, linedata)
     # linedata is always empty because we prevent the linecache from working
@@ -75,22 +73,12 @@ def handle_exception():
     # The user code is read in and passed to the parser by us.   As a result, 
     # is seen by python as filename = '<string>'.   We only want to display
     # information about the user program, so we'll fix this up.
-    
-    # Check that this module is not black-listed
-    module = tracebackentry[0]
-    skip = False
-
-    # Check if any of the forbidden modules are a substring of the module name
-    # e.g. if the name is /home/person/seattle/repy.py, we want to see that repy.py
-    # and skip this frame.
-    for forbidden in TB_SKIP_MODULES:
-      if forbidden in module:
-        skip = True
-        break
-    
-    # mimic python's output
-    if not skip:
-      print >> sys.stderr, '  "'+tracebackentry[0]+'", line '+str(tracebackentry[1])+", in "+str(tracebackentry[2])
+    if tracebackentry[0] == "<string>":
+      if userfilename:
+        # mimic python's output
+        print >> sys.stderr, '  "'+userfilename+'", line '+str(tracebackentry[1])+", in "+str(tracebackentry[2])
+      else:
+        print >> sys.stderr, '  "'+tracebackentry[0]+'", line '+str(tracebackentry[1])+", in "+str(tracebackentry[2])
 
 
   # When I try to print an Exception object, I get:
