@@ -99,32 +99,32 @@ _STR_NOT_BEGIN = ['im_','func_','tb_','f_','co_',]
 #_STR_NOT_BEGIN = []
 
 # Checks the string safety
-def _is_string_safe(v):
+def _is_string_safe(token):
   """
   <Purpose>
     Checks if a string is safe based on the defined rules.
 
   <Arguments>
-    v: A value to check.
+    token: A value to check.
 
   <Returns>
-    True if v is safe, false otherwise
+    True if token is safe, false otherwise
   """
 
   # Check if it is explicitly allowed or the wrong type
-  if type(v) is not str and type(str) is not unicode:
+  if type(token) is not str and type(token) is not unicode:
     return True
-  if v in _STR_OK:
+  if token in _STR_OK:
     return True
 
   # Check all the prohibited sub-strings
-  for s in _STR_NOT_CONTAIN:
-    if s in v:
+  for forbidden_substring in _STR_NOT_CONTAIN:
+    if forbidden_substring in token:
       return False
 
   # Check all the prohibited prefixes
-  for s in _STR_NOT_BEGIN:
-    if v[:len(s)] == s:
+  for forbidden_prefix in _STR_NOT_BEGIN:
+    if token[:len(forbidden_prefix)] == forbidden_prefix:
       return False
 
   # Safe otherwise
