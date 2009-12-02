@@ -125,7 +125,7 @@ import virtual_namespace
 _saved_getattr = getattr
 _saved_callable = callable
 _saved_hash = hash
-
+_saved_id = id
 
 
 ##############################################################################
@@ -1167,7 +1167,7 @@ class NamespaceAPIFunctionWrapper(object):
 
 
 
-  def _copy(self, obj):
+  def _copy(self, obj, objectmap=None):
     """
     <Purpose>
       Create a deep copy of an object without using the python 'copy' module.
@@ -1177,6 +1177,9 @@ class NamespaceAPIFunctionWrapper(object):
       self
       obj
         The object to make a deep copy of.
+      objectmap
+        A mapping between original objects and the corresponding copy. This is
+        used to handle circular references.
     <Exceptions>
       TypeError
         If an object is encountered that we don't know how to make a copy of.
@@ -1188,34 +1191,90 @@ class NamespaceAPIFunctionWrapper(object):
       A new reference is created to every non-simple type of object. That is,
       everything except objects of type str, unicode, int, etc.
     <Returns>
-      The deep copy of obj.
+      The deep copy of obj with circular/recursive references preserved.
     """
     try:
+      # If this is a top-level call to _copy, create a new objectmap for use
+      # by recursive calls to _copy.
+      if objectmap is None:
+        objectmap = {}
+      # If this is a circular reference, use the copy we already made.
+      elif _saved_id(obj) in objectmap:
+        return objectmap[_saved_id(obj)]
+      
       # types.InstanceType is included because the user can provide an instance
       # of a class of their own in the list of callback args to settimer.
       if _is_in(type(obj), [str, unicode, int, long, float, complex, bool,
                             types.NoneType, types.FunctionType, types.LambdaType,
                             types.MethodType, types.InstanceType]):
         return obj
-      
-      elif _is_in(type(obj), [tuple, list, set, frozenset]):
+
+      elif type(obj) is list:
         temp_list = []
+        # Need to save this in the objectmap before recursing because lists
+        # might have circular references.
+        objectmap[_saved_id(obj)] = temp_list
+        
         for item in obj:
-          temp_list.append(self._copy(item))
+          temp_list.append(self._copy(item, objectmap))
           
-        if type(obj) is tuple:
-          return tuple(temp_list)
-        elif type(obj) is set:
-          return set(temp_list)
-        elif type(obj) is frozenset:
-          return frozenset(temp_list)
-        else:
-          return temp_list
+        return temp_list
+
+      elif type(obj) is tuple:
+        temp_list = []
+
+        for item in obj:
+          temp_list.append(self._copy(item, objectmap))
+          
+        # I'm not 100% confident on my reasoning here, so feel free to point
+        # out where I'm wrong: There's no way for a tuple to directly contain
+        # a circular reference to itself. Instead, it has to contain, for
+        # example, a dict which has the same tuple as a value. In that
+        # situation, we can avoid infinite recursion and properly maintain
+        # circular references in our copies by checking the objectmap right
+        # after we do the copy of each item in the tuple. The existence of the
+        # dictionary would keep the recursion from being infinite because those
+        # are properly handled. That just leaves making sure we end up with
+        # only one copy of the tuple. We do that here by checking to see if we
+        # just made a copy as a result of copying the items above. If so, we
+        # return the one that's already been made.
+        if _saved_id(obj) in objectmap:
+          return objectmap[_saved_id(obj)]
+        
+        # Call the constructor for the correct type of object, e.g. tuple.
+        thetype = type(obj)
+        retval = thetype(temp_list)
+        
+        objectmap[_saved_id(obj)] = retval
+        return retval
+    
+      elif _is_in(type(obj), [set, frozenset]):
+        temp_list = []
+        # We can't just store this list object in the objectmap because it isn't
+        # the correct object yet. As a result, if there is a way to have a
+        # tuple, set, or frozenset with circular references to itself, then
+        # it would result in a stack overflow and the repy program crashing.
+
+        for item in obj:
+          temp_list.append(self._copy(item, objectmap))
+        
+        # Call the constructor for the correct type of object, e.g. tuple.
+        thetype = type(obj)
+        retval = thetype(temp_list)
+        
+        objectmap[_saved_id(obj)] = retval
+        return retval
         
       elif type(obj) is dict:
         temp_dict = {}
-        for key in obj:
-          temp_dict[key] = self._copy(obj[key])
+        # Need to save this in the objectmap before recursing because dicts
+        # might have circular references.
+        objectmap[_saved_id(obj)] = temp_dict
+        
+        for key, value in obj.items():
+          temp_key = self._copy(key, objectmap)
+          temp_dict[temp_key] = self._copy(value, objectmap)
+          
         return temp_dict
       
       # We don't copy certain objects. This is because copying an emulated file
