@@ -62,6 +62,32 @@ def initialize(useservlog=False, logdir = '.'):
 
 # Public: this prints the previous exception in a readable way...
 def handle_exception():
+  """
+  This is an example traceback:
+  ---
+  Seattle Traceback (most recent call last):
+    "dylink.repy", line 472, in <module>
+    "dylink.repy", line 360, in dylink_dispatch
+    "dylink.repy", line 455, in evaluate
+    "testxmlrpc_common", line 254, in <module>
+
+  Full traceback (includes non-user modules):
+    "repy.py", line 189, in main
+    "/Users/adadgar/Projects/seattle/trunk/test/virtual_namespace.py", line 116, in evaluate
+    "/Users/adadgar/Projects/seattle/trunk/test/safe.py", line 304, in safe_run
+    "dylink.repy", line 472, in <module>
+    "dylink.repy", line 360, in dylink_dispatch
+    "dylink.repy", line 455, in evaluate
+    "/Users/adadgar/Projects/seattle/trunk/test/namespace.py", line 1072, in __do_func_call
+    "/Users/adadgar/Projects/seattle/trunk/test/namespace.py", line 1487, in wrapped_function
+    "/Users/adadgar/Projects/seattle/trunk/test/virtual_namespace.py", line 116, in evaluate
+    "/Users/adadgar/Projects/seattle/trunk/test/safe.py", line 304, in safe_run
+    "testxmlrpc_common", line 254, in <module>
+    "/Users/adadgar/Projects/seattle/trunk/test/safe.py", line 174, in fnc
+   
+   Unsafe call: ('__import__',)
+  """
+
   print >> sys.stderr, "Seattle Traceback (most recent call last):"
 
   # exc_info() gives the traceback (see the traceback module for info)
