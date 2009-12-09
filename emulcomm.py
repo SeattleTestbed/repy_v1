@@ -1306,7 +1306,7 @@ def recvmess(localip, localport, function):
 
 
 # Public interface!!!
-def openconn(desthost, destport,localip=None, localport=None,timeout=5.0):
+def openconn(desthost, destport,localip=None, localport=None,timeout=None):
   """
    <Purpose>
       Opens a connection, returning a socket-like object
@@ -1333,6 +1333,11 @@ def openconn(desthost, destport,localip=None, localport=None,timeout=5.0):
       A socket-like object that can be used for communication.   Use send, 
       recv, and close just like you would an actual socket object in python.
   """
+
+  # Set a default timeout of 5 seconds if none is specified.
+  if timeout is None:
+    timeout = 5.0
+
   # Check that both localip and localport are given if either is specified
   if localip != None and localport == None or localport != None and localip == None:
     raise Exception("Localip and localport must be specified simultaneously.")
