@@ -946,6 +946,30 @@ def kill_process(pid):
   return True
 
 
+# Get info about a processes CPU time, normalized to seconds
+def get_process_cpu_time(pid):
+  """
+  <Purpose>
+    See process_times
+
+  <Arguments>
+    See process_times
+
+  <Exceptions>
+    See process_times
+
+  <Returns>
+    The amount of CPU time used by the kernel and user in seconds.
+  """
+  # Get the times
+  times = windows_api.process_times(pid)
+
+  # Add kernel and user time together...   It's in units of 100ns so divide
+  # by 10,000,000
+  total_time = (times['KernelTime'] + times['UserTime'] ) / 10000000.0
+
+  return total_time
+
 
 # Get information about a process CPU use times
 def process_times(pid):
