@@ -403,7 +403,7 @@ if __name__ == '__main__':
   # We also need to pass in whether or not we are going to be using the service
   # log for repy.  We provide the repy directory so that the vessel information
   # can be found regardless of where we are called from...
-  tracebackrepy.initialize(progname, servicelog, absolute_repy_directory)
+  tracebackrepy.initialize(servicelog, absolute_repy_directory)
 
   try:
     main(restrictionsfn, progname, progargs)
