@@ -65,14 +65,11 @@ def handle_exception():
   """
   This is an example traceback:
   ---
-  Seattle Traceback (most recent call last):
-    "dylink.repy", line 472, in <module>
-    "dylink.repy", line 360, in dylink_dispatch
-    "dylink.repy", line 455, in evaluate
-    "testxmlrpc_common", line 254, in <module>
+  Uncaught exception! Following is a full traceback, and a user traceback.
+  The user traceback excludes non-user modules. The most recent call is displayed last.
 
-  Full traceback (includes non-user modules):
-    "repy.py", line 189, in main
+  Full debugging traceback:
+    "repy.py", line 191, in main
     "/Users/adadgar/Projects/seattle/trunk/test/virtual_namespace.py", line 116, in evaluate
     "/Users/adadgar/Projects/seattle/trunk/test/safe.py", line 304, in safe_run
     "dylink.repy", line 472, in <module>
@@ -84,11 +81,16 @@ def handle_exception():
     "/Users/adadgar/Projects/seattle/trunk/test/safe.py", line 304, in safe_run
     "testxmlrpc_common", line 254, in <module>
     "/Users/adadgar/Projects/seattle/trunk/test/safe.py", line 174, in fnc
-   
-   Unsafe call: ('__import__',)
-  """
 
-  print >> sys.stderr, "Seattle Traceback (most recent call last):"
+  User traceback:
+    "dylink.repy", line 472, in <module>
+    "dylink.repy", line 360, in dylink_dispatch
+    "dylink.repy", line 455, in evaluate
+    "testxmlrpc_common", line 254, in <module>
+
+  Unsafe call: ('__import__',)
+  ---
+  """
 
   # exc_info() gives the traceback (see the traceback module for info)
   exceptiontype, exceptionvalue, exceptiontraceback = sys.exc_info()
@@ -124,12 +126,16 @@ def handle_exception():
     if not skip:
       filtered_tb += stack_frame
 
-  # Print the two traceback's
-  print >>sys.stderr, filtered_tb
 
-  # Print the full traceback afterward
-  print >> sys.stderr, "Full traceback (includes non-user modules):\n",full_tb
+  # Print some general info
+  print >> sys.stderr, "---\nUncaught exception! Following is a full traceback, and a user traceback.\n" \
+                        "The user traceback excludes non-user modules. The most recent call is displayed last.\n"
+
+  # Print the full traceback first
+  print >> sys.stderr, "Full debugging traceback:\n",full_tb
       
+  print >> sys.stderr, "User traceback:\n",filtered_tb
+
 
   # When I try to print an Exception object, I get:
   # "<type 'exceptions.Exception'>".   I'm going to look for this and produce
@@ -149,7 +155,8 @@ def handle_exception():
   else:
     print >> sys.stderr, "Exception (with type "+str(exceptiontype)+"):", exceptionvalue
 
-
+  # Print another line so that the end of the output is clear
+  print >> sys.stderr, "---"
 
 
 def handle_internalerror(error_string, exitcode):
