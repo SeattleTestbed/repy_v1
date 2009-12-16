@@ -180,6 +180,11 @@ def assert_is_allowed_filename(filename):
   if type(filename) != str:
     raise TypeError, "filename is not a string!"
 
+  # Make sure the filename isn't the empty string -- it doesn't make
+  # sense to allow this as a filename.
+  if "" == filename:
+    raise TypeError, "filename is the empty string!"
+
   # among other things, this avoids them putting / or \ in the filename
   for char in filename:
     if char not in filenameallowedchars:
