@@ -70,12 +70,18 @@ import os           # This is for some path manipulation
 import repy_constants # This is to get our start-up directory
 import safety_exceptions # This is for exception classes shared with tracebackrepy
 import compiler
+import platform # This is for detecting Nokia tablets
 import __builtin__
 
 # Armon: This is how long we will wait for the external process
 # to validate the safety of the user code before we timeout, 
 # and exit with an exception
 EVALUTATION_TIMEOUT = 10
+
+if platform.machine().startswith('armv'):
+  # The Nokia needs more time to evaluate code safety, especially
+  # when under heavy loads
+  EVALUTATION_TIMEOUT = 200
 
 _NODE_CLASS_OK = [
     'Add', 'And', 'AssAttr', 'AssList', 'AssName', 'AssTuple',
