@@ -89,12 +89,16 @@ class proc_taskinfo(ctypes.Structure):
 class timeval(ctypes.Structure):
     _fields_ = [("tv_sec", ctypes.c_long),
                 ("tv_usec", ctypes.c_long)]
-    
+
+class time_value_t(ctypes.Structure):
+    _fields_ = [("seconds", ctypes.c_int),
+                ("microseconds",ctypes.c_int)]
+
 # Provides the struct thread_basic_info, which is used
 # to retrieve information about a thread
 class thread_basic_info(ctypes.Structure):
-  _fields_ = [("user_time", timeval),
-               ("system_time",timeval),
+  _fields_ = [("user_time", time_value_t),
+               ("system_time",time_value_t),
                ("cpu_usage",ctypes.c_int),
                ("policy",ctypes.c_int),
                ("run_state",ctypes.c_int),
@@ -242,8 +246,8 @@ def get_current_thread_cpu_time():
   result = _thread_info(current_thread, THREAD_BASIC_INFO,ctypes.byref(thread_info), ctypes.byref(struct_size))
 
   # Sum up the CPU usage
-  cpu_time = thread_info.user_time.tv_sec + thread_info.user_time.tv_usec / 1000000.0
-  cpu_time += thread_info.system_time.tv_sec + thread_info.system_time.tv_usec / 1000000.0
+  cpu_time = thread_info.user_time.seconds + thread_info.user_time.microseconds / 1000000.0
+  cpu_time += thread_info.system_time.seconds + thread_info.system_time.microseconds / 1000000.0
 
   # Safety check, result should be 0
   # Do the safety check after we free the memory to avoid leaks
