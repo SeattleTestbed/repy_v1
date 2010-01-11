@@ -1,7 +1,7 @@
 def foo():
   exitall()
 
-settimer(.5, foo, ())
+settimer(5, foo, ())
 
 for num in range(50):
   randomfloat()

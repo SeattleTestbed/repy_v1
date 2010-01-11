@@ -33,7 +33,7 @@ if callfunc == "initialize":
   mycontext["clientnum"] = 1
   
   # Set our timeout timer
-  timeh = settimer(40,timeout,())
+  timeh = settimer(100,timeout,())
 
   # Try connecting 
   sock1 = openconn(ip,port)
