@@ -51,6 +51,9 @@ import nmstatusinterface
 # This gives us our restrictions information
 import nanny_resource_limits
 
+# This is used for IPC
+import marshal
+
 # This will fail on non-windows systems
 try:
   import windows_api as windows_api
@@ -258,7 +261,147 @@ def getruntime():
           
   # Return the new elapsedtime
   return elapsedtime
-  
+ 
+
+# This lock is used to serialize calls to get_resouces
+get_resources_lock = threading.Lock()
+
+# These are the resources we expose in get_resources
+exposed_resources = set(["cpu","memory","diskused","events",
+                     "filewrite","fileread","filesopened",
+                     "insockets","outsockets","netsend",
+                     "netrecv","loopsend","looprecv",
+                     "lograte","random","messport","connport"])
+            
+# These are the resources that we don't flatten using
+# len() for the usage. For example, instead of given the
+# set of thread's, we flatten this into N number of threads.
+flatten_exempt_resources = set(["connport","messport"])
+
+# Cache the disk used from the external process
+cached_disk_used = 0L
+
+# This array holds the times that repy was stopped.
+# It is an array of tuples, of the form (time, amount)
+# where time is when repy was stopped (from getruntime()) and amount
+# is the stop time in seconds. The last process_stopped_max_entries are retained
+process_stopped_timeline = []
+process_stopped_max_entries = 100
+
+# Method to expose resource limits and usage
+def get_resources():
+  """
+  <Purpose>
+    Returns the resouce utilization limits as well
+    as the current resource utilization.
+
+  <Arguments>
+    None.
+
+  <Returns>
+    A tuple of dictionaries and an array (limits, usage, stoptimes).
+
+    Limits is the dictionary which maps the resouce name
+    to its maximum limit.
+
+    Usage is the dictionary which maps the resource name
+    to its current usage.
+
+    Stoptimes is an array of tuples with the times which the Repy proces
+    was stopped and for how long, due to CPU over-use.
+    Each entry in the array is a tuple (TOS, Sleep Time) where TOS is the
+    time of stop (respective to getruntime()) and Sleep Time is how long the
+    repy process was suspended.
+
+    The stop times array holds a fixed number of the last stop times.
+    Currently, it holds the last 100 stop times.
+  """
+  # Acquire the lock
+  get_resources_lock.acquire()
+
+  # Construct the dictionaries as copies from nanny
+  limits = nanny_resource_limits.resource_restriction_table.copy()
+  usage = nanny_resource_limits.resource_consumption_table.copy()
+
+  # These are the type we need to copy or flatten
+  check_types = set([list,dict,set])
+
+  # Check the limits dictionary for bad keys
+  for resource in limits.keys():
+    # Remove any resources we should not expose
+    if resource not in exposed_resources:
+      del limits[resource]
+
+    # Check the type
+    if type(limits[resource]) in check_types:
+      # Copy the data structure
+      limits[resource] = limits[resource].copy()
+
+  # Check the usage dictionary
+  for resource in usage.keys():
+    # Remove any resources that are not exposed
+    if resource not in exposed_resources:
+      del usage[resource]
+
+    # Check the type, copy any data structures
+    # Flatten any structures using len() other than
+    # "connport" and "messport"
+    if type(usage[resource]) in check_types:
+      # Check if they are exempt from flattening, store a shallow copy
+      if resource in flatten_exempt_resources:
+        usage[resource] = usage[resource].copy()
+
+      # Store the size of the data set
+      else:
+        usage[resource] = len(usage[resource])
+    
+
+
+  # Calculate all the usage's
+  pid = os.getpid()
+
+  # Get CPU and memory, this is thread specific
+  if ostype in ["Linux", "Darwin"]:
+    
+    # Get CPU first, then memory
+    usage["cpu"] = os_api.get_process_cpu_time(pid)
+
+    # This uses the cached PID data from the CPU check
+    usage["memory"] = os_api.get_process_rss()
+
+    # Get the thread specific CPU usage
+    usage["threadcpu"] = os_api.get_current_thread_cpu_time() 
+
+
+  # Windows Specific versions
+  elif ostype in ["Windows","WindowsCE"]:
+    
+    # Get the CPU time
+    usage["cpu"] = windows_api.get_process_cpu_time(pid)
+
+    # Get the memory, use the resident set size
+    usage["memory"] = windows_api.process_memory_info(pid)['WorkingSetSize'] 
+
+    # Get thread-level CPU 
+    usage["threadcpu"] = windows_api.get_current_thread_cpu_time()
+
+  # Unknown OS
+  else:
+    raise EnvironmentError("Unsupported Platform!")
+
+  # Use the cached disk used amount
+  usage["diskused"] = cached_disk_used
+
+  # Release the lock
+  get_resources_lock.release()
+
+  # Copy the stop times
+  stoptimes = process_stopped_timeline[:]
+
+  # Return the dictionaries and the stoptimes
+  return (limits,usage,stoptimes)
+
+
 ###################     Windows specific functions   #######################
 
 class WindowsNannyThread(threading.Thread):
@@ -325,11 +468,10 @@ def win_check_cpu_use(cpulim, pid):
   
   # get use information and time...
   now = getruntime()
-  usedata = windows_api.process_times(pid)
 
-  # Add kernel and user time together...   It's in units of 100ns so divide
-  # by 10,000,000
-  usertime = (usedata['KernelTime'] + usedata['UserTime'] ) / 10000000.0
+  # Get the total cpu time
+  usertime = windows_api.get_process_cpu_time(pid)
+
   useinfo = [usertime, now]
 
   # get the previous time and cpu so we can compute the percentage
@@ -357,13 +499,26 @@ def win_check_cpu_use(cpulim, pid):
   # Calculate amount of time to sleep for
   stoptime = nanny_resource_limits.calculate_cpu_sleep_interval(cpulim, percentused,elapsedtime)
 
-  # Call new api to suspend/resume process and sleep for specified time
-  if windows_api.timeout_process(pid, stoptime):
-    # Return how long we slept so parent knows whether it should sleep
-    return stoptime
+  if stoptime > 0.0:
+    # Try to timeout the process
+    if windows_api.timeout_process(pid, stoptime):
+      # Log the stoptime
+      process_stopped_timeline.append((now, stoptime))
+
+      # Drop the first element if the length is greater than the maximum entries
+      if len(process_stopped_timeline) > process_stopped_max_entries:
+        process_stopped_timeline.pop(0)
+
+      # Return how long we slept so parent knows whether it should sleep
+      return stoptime
+  
+    else:
+      # Process must have been making system call, try again next time
+      return -1
+  
+  # If the stop time is 0, then avoid calling timeout_process
   else:
-    # Process must have been making system call, try again next time
-    return -1
+    return 0.0
     
             
 # Dedicated Thread for monitoring CPU, this is run as a part of repy
@@ -415,15 +570,145 @@ class WinCPUNannyThread(threading.Thread):
 
 
 ##############     *nix specific functions (may include Mac)  ###############
-                
+
+# This method handles messages on the "diskused" channel from
+# the external process. When the external process measures disk used,
+# it is piped in and cached for calls to getresources.
+def IPC_handle_diskused(bytes):
+  cached_disk_used = bytes
+
+
+# This method handles meessages on the "repystopped" channel from
+# the external process. When the external process stops repy, it sends
+# a tuple with (TOS, amount) where TOS is time of stop (getruntime()) and
+# amount is the amount of time execution was suspended.
+def IPC_handle_stoptime(info):
+  # Push this onto the timeline
+  process_stopped_timeline.append(info)
+
+  # Drop the first element if the length is greater than the max
+  if len(process_stopped_timeline) > process_stopped_max_entries:
+    process_stopped_timeline.pop(0)
+
+
 # Use a special class of exception for when
 # resource limits are exceeded
 class ResourceException(Exception):
   pass
 
 
-# Armon: A simple thread to check for the parent process
-# and exit repy if the parent terminates
+# Armon: Method to write a message to the pipe, used for IPC.
+# This allows the pipe to be multiplexed by sending simple dictionaries
+def write_message_to_pipe(writehandle, channel, data):
+  """
+  <Purpose>
+    Writes a message to the pipe
+
+  <Arguments>
+    writehandle:
+        A handle to a pipe which can be written to.
+
+    channel:
+        The channel used to describe the data. Used for multiplexing.
+
+    data:
+        The data to send.
+
+  <Exceptions>
+    As with os.write()
+    EnvironmentError will be thrown if os.write() sends 0 bytes, indicating the
+    pipe is broken.
+  """
+  # Construct the dictionary
+  mesg_dict = {"ch":channel,"d":data}
+
+  # Convert to a string
+  mesg_dict_str = marshal.dumps(mesg_dict)
+
+  # Make a full string
+  mesg = str(len(mesg_dict_str)) + ":" + mesg_dict_str
+
+  # Send this
+  index = 0
+  while index < len(mesg):
+    bytes = os.write(writehandle, mesg[index:])
+    if bytes == 0:
+      raise EnvironmentError, "Write send 0 bytes! Pipe broken!"
+    index += bytes
+
+
+# Armon: Method to read a message from the pipe, used for IPC.
+# This allows the pipe to be multiplexed by sending simple dictionaries
+def read_message_from_pipe(readhandle):
+  """
+  <Purpose>
+    Reads a message from a pipe.
+
+  <Arguments>
+    readhandle:
+        A handle to a pipe which can be read from
+
+  <Exceptions>
+    As with os.read().
+    EnvironmentError will be thrown if os.read() returns a 0-length string, indicating
+    the pipe is broken.
+
+  <Returns>
+    A tuple (Channel, Data) where Channel is used to multiplex the pipe.
+  """
+  # Read until we get to a colon
+  data = ""
+  index = 0
+
+  # Loop until we get a message
+  while True:
+
+    # Read in data if the buffer is empty
+    if index >= len(data):
+      # Read 8 bytes at a time
+      mesg = os.read(readhandle,8)
+      if len(mesg) == 0:
+        raise EnvironmentError, "Read returned emtpy string! Pipe broken!"
+      data += mesg
+
+    # Increment the index while there is data and we have not found a colon
+    while index < len(data) and data[index] != ":":
+      index += 1
+
+    # Check if we've found a colon
+    if len(data) > index and data[index] == ":":
+      # Get the message length
+      mesg_length = int(data[:index])
+
+      # Determine how much more data we need
+      more_data = mesg_length - len(data) + index + 1
+
+      # Read in the rest of the message
+      while more_data > 0:
+        mesg = os.read(readhandle, more_data)
+        if len(mesg) == 0:
+          raise EnvironmentError, "Read returned emtpy string! Pipe broken!"
+        data += mesg
+        more_data -= len(mesg)
+
+      # Done, convert the message to a dict
+      whole_mesg = data[index+1:]
+      mesg_dict = marshal.loads(whole_mesg)
+
+      # Return a tuple (Channel, Data)
+      return (mesg_dict["ch"],mesg_dict["d"])
+
+
+
+# This dictionary defines the functions that handle messages
+# on each channel. E.g. when a message arrives on the "repystopped" channel,
+# the IPC_handle_stoptime function should be invoked to handle it.
+IPC_HANDLER_FUNCTIONS = {"repystopped":IPC_handle_stoptime,
+                         "diskused":IPC_handle_diskused }
+
+
+# This thread checks that the parent process is alive and invokes
+# delegate methods when messages arrive on the pipe.
 class parent_process_checker(threading.Thread):
   def __init__(self, readhandle):
     """
@@ -440,24 +725,31 @@ class parent_process_checker(threading.Thread):
     self.readhandle = readhandle
 
   def run(self):
-    # Attempt to read 8 bytes from the pipe, this should block until we end execution
-    try:
-      mesg = os.read(self.readhandle,8)
-    except:
-      # It is possible we got an interrupted system call (on FreeBSD) when the parent is killed
-      mesg = ""
+    # Run forever
+    while True:
+      # Read a message
+      try:
+        mesg = read_message_from_pipe(self.readhandle)
+      except Exception, e:
+        break
+
+      # Check for a handler function
+      if mesg[0] in IPC_HANDLER_FUNCTIONS:
+        # Invoke the handler function with the data
+        handler = IPC_HANDLER_FUNCTIONS[mesg[0]]
+        handler(mesg[1])
+
+      # Print a message if there is a message on an unknown channel
+      else:
+        print "[WARN] Message on unknown channel from parent process:", mesg[0]
+
+
+    ### We only leave the loop on a fatal error, so we need to exit now
 
     # Write out status information, our parent would do this, but its dead.
     statusstorage.write_status("Terminated")  
-    
-    # Check the message. If it is the empty string the pipe was closed, 
-    # if there is any data, this is unexpected and is also an error.
-    if mesg == "":
-      print >> sys.stderr, "Monitor process died! Terminating!"
-      harshexit.harshexit(70)
-    else:
-      print >> sys.stderr, "Unexpectedly received data! Terminating!"
-      harshexit.harshexit(71)
+    print >> sys.stderr, "Monitor process died! Terminating!"
+    harshexit.harshexit(70)
 
 
 
@@ -520,7 +812,7 @@ def do_forked_resource_monitor():
     (pid, status) = os.waitpid(childpid,os.WNOHANG)
     
     # Launch the resource monitor, if it fails determine why and restart if necessary
-    resource_monitor(childpid)
+    resource_monitor(childpid, writehandle)
     
   except ResourceException, exp:
     # Repy exceeded its resource limit, kill it
@@ -543,7 +835,7 @@ def do_forked_resource_monitor():
       _internal_error(str(exp)+" Monitor death! Impolitely killing child!")
       raise
   
-def resource_monitor(childpid):
+def resource_monitor(childpid, pipe_handle):
   """
   <Purpose>
     Function runs in a loop forever, checking resource usage and throttling CPU.
@@ -552,13 +844,16 @@ def resource_monitor(childpid):
   <Arguments>
     childpid:
       The child pid, e.g. the pid of repy
+
+    pipe_handle:
+      A handle to the pipe to the repy process. Allows sending resource use information.
   """
   # Get our pid
   ourpid = os.getpid()
   
   # Calculate how often disk should be checked
   disk_interval = int(repy_constants.RESOURCE_POLLING_FREQ_LINUX / repy_constants.CPU_POLLING_FREQ_LINUX)
-  current_interval = 0 # What cycle are we on  
+  current_interval = -1 # What cycle are we on  
   
   # Store time of the last interval
   last_time = getruntime()
@@ -610,6 +905,10 @@ def resource_monitor(childpid):
       
       # Save the resume time
       resume_time = getruntime()
+
+      # Send this information as a tuple containing the time repy was stopped and
+      # for how long it was stopped
+      write_message_to_pipe(pipe_handle, "repystopped", (currenttime, stoptime))
       
     
     ########### End Check CPU ###########
@@ -640,6 +939,9 @@ def resource_monitor(childpid):
       # Raise exception if we are over limit
       if diskused > nanny_resource_limits.resource_limit("diskused"):
         raise ResourceException, "Disk use '"+str(diskused)+"' over limit '"+str(nanny_resource_limits.resource_limit("diskused"))+"'."
+
+      # Send the disk usage information, raw bytes used
+      write_message_to_pipe(pipe_handle, "diskused", diskused)
     
     ########### End Check Disk ###########
     
