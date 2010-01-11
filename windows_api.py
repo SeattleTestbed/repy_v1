@@ -962,7 +962,7 @@ def get_process_cpu_time(pid):
     The amount of CPU time used by the kernel and user in seconds.
   """
   # Get the times
-  times = windows_api.process_times(pid)
+  times = process_times(pid)
 
   # Add kernel and user time together...   It's in units of 100ns so divide
   # by 10,000,000
