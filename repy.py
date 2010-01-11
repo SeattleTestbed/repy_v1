@@ -72,7 +72,6 @@ import virtual_namespace
 ## we'll use tracebackrepy to print our exceptions
 import tracebackrepy
 
-import nonportable
 
 # This block allows or denies different actions in the safe module.   I'm 
 # doing this here rather than the natural place in the safe module because
@@ -151,9 +150,6 @@ def main(restrictionsfn, program, args):
   # Allow some introspection by providing a reference to the context
   usercontext["_context"] = usercontext
 
-  # BAD:REMOVE
-  usercontext["getresources"] = nonportable.get_resources
-      
   # grab the user code from the file
   try:
     usercode = file(program).read()
