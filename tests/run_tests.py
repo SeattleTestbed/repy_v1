@@ -239,8 +239,11 @@ def exec_command(command):
 
   return (theout, theerr)
   
-def exec_repy_script(filename, restrictionsfile, arguments={}, script_args=''):
+def exec_repy_script(filename, restrictionsfile, arguments=None, script_args=''):
   global mobileNoSubprocess
+
+  if arguments is None:
+    arguments = {}
   
   if script_args != '':
     script_args = ' ' + script_args
