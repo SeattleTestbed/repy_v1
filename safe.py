@@ -76,7 +76,8 @@ import __builtin__
 # Armon: This is how long we will wait for the external process
 # to validate the safety of the user code before we timeout, 
 # and exit with an exception
-EVALUTATION_TIMEOUT = 10
+# JAC: I've increased this to mitigate #744
+EVALUTATION_TIMEOUT = 15
 
 if platform.machine().startswith('armv'):
   # The Nokia needs more time to evaluate code safety, especially
