@@ -285,8 +285,18 @@ class emulated_file:
         # Create a file by opening it in write mode and then closing it.
         restrictions.assertisallowed('file.__init__', filename, 'wb')
 
+        # Allocate a resource.
+        try:
+          nanny.tattle_add_item('filesopened', self.filehandle)
+        except Exception:
+          # Ok, maybe we can free up a file by garbage collecting.
+          gc.collect()
+          nanny.tattle_add_item('filesopened', self.filehandle)
+
+        # Create the file, and then free up the resource.
         created_file = myfile(filename, 'wb')
         created_file.close()
+        nanny.tattle_remove_item('filesopened', self.filehandle)
 
       self.filehandle = idhelper.getuniqueid()
 
