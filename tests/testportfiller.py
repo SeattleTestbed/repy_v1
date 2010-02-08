@@ -67,7 +67,7 @@ def replace_ports(foundMessports, foundConnports):
   <Returns>
     None.
   """
-  for testfile in glob.glob("rs_*.py") + glob.glob("rn_*.py") + \
+  for testfile in glob.glob("rs_*.py") + glob.glob("ut_*.py") + glob.glob("rn_*.py") + \
       glob.glob("rz_*.py") + glob.glob("rb_*.py") + glob.glob("ru_*.py") + \
       glob.glob("re_*.py") + glob.glob("rl_*.py") +glob.glob("s_*.py") + \
       glob.glob("n_*.py") + glob.glob("z_*.py") + glob.glob("b_*.py") + \

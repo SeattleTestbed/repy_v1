@@ -31,6 +31,9 @@
   
   Justin Samuel 10-29-09 - Added --pattern= for specifying patterns to match
   specific tests to be run.
+  
+  Stephen Sievers 1-24-2009 - Added --obsolete flag for notifying the user that they are running the obsolete version
+  of the tests.
    
 <Usage>
   To run the repy unit tests locally, first navigate to trunk, then 
@@ -241,10 +244,10 @@ def exec_command(command):
   
 def exec_repy_script(filename, restrictionsfile, arguments=None, script_args=''):
   global mobileNoSubprocess
-
+  
   if arguments is None:
     arguments = {}
-  
+
   if script_args != '':
     script_args = ' ' + script_args
   
@@ -747,6 +750,14 @@ def capture_test_result(testname, pyout, pyerr, additionalExt=""):
   # Pop back to test directory
   os.chdir(current_dir)
   
+# These tests are outdated, so we force the user to use an 'obsolete' flag  
+if len(sys.argv) > 1 and sys.argv[1] == '--obsolete':
+  sys.argv = sys.argv[1:]
+else:
+  print "This method of unit testing is obsolete. To override this error message, use the --obsolete flag."
+  sys.exit(1)
+
+  
 if len(sys.argv) > 1 and sys.argv[1] == '-q':
   logstream = file("test.output","w")
   sys.argv = sys.argv[1:]
@@ -1070,6 +1081,8 @@ for arg in sys.argv:
   if arg.startswith("--pattern="):
     file_list = glob.glob(arg.split("=")[1])
     break
+
+
 
 
 # If there was no pattern specified on the command line, then we want to run
