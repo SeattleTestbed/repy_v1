@@ -150,12 +150,28 @@ def main(restrictionsfn, program, args):
   # Allow some introspection by providing a reference to the context
   usercontext["_context"] = usercontext
 
-  # grab the user code from the file
-  try:
-    usercode = file(program).read()
-  except:
-    print "Failed to read the specified file: '"+program+"'"
-    raise
+  # let's try three times to load the file...
+  for attempts in range(3):
+    try:
+      # grab the user code from the file
+      usercode = file(program).read()
+      # and then exit the loop on success
+      break
+
+    except (OSError, IOError), e:
+      # Might be an interrupted system call, if so retry... (#840)
+      if 'nterrupred system call' in str(e):
+        continue
+
+      print "Failed to read the specified file: '"+program+"'"
+      raise
+
+    except:
+      print "Failed to read the specified file: '"+program+"'"
+      raise
+
+  else:
+    print "Failed to read the specified file with multiple attempts: '"+program+"'"
 
   # Armon: Create the main namespace
   main_namespace = virtual_namespace.VirtualNamespace(usercode, program)
