@@ -155,6 +155,18 @@ def _check_ast(code):
     ast = compiler.parse(code)
     _check_node(ast)
 
+_type = type
+
+def safe_type(*args, **kwargs):
+  if len(args) != 1 or kwargs:
+    raise safety_exceptions.RunBuiltinException(
+      'type() may only take exactly one non-keyword argument.')
+  return _type(args[0])
+
+_BUILTIN_REPLACE = {
+  'type' : safe_type
+}
+
 # r = [v for v in dir(__builtin__) if v[0] != '_' and v[0] == v[0].upper()] ; r.sort() ; print r
 _BUILTIN_OK = [
     '__debug__','quit','exit',
@@ -163,7 +175,7 @@ _BUILTIN_OK = [
     
     'abs', 'bool', 'cmp', 'complex', 'dict', 'divmod', 'filter', 'float', 'frozenset', 'hex', 'int', 'len', 'list', 'long', 'map', 'max', 'min', 'object', 'oct', 'pow', 'range', 'reduce', 'repr', 'round', 'set', 'slice', 'str', 'sum', 'tuple',  'xrange', 'zip',
     ]
-    
+ 
 #this is zope's list...
     #in ['False', 'None', 'True', 'abs', 'basestring', 'bool', 'callable',
              #'chr', 'cmp', 'complex', 'divmod', 'float', 'hash',
@@ -189,7 +201,11 @@ def _builtin_init():
     r = _builtin_globals = {}
     for k in __builtin__.__dict__.keys():
         v = None
-        if k in _BUILTIN_OK: v = __builtin__.__dict__[k]
+        # It's important to check _BUILTIN_REPLACE first because even if the
+        # name is defined in both, there must be a security reason why it was
+        # supposed to replaced, not just allowed.
+        if k in _BUILTIN_REPLACE: v = _BUILTIN_REPLACE[k]
+        elif k in _BUILTIN_OK: v = __builtin__.__dict__[k]
         elif k in _BUILTIN_STR: v = ''
         else: v = _builtin_fnc(k)
         r[k] = v
