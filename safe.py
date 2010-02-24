@@ -201,9 +201,9 @@ def _builtin_init():
     r = _builtin_globals = {}
     for k in __builtin__.__dict__.keys():
         v = None
-        # It's important to check _BUILTIN_REPLACE first because even if the
-        # name is defined in both, there must be a security reason why it was
-        # supposed to replaced, not just allowed.
+        # It's important to check _BUILTIN_REPLACE before _BUILTIN_OK because
+        # even if the name is defined in both, there must be a security reason
+        # why it was supposed to be replaced, not just allowed.
         if k in _BUILTIN_REPLACE: v = _BUILTIN_REPLACE[k]
         elif k in _BUILTIN_OK: v = __builtin__.__dict__[k]
         elif k in _BUILTIN_STR: v = ''
