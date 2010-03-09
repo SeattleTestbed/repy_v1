@@ -517,8 +517,8 @@ To run appmap.py without SSL authentication, use the `--insecure` switch. Check 
   
   # Using experimentlib.run_parallelized() to upload and run programs
   uploadips_success, uploadips_fail = experimentlib.run_parallelized(CBFUNC_CONTEXT['vesselhandle_list'], experimentlib.upload_file_to_vessel, CBFUNC_CONTEXT['identity'], "neighboriplist.txt")
-  uploadprog_success, uploadprog_fail = experimentlib.run_parallelized(CBFUNC_CONTEXT['vesselhandle_list'], experimentlib.upload_file_to_vessel, CBFUNC_CONTEXT['identity'], "allpairsping.py")
-  start_success, start_fail = experimentlib.run_parallelized(CBFUNC_CONTEXT['vesselhandle_list'], experimentlib.start_vessel, CBFUNC_CONTEXT['identity'], "allpairsping.py", [str(CBFUNC_CONTEXT['geniport'])])
+  uploadprog_success, uploadprog_fail = experimentlib.run_parallelized(CBFUNC_CONTEXT['vesselhandle_list'], experimentlib.upload_file_to_vessel, CBFUNC_CONTEXT['identity'], "pingneighbors.py")
+  start_success, start_fail = experimentlib.run_parallelized(CBFUNC_CONTEXT['vesselhandle_list'], experimentlib.start_vessel, CBFUNC_CONTEXT['identity'], "pingneighbors.py", [str(CBFUNC_CONTEXT['geniport'])])
 
   # Handle failed nodes
   for failed in listops_uniq(uploadips_fail + uploadprog_fail + start_fail):
