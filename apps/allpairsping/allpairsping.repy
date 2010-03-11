@@ -42,7 +42,7 @@ def encode_row(rowip, neighborlist, latencylist):
   retstring = "<tr><td>"+rowip+"</td>"
   for neighborip in neighborlist:
     if neighborip in latencylist:
-      retstring = retstring + "<td>"+str(latencylist[neighborip])[:4]+"</td>"
+      retstring = retstring + "<td>"+str(latencylist[neighborip])[:4]+"s</td>"
     else:
       retstring = retstring + "<td>Unknown</td>"
 
