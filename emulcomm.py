@@ -479,8 +479,8 @@ def start_event(entry, handle,eventhandle):
     # some sort of socket error, I'll assume they closed the socket or it's
     # not important
     try:
-      # NOTE: is 4096 a reasonable maximum datagram size?
-      data, addr = entry['socket'].recvfrom(4096)
+      # NOTE: 64K is the max UDP dgram size.   Let's read it all
+      data, addr = entry['socket'].recvfrom(65535)
     except socket.error:
       # they closed in the meantime?
       nanny.tattle_remove_item('events',eventhandle)
