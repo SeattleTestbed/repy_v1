@@ -144,6 +144,11 @@ def _check_node(node):
     for k,v in node.__dict__.items():
         if k in _NODE_ATTR_OK: continue
 
+        # JAC: don't check doc strings for __ and the like...   
+        if k == 'doc' and (node.__class__.__name__ in ['Module', 'Function', 'Class']):
+          continue
+
+
         # Check the safety of any strings
         if not _is_string_safe(v):
           raise safety_exceptions.CheckStrException(node.lineno,k,v)
