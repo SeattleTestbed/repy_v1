@@ -34,7 +34,7 @@ def new_mess(ip,port,mess,ch1):
 if callfunc == "initialize":
   # IP and port
   ip = getmyip()
-  port = 12345
+  port = <messport>
 
   # Setup recvmess
   recvh = recvmess(ip,port,new_mess)
