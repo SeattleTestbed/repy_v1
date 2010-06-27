@@ -491,7 +491,8 @@ def start_event(entry, handle,eventhandle):
       if is_loopback(entry['localip']):
         nanny.tattle_quantity('looprecv',len(data))
       else:
-        nanny.tattle_quantity('netrecv',len(data))
+       # We will charge looprecv for UDP from the net, (see #887 for details)
+        nanny.tattle_quantity('looprecv',len(data))
     else:
       # no data...   Let's stop this...
       nanny.tattle_remove_item('events',eventhandle)
@@ -1142,6 +1143,9 @@ def sendmess(desthost, destport, message,localip=None,localport = None):
   # open a new socket
   s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
  
+  # the send buffer must also be set or it will constrain UDP sendmess
+  # size on Mac. 
+  s.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 66000)
 
   try:
     if localip:
@@ -1271,6 +1275,12 @@ def recvmess(localip, localport, function):
   try:
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.bind((localip,localport))
+
+    # set the receive buffer size to slightly more than 64K+e (see ticket #887)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 66000)
+    # the send buffer must also be set or it will constrain UDP sendmess
+    # size on Mac.   I set it here because this socket may be used for sending
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 66000)
 
     nonportable.preparesocket(s)
   except:
