@@ -1440,6 +1440,10 @@ def openconn(desthost, destport,localip=None, localport=None,timeout=None):
   try:
     s = get_real_socket(localip,localport)
 
+    # prevent excessive TCP buffering (#895)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 10000)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 10000)
+
   
     # add the socket to the comminfo table
     comminfo[handle] = {'type':'TCP','remotehost':None, 'remoteport':None,'localip':localip,'localport':localport,'socket':s, 'outgoing':True, 'closing_lock':threading.Lock()}
@@ -1576,6 +1580,11 @@ def waitforconn(localip, localport,function):
   # get the socket
   try:
     mainsock = get_real_socket(localip,localport)
+
+    # prevent excessive TCP buffering (#895)
+    mainsock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 10000)
+    mainsock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 10000)
+
     # NOTE: Should this be anything other than a hardcoded number?
     mainsock.listen(5)
     # set up our table entry
