@@ -25,7 +25,7 @@ def getmessages(ip, port, message, ch):
 
 
 def check_and_exit():
-  if mycontext['maxlag'] > 2:
+  if mycontext['maxlag'] > 4:
     print "UDP packets lag too long in the buffer: ", mycontext['maxlag']
 
   if mycontext['maxlag'] == 0:
@@ -36,6 +36,6 @@ def check_and_exit():
 
 if callfunc == 'initialize':
   recvmess(myip, <messport>, getmessages)
-  settimer(5.0, check_and_exit, ())
+  settimer(10.0, check_and_exit, ())
   sendforever()
 
