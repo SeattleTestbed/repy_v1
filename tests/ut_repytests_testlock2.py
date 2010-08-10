@@ -13,7 +13,14 @@ def foo():
 
   mycontext['lock'].acquire()
   if mycontext['val'] != 2:
+    # Should not get here!
     print "ERROR, third 'val' check failed"
+    mycontext['lock'].release()
+    exitall()
+
+  mycontext['lock'].release()
+
+
 
 if callfunc=='initialize':
   mycontext['lock'] = getlock()
@@ -27,6 +34,9 @@ if callfunc=='initialize':
   if mycontext['val'] != 1:
     # error, this should be 1...
     print "ERROR, second 'val' check failed"
+    mycontext['lock'].release()
+    exitall()
+
   mycontext['val'] = 2
   # the timer should have the lock and this should never print
   mycontext['lock'].release()
