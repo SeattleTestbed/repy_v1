@@ -363,7 +363,7 @@ def assertisallowed(call,*args):
   matches = find_action(call_rule_table[call], args)
   action, matched_rule, reasoning = matches[0]
   if action == 'allow':
-      return True
+    return True
   elif action == 'deny':
     matches.reverse()
     estr = "Call '"+str(call)+"' with args "+str(args)+" not allowed\n"
