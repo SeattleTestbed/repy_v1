@@ -356,7 +356,13 @@ def find_action(ruleset, args):
 ####################### Externally called bits ############################
 
 
+# allow restrictions to be disabled to fix #919
+disablerestrictions = False
+
+
 def assertisallowed(call,*args):
+  if disablerestrictions:
+    return True
 
   # let's pre-reject certain open / file calls
   #print call_rule_table[call]

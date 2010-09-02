@@ -284,6 +284,7 @@ Where [options] are some combination of the following:
 --status filename.txt  : Write status information into this file
 --cwd dir              : Set Current working directory
 --servicelog           : Enable usage of the servicelogger for internal errors
+--norestrictions       : Disable the use of function restrictions, but not resource limits
 """
   return
 
@@ -329,7 +330,7 @@ if __name__ == '__main__':
   try:
     optlist, fnlist = getopt.getopt(args, '', [
       'simple', 'ip=', 'iface=', 'nootherips', 'logfile=',
-      'stop=', 'status=', 'cwd=', 'servicelog'
+      'stop=', 'status=', 'cwd=', 'servicelog', 'norestrictions'
       ])
 
   except getopt.GetoptError:
@@ -358,6 +359,9 @@ if __name__ == '__main__':
   for option, value in optlist:
     if option == '--simple':
       simpleexec = True
+
+    elif option == '--norestrictions':
+      restrictions.disablerestrictions = True
 
     elif option == '--ip':
       emulcomm.user_ip_interface_preferences = True
