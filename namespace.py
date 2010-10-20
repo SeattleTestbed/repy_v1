@@ -481,7 +481,9 @@ def allow_args_openconn(desthost, destport, localip=None, localport=0, timeout=5
   if localport is not None:
     _require_integer(localport)
 
-  _require_integer_or_float(timeout)
+  # We accept a timeout of None to mean the same as 0.
+  if timeout is not None:
+    _require_integer_or_float(timeout)
 
 
 
