@@ -38,6 +38,7 @@ safe._BUILTIN_OK.remove("quit")
 
 safe._STR_OK.append("__repr__")
 safe._STR_OK.append("__str__")
+safe._STR_OK.append("__del__")
 # allow __ in strings.   I'm 99% sure this is okay (do I want to risk it?)
 safe._NODE_ATTR_OK.append('value')
 
