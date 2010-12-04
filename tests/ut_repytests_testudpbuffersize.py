@@ -1,10 +1,11 @@
 
-#pragma repy restrictions.fasternetsend
+#pragma repy restrictions.fasternetsendfullcpu
 
 myip = getmyip()
 
 mycontext['maxlag'] = 0
 maxloglock = getlock()
+mycontext['packetcount'] = 0
 
 def sendforever():
   while True:
@@ -20,16 +21,20 @@ def getmessages(ip, port, message, ch):
   if mycontext['maxlag'] < lag:
     mycontext['maxlag'] = lag
 
+  mycontext['packetcount'] = mycontext['packetcount'] + 1
   maxloglock.release()
   
 
 
 def check_and_exit():
-  if mycontext['maxlag'] > 4:
+  if mycontext['maxlag'] > 2:
     print "UDP packets lag too long in the buffer: ", mycontext['maxlag']
 
   if mycontext['maxlag'] == 0:
     print "UDP packets were not received or had 0 lag"
+
+  if mycontext['packetcount'] < 500:
+    print "There weren't many packets sent",mycontext['packetcount']
 
   exitall()
   
