@@ -124,7 +124,6 @@ import virtual_namespace
 # Save a copy of a few functions not available at runtime.
 _saved_getattr = getattr
 _saved_callable = callable
-_saved_hash = hash
 _saved_id = id
 
 
@@ -1115,26 +1114,24 @@ class NamespaceObjectWrapper(object):
 
 
   def __hash__(self):
-    return _saved_hash(self._wrapped__object)
+    # this is done because on some versions of Python, objects like this
+    # aren't hashable (#950), we want to make this consistent...
+    raise AttributeError("emulated_socket instance has no attribute '__hash__'")
 
 
 
   def __eq__(self, other):
     """In addition to __hash__, this is necessary for use as dictionary keys."""
-    # We could either assume "other" is a wrapped object and try to compare
-    # its wrapped object against this wrapped object, or we could just compare
-    # the hashes of each. If we try to unwrap the other object, it means you
-    # couldn't compare a wrapped object to an unwrapped one.
-    return _saved_hash(self) == _saved_hash(other)
+    # since this isn't hashable, it's only equal if it's the same...
+    return self is other
 
 
 
   def __ne__(self, other):
     """
-    It's good for consistency to define __ne__ if one is defining __eq__,
-    though this is not needed for using objects as dictionary keys.
+    It's good for consistency to define __ne__ if one is defining __eq__
     """
-    return _saved_hash(self) != _saved_hash(other)
+    return self is not other
 
 
 

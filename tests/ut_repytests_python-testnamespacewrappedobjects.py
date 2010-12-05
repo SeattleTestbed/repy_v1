@@ -117,18 +117,20 @@ try:
 except ValueError:
   pass
 
-# Make sure wrapped commhandle objects expose the hash value of the underlying
-# string that is wrapped. For an object to be used as a dictionary key, an
-# equality check is also done, so test that as well.
-assert(hash(wrappedcommhandle) == hash(commhandle))
-assert(wrappedcommhandle == commhandle)
-assert(hash(wrappedtimerhandle) == hash(timerhandle))
-assert(wrappedtimerhandle == timerhandle)
+try:
+  hash(wrappedcommhandle)
+except AttributeError:
+  pass
+else:
+  print 'expecting to get an error when getting the hash of a commhandle'
 
-# Make sure that other wrapped objects are hashable.
-hash(wrappedfile)
-hash(wrappedlock)
-hash(wrappedsocket)
+
+try:
+  hash(wrappedtimerhandle)
+except AttributeError:
+  pass
+else:
+  print 'expecting to get an error when getting the hash of a timerhandle'
 
 # Make sure the wrapped objects are comparable (__eq__).
 wrappedcommhandle == -1
