@@ -501,11 +501,11 @@ def start_event(entry, handle,eventhandle):
       
     try:
       EventDeliverer(entry['function'],(addr[0], addr[1], data, handle), eventhandle).start()
-    except:
+    except Exception, e:
       # This is an internal error I think...
       # This will cause the program to exit and log things if logging is
       # enabled. -Brent
-      tracebackrepy.handle_internalerror("Can't start UDP EventDeliverer", 29)
+      tracebackrepy.handle_internalerror("Can't start UDP EventDeliverer '" + str(e)+"'", 29)
 
 
 
@@ -529,18 +529,18 @@ def start_event(entry, handle,eventhandle):
 
     try:
       EventDeliverer(entry['function'],(addr[0], addr[1], safesocket, newhandle, handle),eventhandle).start()
-    except:
+    except Exception, e:
       # This is an internal error I think...
       # This will cause the program to exit and log things if logging is
       # enabled. -Brent
-      tracebackrepy.handle_internalerror("Can't start TCP EventDeliverer", 23)
+      tracebackrepy.handle_internalerror("Can't start TCP EventDeliverer '"+str(e)+"'", 23)
 
 
   else:
     # Should never get here
     # This will cause the program to exit and log things if logging is
     # enabled. -Brent
-    tracebackrepy.handle_internalerror("In start event, Unknown entry type", 51)
+    tracebackrepy.handle_internalerror("In start event, Unknown entry type '"+entry['type']+"'", 51)
 
 
 
