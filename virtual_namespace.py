@@ -65,6 +65,9 @@ class VirtualNamespace(object):
     if type(name) is not str:
       raise TypeError, "Name must be a string!"
 
+    # prepend an encoding string to protect against bugs in that code (#982)
+    code = "# coding: utf-8\n\n" + code
+
     # Remove any windows carriage returns
     code = code.replace('\r\n','\n')
 

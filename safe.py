@@ -97,6 +97,8 @@ _NODE_CLASS_OK = [
     ]
 _NODE_ATTR_OK = []
 _STR_OK = ['__init__']
+# Disallow these due to the potential for encoding bugs (#982)
+_STR_BAD = ['encode','decode']
 _STR_NOT_CONTAIN = ['__']
 _STR_NOT_BEGIN = ['im_','func_','tb_','f_','co_',]
 
@@ -121,6 +123,8 @@ def _is_string_safe(token):
   # Check if it is explicitly allowed or the wrong type
   if type(token) is not str and type(token) is not unicode:
     return True
+  if token in _STR_BAD:
+    return False
   if token in _STR_OK:
     return True
 
