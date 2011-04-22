@@ -71,7 +71,7 @@ def removefile(filename):
 
   restrictions.assertisallowed('removefile')
 
-  assert_is_allowed_filename(filename)
+  _assert_is_allowed_filename(filename)
   
   # Problem notification thanks to Andrei Borac
   # Handle the case where the file is open via an exception to prevent the user
@@ -168,9 +168,18 @@ fileinfo = {}
 fileinfolock = threading.Lock()
 
 
+# Checks the filename for disallowed characters and raises an error if it 
+# exists
+# JAC: THIS IS TURNED INTO A NO-OP BY REPYPORTABILITY / REPYHELPER!!!
+def _assert_is_allowed_filename(filename):
 
-# private.   Checks the filename for disallowed characters
-def assert_is_allowed_filename(filename):
+  problem = how_is_filename_incorrect(filename)
+  if problem:
+    raise TypeError(problem)
+
+
+# This is needed to ensure that the 
+def how_is_filename_incorrect(filename):
 
   # file names must contain *only* these chars
   filenameallowedchars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-'
@@ -178,21 +187,24 @@ def assert_is_allowed_filename(filename):
   # I should check to see if the filename is allowed.   I'm going to do
   # this here.  
   if type(filename) != str:
-    raise TypeError, "filename is not a string!"
+    return "filename is not a string!"
 
   # Make sure the filename isn't the empty string -- it doesn't make
   # sense to allow this as a filename.
   if "" == filename:
-    raise TypeError, "filename is the empty string!"
+    return "filename is the empty string!"
 
   # among other things, this avoids them putting / or \ in the filename
   for char in filename:
     if char not in filenameallowedchars:
-      raise TypeError, "filename has disallowed character '"+char+"'"
+      return "filename has disallowed character '"+char+"'"
  
   # Should I do anything more rigorous?   I.e. check for links, etc.?
   if filename == "." or filename == '..':
-    raise TypeError, "filename cannot be a directory"
+    return "filename cannot be a directory"
+
+  # otherwise it is okay...
+  return 
 
 
 
@@ -277,7 +289,7 @@ class emulated_file:
           raise ValueError(\
               "A file is only allowed to have one open filehandle.")
 
-      assert_is_allowed_filename(filename)
+      _assert_is_allowed_filename(filename)
 
       # If the file doesn't exist and the create flag was passed, create the
       # file first.
