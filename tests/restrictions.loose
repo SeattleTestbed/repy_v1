@@ -47,6 +47,8 @@ call canceltimer allow			# should be okay
 call exitall allow			# should be harmless 
 call removefile allow			# should be harmless 
 call randomfloat allow
+call getlock allow
+call getruntime allow
 
 call log.write allow
 call log.writelines allow
