@@ -21,6 +21,11 @@ import gc
 # needed for locking the fileinfo hash
 import threading
 
+# Fix for ticket #983. By retaining a reference to unicode, we prevent
+# os.path.abspath from failing in some versions of python when the unicode
+# builtin is overwritten.
+os.path.unicode = unicode
+
 # I need to rename file so that the checker doesn't complain...
 myfile = file
 
