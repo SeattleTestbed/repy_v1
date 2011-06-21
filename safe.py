@@ -146,6 +146,10 @@ def _check_node(node):
     if node.__class__.__name__ not in _NODE_CLASS_OK:
         raise safety_exceptions.CheckNodeException(node.lineno,node.__class__.__name__)
     for k,v in node.__dict__.items():
+        # Don't allow the construction of unicode literals
+        if type(v) == unicode:
+          raise safety_exceptions.CheckStrException(node.lineno,k,v)
+
         if k in _NODE_ATTR_OK: continue
 
         # JAC: don't check doc strings for __ and the like...   
