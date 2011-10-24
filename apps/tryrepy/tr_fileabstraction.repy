@@ -1,0 +1,136 @@
+"""
+<Program Name>
+  tr_fileabstraction.repy
+
+<Started>
+  March, 2011
+
+<Author>
+  Lukas Puehringer, University of Vienna
+  lukas.puehringer@univie.ac.at
+
+<Purpose>
+  The file abstraction is a collection of wrapping functions
+  that extend the Repy API file operations, adding a user property 
+  and a namespace translation.
+
+"""
+
+
+def _is_user_file(user, encoded_path):
+  """
+  <Purpose>
+    Helper method to find out if a file belongs to a user.
+    Identifies user ownership by decoding a base64 encoded path.
+  <Arguments>
+    user (string)
+      Sandbox User Name
+    encoded_path (string)
+      The b64 encoded filename under which the file is 
+      stored in the vessel.
+        (The decoded path is in the form:
+        "<user>/<path>/<to>/<filename>")
+  <Returns>
+    user_path (string) | flase
+      The decoded path or False if file does not belong to theuser.
+  """
+
+  encoded_path = encoded_path.replace('.', '=')
+  try:
+    user_path = str(base64_b64decode(encoded_path, '-_'))
+  except:
+    return False
+  else:
+    # possibly can lead to errors, if a non b64 encoded 
+    # string manages to get decoded, but is not able to perform startswith.
+    if user_path.startswith(user):   
+      return user_path              
+    else:
+      return False
+
+  
+def tr_listdir(user):
+  """
+  <Purpose>
+    Emulates repy's listdir() method. But only lists files 
+    that are owned by the calling user.
+  <Arguments>
+    user (string)
+      The sandbox user whose files should be listed.
+  <Returns>
+    file_list_user
+      A list with the files' decoded paths, without the usernames.
+  """
+
+  file_list = []
+  file_list_user = []
+  
+  # Perform a normal Repy lisdir
+  file_list = listdir()
+  
+  # Check for each file if it belongs to the user
+  # and append the decoded filename without username prefix.
+  for encoded_path in file_list:
+    user_path = _is_user_file(user, encoded_path)
+    
+    if user_path:
+      virtual_path = user_path.replace(user, "")
+      file_list_user.append(virtual_path)
+  
+  # Sort the decoded file names.
+  file_list_user.sort()
+  
+  return file_list_user
+
+def tr_open(user, virtual_path, mode="r"):
+  """
+  <Purpose>
+    Emulates repy's open() method. 
+  <Arguments>
+    user (string)
+      The sandbox user whose file should be opened.
+    virtual_path (string)
+      the path which will be prefixed with the user name and
+      b64 encoded before it is safed to the vessel.
+    mode (string)
+      (optional, default is read)
+  <Exceptions>
+    IOError
+     if the file does not exist and is opened in wrong mode.
+  <Returns>
+    a repy file object.
+  """
+  
+  encoded_path = str(base64_b64encode(user + virtual_path, '-_'))
+  encoded_path = encoded_path.replace('=', '.')
+  
+  try:
+    return open(encoded_path, mode)
+  except Exception:
+    raise IOError("Exception (with type 'exceptions.IOError'): [Errno 2] " \
+          + "No such file or directory: '" + virtual_path + "'")
+  
+
+def tr_removefile(user, virtual_path):
+  """
+  <Purpose>
+    Emulates repy's removefile method.
+  <Arguments>
+    user (string)
+      The sandbox user whose file should be removed.
+    virtual_path (string)
+      The virtual_real path of the file, not as it is stored in 
+      the vessel as it is known to the user.
+   <Exceptions>
+    IOError
+      If the file does not exist.
+  """
+  encoded_path = str(base64_b64encode(user + virtual_path, '-_'))
+  encoded_path = encoded_path.replace('=', '.')
+  
+  try:
+    removefile(encoded_path)
+  except Exception:
+    raise IOError("Exception (with type 'exceptions.IOError'): [Errno 2] " \
+          + "No such file or directory: '" + virtual_path + "'")
+

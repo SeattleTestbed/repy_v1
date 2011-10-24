@@ -1,0 +1,219 @@
+/*****************************************************************
+<File Name>
+  main.css
+
+<Started>
+  March, 2011
+
+<Author>
+  lukas.puehringer@univie.ac.at
+  Lukas Puehringer
+
+<Purpose>
+  The main (and so far only) CSS file for the "Try Repy" webinterface.
+  The layout basically consists of four parts.
+    - header
+    - left box: - the text editor
+    - right box: toggles different contents
+    - footer: buttons, an input field, "about"-part
+
+
+*****************************************************************/
+
+
+/***********************
+* CSS CONSTANTS
+************************
+White (header/footer gradient): #FFFFFF
+Grey (header/footer gradient): #ECECED
+Grey (table hover color): #EDEDED
+*/
+
+body {
+    overflow: auto;
+    font-family: Verdana;
+    font-size: 0.8em;
+}
+
+/***********************
+* HEADER
+* Contains the headline and a CSS 3 gradient background.
+************************/
+
+#header {
+  text-align: center;
+  
+  width: 100%;
+  height: 70px;
+  
+  border: 1px solid white;
+  border-bottom: 2px solid black;
+  
+  background-image: -moz-linear-gradient(top, #FFFFFF, #ECECED);
+	background: -webkit-gradient(linear, 0 50%, 0 100%, from(#FFFFFF), to(#ECECED));
+}
+
+/***********************
+* NAVIGATION
+* Navigation table with JavaScript support to toggle appropriate elements 
+* when clicked.
+************************/
+
+#toggle_bar {
+  border-collapse:collapse;
+}
+
+#toggle_bar td {
+  text-align: center;
+  
+  width: 135px;
+  height: 40px;
+  
+  border: 2px solid black;
+  border-top: 0px;
+}
+
+/***********************
+* EDITOR (left box)
+* In this DIV ace (java script) displays the text editor.
+************************/
+
+#editor { 
+  /* Position property is required in order to use the ACE editor */
+  position: absolute; 
+  
+  width: 50%;
+  top: 130px;
+  bottom: 60px;
+}
+
+/***********************
+* RIGHT BOX
+* the following contents are toggled by the NAVIGATION and displayed here:
+*   output_container: pseudo standard output
+*   log_container: session's log
+*   file_container: Upload Files to editor window
+*   character_container: special characters (insert on click)
+*   snippet_container: repy code snippets (insert on click)
+*   option_container: Editor View Options
+*   readme_container: Usage Information
+    
+************************/
+
+#right_box {
+  /* Absolute, to stay consistent with the required editor positioning. */
+  position: absolute;
+  overflow: auto;
+  
+  width: 48%;
+  top: 130px;
+  bottom: 60px;
+  
+  left: 51%;
+}
+
+/***********************
+* INSERT FILES
+************************/
+
+.file_delimiter {
+  font-size: 0.7em;
+  color: #0066FF;
+}
+
+#file_delim_table td {
+  vertical-align: middle;
+  padding-right: 20px;
+  padding-bottom: 20px;
+}
+
+/***********************
+* TOGGLED ELEMENTS
+* Provides padding for toggled elements relative to the rightbox.
+************************/
+
+.toggle_element {
+  padding-left: 20px;
+}
+
+/***********************
+* SPECIAL CHARACTER TABLE and
+* CODE SNIPPET TABLE
+
+* The cells in the special character table are inserted on click.
+* For better usability, the cells provide link's charactaristics.
+************************/
+
+#characters td {
+  text-align: center;
+  width: 50px;
+  height: 30px;
+}
+
+#characters td:hover {
+  font-size: larger;
+  background: #EDEDED;
+}
+
+#snippets td {
+  padding: 20px;
+}
+  
+
+#snippets td:hover {
+  font-size: larger;
+  background: #EDEDED;
+}
+
+/***********************
+* EDITOR OPTION TABLE
+************************/
+#options td {
+  height: 30px;
+}
+
+/***********************
+* FOOTER
+* The footer contains buttons to control the code, an input field to pass
+* call arguments for code evaluation and an "about" DIV with links.
+************************/
+
+#footer {
+  /* Absolute, to stay consistent with the required editor positioning. */
+  position: absolute;
+  
+  width: 99%;
+  height: 58px;
+  bottom: 0px;
+  
+  border-top: 2px solid black;
+  
+  background-image: -moz-linear-gradient(bottom, #FFFFFF, #ECECED);
+  background: -webkit-gradient(linear, 0 50%, 0 100%, from(#ECECED), to(#FFFFFF));
+}
+
+#label_callargs, #user_callargs, #buttons {
+  margin-top: 10px;
+  padding: 5px;
+  float: left;
+}
+#user_callargs {
+  height: 0.8em;
+  width: 25em;
+  margin-right: 30px;
+}
+
+#about {
+  margin-top: 10px;
+  text-align: right;
+}
+
+a:link, a:visited, a:hover, a:active {
+  text-decoration: none;
+  color: black;
+}
+
+a:hover, active {
+  background:black;
+  color: white;
+}

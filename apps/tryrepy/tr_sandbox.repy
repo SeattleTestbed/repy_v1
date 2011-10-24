@@ -1,0 +1,352 @@
+"""
+<Program Name>
+  tr_fileabstraction.repy
+
+<Started>
+  March, 2011
+
+<Author>
+  Lukas Puehringer, University of Vienna
+  lukas.puehringer@univie.ac.at
+
+"""
+
+
+
+class Sandbox:
+  """
+  <Purpose>
+    A Sandbox is an isolated space that each user receives when requesting
+    the Try Repy webinterface. Each Sandbox has its own context to evaluate
+    Repy code using VitualNamespaces and some logging facilities.
+    
+    Additionally the Sandbox wraps used Repy functions, mainly in order to isolate
+    it from other Sandboxes.
+    
+  <Example Use>
+    Creation
+      Sandbox(user_id, context_dictionary, global_runtime)
+    Evaluation
+      Sandbox.evaluate(code, callargs)
+    Retrieve Current Log Buffer
+      Sandbox.getLog()
+      ...
+  """   
+  
+  def __init__(self, user_id, context, global_runtime):
+    """
+    <Purpose>
+      Sandbox Constructor
+      It wraps the Sandboxes Context Functions and instantiates
+      variables and locks for logging and thread accounting.
+    
+    <Arguments> 
+      user_id (string)
+      context (dict)
+        A copy of a clean context, in which global functions dedicated
+        to the webcontroller are not included.
+      global_runtime (float)
+        Used to wrap the Sandboxes runtime.
+        
+    """   
+
+    self.user = user_id
+    self.context = context
+    
+    # Prepare the sandbox context
+    self.context_wrap()
+
+    self.start_time = getruntime() - global_runtime
+    
+    self.log = {}
+    self.log_lock = getlock()
+
+    self.tmp_logtime = ""
+    self.tmp_output_buffer = ""
+
+    self.lock_output_buffer = getlock()
+    
+    # Used for thread accounting
+    self.thread_count = 0
+    self.thread_lock = getlock()
+    self.thread_accounting_lock = getlock()
+    
+  
+    
+  def my_log(self, *args):
+    """
+    <Purpose>
+      Override The Repy log function to safe the evaluation output
+      to a log dictionary and a current log buffer.
+    
+    <Arguments>
+      *args
+        The output which would be normally written to stdout.
+
+    """   
+    self.log_lock.acquire()
+    for arg in args:
+      if arg != self:
+        self.log[self.tmp_logtime]["output"] += str(arg) + " "
+        self.write_output_buffer( (str(arg) + " ") )
+    self.log[self.tmp_logtime]["output"] += "\n"
+    self.write_output_buffer("\n")
+    self.log_lock.release()      
+      
+  def context_wrap(self):
+    """
+    <Purpose>
+      This makes sure that a Sandbox context is completely isolated
+      from other contexti.
+      Per default a Context copy is a shallow copy. Here we make sure
+      that deeper layers of the Context do not contain any References
+      shared between the contexti.
+      Additionally we wrap most of the repy functions to perform according
+      to our custom needs.
+
+    """   
+    #Initialize clean mycontext dict and callargs list
+    self.context["mycontext"] = {}
+    self.context["callargs"] = []
+    
+    ##
+    # General wrappers
+    
+    def wrapped_log(*args):
+      self.my_log(*args)
+    self.context["log"] = wrapped_log
+    
+    def wrapped_getruntime():
+      return (getruntime() - self.start_time)
+    self.context["getruntime"] = wrapped_getruntime
+    
+    # This prevents user from kill the entire Application. 
+    def wrapped_exitall():
+      pass
+    self.context["exitall"] = wrapped_exitall
+
+    ##
+    # File wrappers
+        
+    def wrapped_listdir():
+      return tr_listdir(self.user)
+    self.context["listdir"] = wrapped_listdir
+  
+    def wrapped_open(*args):
+      return tr_open(self.user, *args)
+    self.context["open"] = wrapped_open
+  
+    def wrapped_removefile(*args):
+      return tr_removefile(self.user, *args)
+    self.context["removefile"] = wrapped_removefile
+    
+    ##
+    # Timer wrappers
+    
+    def wrapped_settimer(time, callbackfunction, args):
+      self.thread_register()
+      
+      def wrapped_callbackfunction(*args):
+        try:
+          callbackfunction(*args[0])
+        except Exception, e:
+          # What do I do with this exception?
+          # A caught exception should bring the programm down.
+          # But for the moment it is only printed to the Shell 
+          # were the webcontroller is called.
+          error_message = "ThreadException: " + str(e) + \
+            "\nCaution: Other threads could still be running!"
+          self.my_log(error_message)
+        self.thread_deregister()
+        
+      return settimer(time, wrapped_callbackfunction, [args])
+    self.context['settimer'] = wrapped_settimer
+    
+    def wrapped_canceltimer(timerhandle):
+      ret = canceltimer(timerhandle)
+      if ret:
+        self.thread_deregister()
+      return ret
+    self.context['canceltimer'] = wrapped_canceltimer
+    
+    ##
+    # Network wrappers
+    
+    def wrapped_stopcomm(commhandle):
+      ret = stopcomm(commhandle)
+      if ret:
+        self.thread_deregister()
+      return ret
+    self.context['stopcomm'] = wrapped_stopcomm
+    
+    
+    def wrapped_recvmess(localip, localport, function):
+      self.thread_register() # This registers the listening thread 
+      
+      def wrapped_callback_udp(remIP, remport, message, commhandle):
+        self.thread_register()
+        try:
+          function(remIP, remport, message, commhandle)
+        except Exception, e:
+          # What do I do with this exception?
+          # A caught exception should bring the programm down.
+          # But for the moment it is only printed to the Shell 
+          # were the webcontroller is called.
+          error_message = "ThreadException: " + str(e) + \
+            "\nCaution: Other threads could still be running!"
+          self.my_log(error_message)
+        self.thread_deregister()
+          
+      return recvmess(localip, localport, wrapped_callback_udp)
+    self.context['recvmess'] = wrapped_recvmess
+    
+    
+    def wrapped_waitforconn(ip, port, callbackfunction):
+      self.thread_register()
+      
+      def wrapped_callback_tcp(remip, remport, so, thishandle, listenhandle):
+        self.thread_register()
+        try:
+          callbackfunction(remip, remport, so, thishandle, listenhandle)
+        except Exception, e:
+          # What do I do with this exception?
+          # A caught exception should bring the programm down.
+          # But for the moment it is only printed to the Shell 
+          # were the webcontroller is called.
+          error_message = "ThreadException: " + str(e) + \
+            "\nCaution: Other threads could still be running!"
+          self.my_log(error_message)
+          print "Exception: " + str(e)
+        self.thread_deregister()
+        
+      return waitforconn(ip, port, wrapped_callback_tcp)
+    self.context['waitforconn'] = wrapped_waitforconn
+    
+    # This makes sure, that the _context dict Sandboxes context
+    # is not a reference shared with other Sandboxes contexti
+    self.context["_context"] = self.context
+
+
+  def evaluate_repy(self, user_code, user_callargs):
+    
+    # Reset the current outputbuffer
+    self.tmp_output_buffer = ""
+    
+    # Ceate new logentry with a timestamp as key
+    # This thimestamp is temporarily stored as attribute to access it 
+    # in the loggin wrapper.
+    self.tmp_logtime = self.context["getruntime"]()
+    self.log[self.tmp_logtime] = {}
+    self.log[self.tmp_logtime]["code"] = user_code
+    self.log[self.tmp_logtime]["output"] = ""
+    self.context["callargs"] = user_callargs
+    
+    try:
+      # Create a new VirtualNamespace for the code
+      # and evaluate it in the Sandboxes context.
+      tmp_virt = VirtualNamespace(user_code)
+      tmp_virt.evaluate(self.context)
+      
+    except Exception, e:
+      
+      # This message is written to the log and the output buffer.
+      error_message = "MainThreadException: " + str(e) + \
+        "\nCaution: Other threads could still be running!"
+        
+      self.my_log(error_message)
+    
+    
+    # Wait, maybe a thread is about to register.
+    sleep(0.5) 
+
+    # The last active not-main thread will release this lock.
+    # Until then, the main (this) thread is blocked.
+    if self.thread_count:
+      self.thread_lock.acquire()
+      self.thread_lock.release()
+   
+    # Read the remaining output buffer.
+    # Nothing should be written to the buffer afterwards. 
+    output = self.read_output_buffer()
+    
+    # Return what is left of the output buffer.
+    return output
+    
+    
+  def read_output_buffer(self):
+    """
+    <Purpose>
+      Safely empty the output buffer.
+    
+    <Returns>
+      output (string)
+        The current output buffer.
+
+    """   
+    self.lock_output_buffer.acquire()
+    output = self.tmp_output_buffer
+    self.tmp_output_buffer = ""
+    self.lock_output_buffer.release()
+    return output
+   
+    
+  def write_output_buffer(self, data):
+    """
+    <Purpose>
+      Safely write to the output buffer.
+    
+    <Arguments>
+      data (string)
+        The output that would be usually written to stdout.
+
+    """
+    self.lock_output_buffer.acquire()
+    self.tmp_output_buffer += data
+    self.lock_output_buffer.release()
+
+
+  def get_log(self):
+    """
+    <Purpose>
+      Return the entire current Sandbox log.
+      XXX: Is this problematic? If it is only read.
+      XXX: There should be no race condition??
+    
+    <Returns>
+      log_dict (dict)
+
+    """
+    return self.log
+
+  def thread_register(self):
+    """
+    <Purpose>
+      Safely account a new thread for the current evaluation.
+      If it is the first thread a lock is acquired.
+      The lock makes sure that the main thread waits until
+      all threads are terminated and not till then signals
+      that the entire evaluation has terminated. 
+
+    """
+    self.thread_accounting_lock.acquire()
+    if not self.thread_count:
+      self.thread_lock.acquire()
+    self.thread_count = self.thread_count + 1
+    self.thread_accounting_lock.release()
+    
+    
+  def thread_deregister(self):
+    """
+    <Purpose>
+      Safely account that a thread of the current evaluation
+      has terminated. If it was the last thread besides the
+      main thread, the lock is released which means, the main
+      thread can signal terminated of the entire evaluation. 
+
+    """
+    self.thread_accounting_lock.acquire()
+    self.thread_count = self.thread_count - 1
+    if not self.thread_count:
+      self.thread_lock.release()
+    self.thread_accounting_lock.release()
+
