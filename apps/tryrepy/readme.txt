@@ -5,7 +5,7 @@ Try Repy is a web-based software development and execution environment for Repy,
 ############
 Author
 
-Lukas Pühringer
+Lukas Puehringer
 lukas.puehringer@univie.ac.at
 
 
@@ -47,7 +47,6 @@ The editor is always displayed on the left side. You can write Repy code to it  
 - Callargs
 You can append space separated callarguments in the input line beneath the  editor window, when submitting code.
   
-
 - Standard Output
 This displays the output of the program. It gives "real time" feedback.
 
@@ -75,4 +74,3 @@ Todo
 - Isolation of UDP and TCP listener
 - Repy Preprocessing
 - Thread Exceptions should stop entire program
-- Improve read me and integrate it on website
