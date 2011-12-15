@@ -350,7 +350,7 @@ def display_results(reqdict):
     
   # Request failed
   else:
-    msg = "<html><head><title</title></head><body>Requested data not found</body></html>"
+    msg = "<html><head><title></title></head><body>Requested data not found</body></html>"
     retdict = {
       'version': '1.1',
       'statuscode': 404,
