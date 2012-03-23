@@ -1025,8 +1025,11 @@ def cleanup(handle):
           time.sleep(RETRY_INTERVAL)
       
       # Delete the entry last, so that other stopcomm operations will block
-      del comminfo[handle]
-    
+      try: # Guard against a rare and poorly understood error. #1052
+        del comminfo[handle]
+      except KeyError:
+        pass
+
   finally:
     # Always release the lock
     handle_lock.release()
