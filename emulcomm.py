@@ -1262,7 +1262,7 @@ def recvmess(localip, localport, function):
     comminfo[handle] = comminfo[oldhandle]
 
     # Remove the old entry
-    del comminfo[oldhandle]
+    cleanup(oldhandle)
 
     # We need nanny to substitute the old handle with the new one
     nanny.tattle_remove_item('insockets',oldhandle)
@@ -1568,7 +1568,7 @@ def waitforconn(localip, localport,function):
     comminfo[handle] = comminfo[oldhandle]
     
     # Remove the entry for the old socket
-    del comminfo[oldhandle]
+    cleanup(oldhandle)
 
     # Un "tattle" the old handle, re-add the new handle
     nanny.tattle_remove_item('insockets',oldhandle)
