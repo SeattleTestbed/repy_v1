@@ -469,11 +469,11 @@ def main(appmap_config):
   CBFUNC_CONTEXT['identity'] = experimentlib.create_identity_from_key_files(appmap_config['geni_username'] + ".publickey", appmap_config['geni_username'] + ".privatekey")
 
   # If --insecure switch not used, attempt a secure SSL connection to
-  # SeattleGENI. If SeattleGENIError exception thrown, print warning.
+  # SeattleGENI. If SeattleClearinghouseError exception thrown, print warning.
   try:
     CBFUNC_CONTEXT['geniport'] = experimentlib.seattlegeni_user_port(CBFUNC_CONTEXT['identity'])
   except Exception, e:
-    if repr(e).startswith("SeattleGENIError"):
+    if repr(e).startswith("SeattleClearinghouseError"):
       print """Error: Cannot make secure SSL connection to SeattleGENI
 Please make sure that:
   * M2Crypto is installed
