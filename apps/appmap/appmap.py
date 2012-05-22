@@ -461,7 +461,7 @@ NOTE: By default, appmap.py makes a secure connection to SeattleGENI.
 
 def main(appmap_config):
   # Set SSL security level and warn user if running without SSL
-  experimentlib.SEATTLEGENI_ALLOW_SSL_INSECURE = appmap_config['allow_ssl_insecure']
+  experimentlib.SEATTLECLEARINGHOUSE_ALLOW_SSL_INSECURE = appmap_config['allow_ssl_insecure']
   if appmap_config['allow_ssl_insecure']:
     print "Running without secure SSL connection to SeattleGENI"
   
