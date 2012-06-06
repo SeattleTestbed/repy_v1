@@ -69,8 +69,13 @@ def show_status(srcip,srcport,connobj, ch, mainch):
   # now the footer...
   webpage = webpage + '</table></html>'
 
-  # send the header and page
-  connobj.send('HTTP/1.1 200 OK\nContent-Type: text/html\nContent-Length: '+str(len(webpage))+'\nServer: Seattle Testbed\n\n'+webpage) 
+  # combine everything into one unit
+  data = 'HTTP/1.1 200 OK\nContent-Type: text/html\nContent-Length: '+str(len(webpage))+'\nServer: Seattle Testbed\n\n'+webpage
+
+  # send all the data
+  sent = 0
+  while sent < len(data):
+    sent += connobj.send(data[sent:])
 
   # and we're done, so let's close this connection...
   connobj.close()
