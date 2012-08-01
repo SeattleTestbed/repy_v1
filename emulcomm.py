@@ -8,6 +8,14 @@
    This is a collection of communications routines that provide a programmer 
    with a reasonable environment.   This is used by repy.py to provide a 
    highly restricted (but usable) environment.
+   
+   Note that this module can also be used to place restrictions on the 
+   interfaces and IP addresses that are used by Seattle.   The order in which
+   the interfaces are specified is their preference.   
+
+   One odd piece of behavior is that if an IP address changes, you can't use
+   it until calling getmyip.   It's not clear how you would know about this
+   occurrence, but it should be noted.
 """
 
 import restrictions
