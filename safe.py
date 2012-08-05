@@ -69,7 +69,13 @@ import nonportable  # This is to get the current runtime
 import os           # This is for some path manipulation
 import repy_constants # This is to get our start-up directory
 import safety_exceptions # This is for exception classes shared with tracebackrepy
-import compiler
+
+# Hide the DeprecationWarning for compiler
+import warnings
+warnings.simplefilter('ignore')
+import compiler     # Required for the code safety check
+warnings.resetwarnings()
+
 import platform # This is for detecting Nokia tablets
 import __builtin__
 
