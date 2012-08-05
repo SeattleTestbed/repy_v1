@@ -4,5 +4,7 @@
 
 import subprocess
 
-process = subprocess.Popen(['python', 'repy.py', '--ip', '256.256.256.256', 'restrictions.default', 'ip_junkip_checkgetmyip.py'])
+import sys
+
+process = subprocess.Popen([sys.executable, 'repy.py', '--ip', '256.256.256.256', 'restrictions.default', 'ip_junkip_checkgetmyip.py'])
 process.wait()

@@ -48,11 +48,11 @@ def test(testname, restrictionsfile="restrictions.default"):
     
   # run the experiment
   if not mobileNoSubprocess:
-    process = subprocess.Popen(['python', 'repy.py', restrictionsfile, testname, '--logfile', 'experiment.log', '--status', 'foo'], 
+    process = subprocess.Popen([sys.executable, 'repy.py', restrictionsfile, testname, '--logfile', 'experiment.log', '--status', 'foo'], 
                                     stderr=subprocess.PIPE, stdout=subprocess.PIPE)
     # (testout, testerr) = exec_repy_script(testname, restrictionfn, {'logfile':'experiment.log', 'status':'foo'})
   else:
-    process = subprocess.Popen(['python', 'repy.py', restrictionsfile, testname, '--status', 'foo'], 
+    process = subprocess.Popen([sys.executable, 'repy.py', restrictionsfile, testname, '--status', 'foo'], 
                                     stderr=subprocess.PIPE, stdout=subprocess.PIPE)  
   
     # (testout, testerr) = exec_repy_script(testname, restrictionfn, {'status':'foo'})

@@ -3,6 +3,7 @@
 # and that we are allowed to bind to it
 
 import subprocess
+import sys
 
-process = subprocess.Popen(['python', 'repy.py', '--iface', 'lo', 'restrictions.default', 'ip_nopreferred_noallowed_checkgetmyip.py'])
+process = subprocess.Popen([sys.executable, 'repy.py', '--iface', 'lo', 'restrictions.default', 'ip_nopreferred_noallowed_checkgetmyip.py'])
 process.wait()

@@ -78,6 +78,7 @@ warnings.resetwarnings()
 
 import platform # This is for detecting Nokia tablets
 import __builtin__
+import sys
 
 # Armon: This is how long we will wait for the external process
 # to validate the safety of the user code before we timeout, 
@@ -282,7 +283,7 @@ def safe_check(code):
     path_to_safe_check = os.path.join(repy_constants.REPY_START_DIR, "safe_check.py")
     
     # Start a safety check process, reading from the user code and outputing to a pipe we can read
-    proc = subprocess.Popen(["python", path_to_safe_check],stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    proc = subprocess.Popen([sys.executable, path_to_safe_check],stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     
     # Write out the user code, close so the other end gets an EOF
     proc.stdin.write(code)

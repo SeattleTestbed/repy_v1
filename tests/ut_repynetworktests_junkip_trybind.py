@@ -3,6 +3,7 @@
 
 
 import subprocess
+import sys
 
-process = subprocess.Popen(['python', 'repy.py', '--ip', '256.256.256.256', 'restrictions.default', 'ip_junkip_trybind.py'])
+process = subprocess.Popen([sys.executable, 'repy.py', '--ip', '256.256.256.256', 'restrictions.default', 'ip_junkip_trybind.py'])
 process.wait()

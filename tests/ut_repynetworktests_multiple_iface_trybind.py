@@ -4,5 +4,7 @@
 
 import subprocess
 
-process = subprocess.Popen(['python', 'repy.py', '--iface', 'eth0', '--iface', 'eth1', '--iface', 'en0', '--iface', 'en1', '--iface', 'xl0', '--iface', 'xl1', '--iface', '"Ethernet adapter Local Area Connection"', '--iface', '"Ethernet adapter Local Area Connection 2"', '--nootherips', 'restrictions.default', 'ip_multiple_iface_trybind.py'])
+import sys
+
+process = subprocess.Popen([sys.executable, 'repy.py', '--iface', 'eth0', '--iface', 'eth1', '--iface', 'en0', '--iface', 'en1', '--iface', 'xl0', '--iface', 'xl1', '--iface', '"Ethernet adapter Local Area Connection"', '--iface', '"Ethernet adapter Local Area Connection 2"', '--nootherips', 'restrictions.default', 'ip_multiple_iface_trybind.py'])
 process.wait()
