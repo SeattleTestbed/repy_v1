@@ -31,6 +31,7 @@ socket.setattr = setattr
 
 # needed to set threads for recvmess and waitforconn
 import threading
+threading.hasattr = hasattr    # Fix for #1039
 
 # to force destruction of old sockets
 import gc
