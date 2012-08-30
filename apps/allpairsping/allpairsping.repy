@@ -57,9 +57,6 @@ def generate_status_page():
 
   webpage = webpage + "<tr><td></td><td>"+ "</td><td>".join(mycontext['neighborlist'])+"</td></tr>"
 
-  # copy to prevent a race
-#  connobj.send(encode_row(getmyip(), mycontext['neighborlist'], mycontext['latency'].copy()))
-
   for nodeip in mycontext['neighborlist']:
     if nodeip in mycontext['row']:
       webpage = webpage + mycontext['row'][nodeip]+'\n'
