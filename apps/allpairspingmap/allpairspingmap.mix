@@ -197,10 +197,15 @@ def generate_node_list():
   for nodeip, nodelocdict in mycontext['locationdata'].iteritems():
     # Print node list element
     nodelist_str += ('<li id="node' + str(nodeiplist.index(nodeip)) + '"><span class="nodeip">' +
-                      str(nodeip) + '</span><span class="longitude">' + str(nodelocdict['longitude']) +
-                      '</span><span class="latitude">' + str(nodelocdict['latitude']) +
-                      '</span><span class="locationname">' + geoip_location_str(nodelocdict) + '</span></li>')
-
+                      str(nodeip) + '</span>')
+    
+    if nodelocdict is not None:
+      nodelist_str += ('<span class="longitude">' + str(nodelocdict['longitude']) +
+                        '</span><span class="latitude">' + str(nodelocdict['latitude']) +
+                        '</span><span class="locationname">' + geoip_location_str(nodelocdict) + '</span>')
+    else:
+      nodelist_str += "No location data available"
+    nodelist_str += '</li>'
   nodelist_str += '</ul>'
   return nodelist_str
 
@@ -420,10 +425,15 @@ def lookup_geoip_info():
   for neighbor in mycontext['neighborlist']:
     try:
       locationdict = geoip_record_by_addr(neighbor)
-      # Sometimes we don't get a city name.
-      if 'city' not in locationdict:
-        locationdict['city'] = "Unknown"
-      mycontext['locationdata'][neighbor] = locationdict
+      if locationdict is not None:
+        # Sometimes we don't get a city name.
+        if 'city' not in locationdict:
+          locationdict['city'] = "Unknown"
+        mycontext['locationdata'][neighbor] = locationdict
+      
+      # The lookup failed
+      else:
+        mycontext['locationdata'][neighbor] = None
 
     except Exception, e:
       if not "Unable to contact the geoip server" in str(e):
