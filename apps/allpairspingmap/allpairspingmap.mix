@@ -190,21 +190,25 @@ def generate_node_list():
 
   # Is there a specific reason why we sort these keys?  I'm leaving these
   # intact since the original version sorted them.
-  nodeiplist = mycontext['locationdata'].keys()
+  nodeiplist = mycontext['neighborlist']
   nodeiplist.sort()
 
   nodelist_str = '<ul id="coords">'
-  for nodeip, nodelocdict in mycontext['locationdata'].iteritems():
+  for nodeip in nodeiplist:
     # Print node list element
     nodelist_str += ('<li id="node' + str(nodeiplist.index(nodeip)) + '"><span class="nodeip">' +
                       str(nodeip) + '</span>')
     
-    if nodelocdict is not None:
-      nodelist_str += ('<span class="longitude">' + str(nodelocdict['longitude']) +
-                        '</span><span class="latitude">' + str(nodelocdict['latitude']) +
-                        '</span><span class="locationname">' + geoip_location_str(nodelocdict) + '</span>')
+    if nodeip in mycontext['locationdata']:
+      nodelocdict = mycontext['locationdata'][nodeip]
+      if nodelocdict is not None:
+        nodelist_str += ('<span class="longitude">' + str(nodelocdict['longitude']) +
+                          '</span><span class="latitude">' + str(nodelocdict['latitude']) +
+                          '</span><span class="locationname">' + geoip_location_str(nodelocdict) + '</span>')
+    # We didn't perform the lookup yet.  This is used to tell the client to 
+    # refresh the page.
     else:
-      nodelist_str += "No location data available"
+      nodelist_str += "<span class='lookingup'></span>"
     nodelist_str += '</li>'
   nodelist_str += '</ul>'
   return nodelist_str
