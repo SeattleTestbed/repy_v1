@@ -23,6 +23,7 @@
   Where [options] are some combination of the following:
 
   --simple               : Simple execution mode -- execute and exit
+  --execinfo             : Display information regarding the current execution state.
   --ip IP                : This flag informs Repy that it is allowed to bind to the given given IP.
                          : This flag may be asserted multiple times.
                          : Repy will attempt to use IP's and interfaces in the order they are given.
@@ -180,6 +181,16 @@ def main(restrictionsfn, program, args):
   # Let the code string get GC'ed
   usercode = None
 
+  # Insert program log separator and execution information
+  if displayexecinfo:
+    print '=' * 40
+    print "Running program:", program
+    if simpleexec:
+      print "(Simple execution mode)"
+    else:
+      print "Arguments:", args
+    print '=' * 40
+
   # If we are in "simple execution" mode, execute and exit
   if simpleexec:
     main_namespace.evaluate(usercontext)
@@ -271,6 +282,7 @@ Usage: repy.py [options] restrictionsfile program_to_run.repy [program args]
 Where [options] are some combination of the following:
 
 --simple               : Simple execution mode -- execute and exit
+--execinfo             : Display information regarding the current execution state.
 --ip IP                : This flag informs Repy that it is allowed to bind to the given given IP.
                        : This flag may be asserted multiple times.
                        : Repy will attempt to use IP's and interfaces in the order they are given.
@@ -293,6 +305,7 @@ Where [options] are some combination of the following:
 if __name__ == '__main__':
   global simpleexec
   global logfile
+  global displayexecinfo
 
   # Armon: The CMD line path to repy is the first argument
   repy_location = sys.argv[0]
@@ -330,7 +343,7 @@ if __name__ == '__main__':
 
   try:
     optlist, fnlist = getopt.getopt(args, '', [
-      'simple', 'ip=', 'iface=', 'nootherips', 'logfile=',
+      'simple', 'execinfo', 'ip=', 'iface=', 'nootherips', 'logfile=',
       'stop=', 'status=', 'cwd=', 'servicelog', 'norestrictions'
       ])
 
@@ -352,6 +365,9 @@ if __name__ == '__main__':
 
   # Default stopfile (if the option --stopfile isn't passed)
   statusfile = None
+
+  # Don't display exec info (if the option --execinfo isn't passed)
+  displayexecinfo = False
 
   if len(fnlist) < 2:
     usage("Must supply a restrictions file and a program file to execute")
@@ -405,6 +421,10 @@ if __name__ == '__main__':
     # Enable logging of internal errors to the service logger.
     elif option == '--servicelog':
       servicelog = True
+
+    # Insert program execution separators and log calling information
+    elif option == '--execinfo':
+      displayexecinfo = True
 
   # Update repy current directory
   repy_constants.REPY_CURRENT_DIR = os.path.abspath(os.getcwd())
