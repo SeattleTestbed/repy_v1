@@ -176,11 +176,18 @@ def _check_ast(code):
     _check_node(ast)
 
 _type = type
+_compile_type = _type(compile('','','exec'))
 
 def safe_type(*args, **kwargs):
   if len(args) != 1 or kwargs:
     raise safety_exceptions.RunBuiltinException(
       'type() may only take exactly one non-keyword argument.')
+
+  # Fix for #1189
+  if _type(args[0]) is _type or _type(args[0]) is _compile_type:
+    raise exception_hierarchy.RunBuiltinException(
+      'unsafe type() call.')
+
   return _type(args[0])
 
 _BUILTIN_REPLACE = {
