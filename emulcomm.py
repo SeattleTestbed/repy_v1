@@ -982,6 +982,30 @@ def stopcomm(commhandle):
 # Armon: How frequently should we check for the availability of the socket?
 RETRY_INTERVAL = 0.2 # In seconds
 
+
+# Private
+def safe_delete_handle(handle):
+  # Armon: lock the cleanup so that only one thread will do the cleanup, but
+  # all the others will block as well
+  try:
+    handle_lock = comminfo[handle]['closing_lock']
+  except KeyError:
+    # Handle a possible race condition, the socket has already been cleaned up.
+    return
+
+  # Acquire the lock
+  handle_lock.acquire()
+
+  try:
+    # Prevent user from using this handle from this point on
+    if handle in comminfo:
+      del comminfo[handle]
+  finally:
+    # Always release the lock
+    handle_lock.release()
+
+
+
 # Private
 def cleanup(handle):
   # Armon: lock the cleanup so that only one thread will do the cleanup, but
@@ -1271,7 +1295,7 @@ def recvmess(localip, localport, function):
     comminfo[handle] = comminfo[oldhandle]
 
     # Remove the old entry
-    cleanup(oldhandle)
+    safe_delete_handle(oldhandle)
 
     # We need nanny to substitute the old handle with the new one
     nanny.tattle_remove_item('insockets',oldhandle)
@@ -1577,7 +1601,7 @@ def waitforconn(localip, localport,function):
     comminfo[handle] = comminfo[oldhandle]
     
     # Remove the entry for the old socket
-    cleanup(oldhandle)
+    safe_delete_handle(oldhandle)
 
     # Un "tattle" the old handle, re-add the new handle
     nanny.tattle_remove_item('insockets',oldhandle)
