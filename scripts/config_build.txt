@@ -1,0 +1,10 @@
+affix/*
+affix/components/*
+../*
+portability/*
+seattlelib_v1/*
+seash/*
+common/*
+common/utf/*
+# Tests
+test ../testsV2/*
