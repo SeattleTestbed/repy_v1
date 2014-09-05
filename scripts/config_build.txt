@@ -1,10 +1,8 @@
-DEPENDENCIES/affix/*
-DEPENDENCIES/affix/components/*
 ./*
 DEPENDENCIES/portability/*
 DEPENDENCIES/seattlelib_v1/*
-DEPENDENCIES/seash/*
 DEPENDENCIES/common/*
-DEPENDENCIES/common/utf/*
+
 # Tests
-test testsV2/*
+test DEPENDENCIES/common/utf/*
+test tests/*
