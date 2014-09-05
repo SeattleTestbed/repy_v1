@@ -1,0 +1,8 @@
+./*
+DEPENDENCIES/portability/*
+DEPENDENCIES/seattlelib_v1/*
+DEPENDENCIES/common/*
+
+# Tests
+test DEPENDENCIES/common/utf/*
+test tests/*
